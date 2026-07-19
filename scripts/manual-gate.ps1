@@ -40,7 +40,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'docs\manual\MG-01-primer-mapa.md') 
 $executable = Join-Path $packageDirectory 'Mosaico.App.exe'
 $packageHashes = @(Get-ChildItem -LiteralPath $packageDirectory -File -Recurse | Sort-Object FullName | ForEach-Object {
     [ordered]@{
-        path = [IO.Path]::GetRelativePath($packageDirectory, $_.FullName)
+        path = $_.FullName.Substring($packageDirectory.Length + 1)
         sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
     }
 })
