@@ -36,6 +36,7 @@ public sealed class MapViewport : FrameworkElement
 
     public MapViewport()
     {
+        ClipToBounds = true;
         Focusable = true;
         Cursor = Cursors.Cross;
         SnapsToDevicePixels = true;

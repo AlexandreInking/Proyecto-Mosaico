@@ -23,6 +23,9 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 dotnet run --project tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release --no-build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+dotnet run --project tests/Mosaico.App.Tests/Mosaico.App.Tests.csproj -c Release --no-build
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 $benchmarkPath = Join-Path $outputDirectory 'phase0-baseline.json'
 dotnet run --project tests/Mosaico.Benchmarks/Mosaico.Benchmarks.csproj -c Release --no-build -- --output $benchmarkPath
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
