@@ -34,3 +34,21 @@ El primer comando prueba la lógica. Los dos siguientes regeneran y comprueban e
 5. Continúe en orden numérico hasta el documento 14.
 
 Los capítulos son la fuente de verdad. Cambios de requisitos, arquitectura, formato, seguridad o gates requieren la autoridad definida en PM-00.
+
+## Probar el ejecutable F0
+
+Requiere Windows 10/11 y .NET SDK 10.0.300. El programa es un spike técnico Windows; no representa todavía Fase 1 ni UI/formato finales.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/manual-gate.ps1
+```
+
+El gate exige un worktree Git limpio, compila Release, ejecuta pruebas, registra benchmark, publica un paquete ligado al commit y abre la aplicación. Resultado automático queda en `output/gate/gate-result.json`; paquete queda en `output/manual/Mosaico-F0-<commit>/`.
+
+Seguir [MG-01](docs/manual/MG-01-primer-mapa.md). Luego registrar veredicto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/record-manual-result.ps1 -Status PASS -Operator "Nombre" -Display "1920x1080 100%" -Notes "Sin fallos"
+```
+
+Atajos: `Ctrl+N`, `Ctrl+O`, `Ctrl+Shift+S`, `Ctrl+Z`, `Ctrl+Y`, `P`, `E` y `0` para encuadrar. Pintura, pan y zoom espacial requieren mouse en F0; accesibilidad espacial completa permanece abierta para Fase 1.

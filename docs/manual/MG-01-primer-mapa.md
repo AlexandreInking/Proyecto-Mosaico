@@ -5,23 +5,26 @@
 
 ## Preparación
 
-1. Confirmar checkout limpio y anotar commit.
-2. Ejecutar `powershell -ExecutionPolicy Bypass -File scripts/manual-gate.ps1`.
+1. Confirmar checkout limpio; el script rechaza cambios sin versionar.
+2. Ejecutar `powershell -ExecutionPolicy Bypass -File scripts/manual-gate.ps1` desde raíz.
 3. Anotar Windows, resolución, escala y hardware disponible.
-4. Abrir el binario Release producido por ese comando.
+4. Usar ventana abierta por script o ejecutable indicado en `output/gate/gate-result.json`.
 
 ## Walkthrough reducido F0
 
-1. Crear mapa `Prueba Ñ` de 32×18.
-2. Pintar patrón en coordenadas positivas.
-3. Desplazar viewport y pintar en coordenadas negativas.
-4. Mantener arrastre para confirmar una pincelada continua.
-5. Cambiar a borrador y borrar una celda.
-6. Ejecutar undo y redo desde botones y teclado.
-7. Guardar como `prueba.mosaic.json`.
-8. Cerrar y reabrir el archivo.
-9. Confirmar mismo ID, tamaño y celdas; cámara puede reiniciarse.
-10. Intentar abrir un JSON inválido y comprobar diagnóstico sin crash.
+1. Abrir `fixtures/phase0/sample.mosaic.json`; confirmar ID terminado en `4444`, cinco celdas y contenido negativo.
+2. Crear mapa `Prueba Ñ` de 32×18.
+3. Pintar patrón en coordenadas positivas.
+4. Desplazar viewport y pintar en coordenadas negativas.
+5. Mantener arrastre rápido para confirmar pincelada continua, sin huecos.
+6. Cambiar a borrador y borrar una celda.
+7. Ejecutar undo y redo desde botones y `Ctrl+Z`/`Ctrl+Y`; anotar hash antes/después.
+8. Guardar como `prueba.mosaic.json`; anotar ID, hash y conteo.
+9. Crear otro mapa y elegir **Cancelar** en aviso: documento anterior debe permanecer.
+10. Repetir y elegir **No**: puede descartarse. Reabrir `prueba.mosaic.json`.
+11. Confirmar mismo ID, tamaño, hash y celdas; cámara puede reencuadrarse.
+12. Abrir `fixtures/phase0/invalid-null-cells.mosaic.json`; debe mostrar causa/acción sin crash ni reemplazar documento.
+13. Probar `0` para encuadrar y confirmar foco visible alrededor del lienzo.
 
 ## Aceptación F0
 
@@ -31,8 +34,10 @@
 - [ ] Reapertura conserva ID y contenido.
 - [ ] Error incluye recurso, causa y acción.
 - [ ] Abrir no inicia red, procesos, scripts ni plugins.
-- [ ] Flujo principal tiene alternativa por teclado.
+- [ ] Atajos documentados funcionan sin capturar letras mientras se edita nombre.
 - [ ] Cero S0/S1 conocido.
+
+**Excepción F0:** pintura, pan y zoom espacial requieren mouse. `REQ-NFR-006` no se considera cumplido; permanece gate de Fase 1.
 
 ## Extensión obligatoria para gate F1
 
@@ -41,3 +46,10 @@ Importar sprite sheet versionado; fill; capas Ground/Details, bloqueo y orden; s
 ## Evidencia
 
 Registrar resultado `PASS`, `FAIL` o `BLOCKED`, commit, toolchain, fixture/hash, comandos, exit codes, métricas, logs redactados, capturas de creación/reapertura y firma del operador. Si se corrige código, repetir gate completo.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/record-manual-result.ps1 `
+  -Status PASS -Operator "Nombre" -Display "1920x1080 100%" -Notes "Resumen"
+```
+
+Evidencia automática y manual vive en `output/gate/gate-result.json`. Un `PASS` humano aprueba solo spike F0; no abre Fase 1.

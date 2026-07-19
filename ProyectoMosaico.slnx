@@ -4,6 +4,7 @@
     <Project Path="src/Mosaico.Core/Mosaico.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Mosaico.Benchmarks/Mosaico.Benchmarks.csproj" />
     <Project Path="tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj" />
   </Folder>
 </Solution>
