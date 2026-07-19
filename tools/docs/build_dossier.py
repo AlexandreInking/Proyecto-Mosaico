@@ -61,7 +61,7 @@ def render_dossier(root: Path) -> str:
 
 
 def dossier_is_current(root: Path, output: Path) -> bool:
-    return output.is_file() and output.read_bytes() == render_dossier(root).encode("utf-8")
+    return output.is_file() and output.read_text(encoding="utf-8") == render_dossier(root)
 
 
 def write_dossier(root: Path, output: Path) -> None:

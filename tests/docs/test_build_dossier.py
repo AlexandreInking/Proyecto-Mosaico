@@ -84,6 +84,16 @@ class BuildDossierTests(unittest.TestCase):
             output.write_text(build_dossier.render_dossier(root), encoding="utf-8", newline="\n")
             self.assertTrue(build_dossier.dossier_is_current(root, output))
 
+    def test_check_accepts_git_crlf_checkout_with_identical_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_corpus(root)
+            output = root / "Proyecto_Mosaico_Dossier_Completo.md"
+            rendered = build_dossier.render_dossier(root)
+            output.write_bytes(rendered.replace("\n", "\r\n").encode("utf-8"))
+
+            self.assertTrue(build_dossier.dossier_is_current(root, output))
+
 
 if __name__ == "__main__":
     unittest.main()
