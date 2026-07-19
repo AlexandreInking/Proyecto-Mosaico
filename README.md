@@ -1,6 +1,6 @@
 # Proyecto Mosaico — Documentación y gobernanza
 
-Este repositorio contiene la documentación técnica y de producto de Proyecto Mosaico. El corpus está auditado, pero todavía no aprobado para iniciar Fase 0.
+Este repositorio contiene la documentación técnica y de producto de Proyecto Mosaico. Ola 1 está cerrada y Fase 0 está autorizada de forma condicionada para spikes descartables; Fase 1 todavía no está aprobada.
 
 ## Contenido
 
@@ -19,10 +19,11 @@ python -m unittest discover -s tests/docs -v
 python tools/docs/build_dossier.py
 python tools/docs/build_dossier.py --check
 python tools/docs/check_docs.py
+python tools/docs/check_traceability.py
 python tools/docs/render_pdf.py
 ```
 
-El primer comando prueba la lógica. Los dos siguientes regeneran y comprueban el dossier. El cuarto rechaza rutas locales no portables, enlaces inexistentes, IDs incoherentes y estados documentales desconocidos. El último genera `output/pdf/Proyecto_Mosaico_Dossier_Completo.pdf`.
+El primer comando prueba la lógica. Los dos siguientes regeneran y comprueban el dossier. Los validadores rechazan rutas no portables, metadatos incoherentes y trazabilidad incompleta. El último genera `output/pdf/Proyecto_Mosaico_Dossier_Completo.pdf`.
 
 ## Orden de lectura recomendado
 
@@ -33,3 +34,21 @@ El primer comando prueba la lógica. Los dos siguientes regeneran y comprueban e
 5. Continúe en orden numérico hasta el documento 14.
 
 Los capítulos son la fuente de verdad. Cambios de requisitos, arquitectura, formato, seguridad o gates requieren la autoridad definida en PM-00.
+
+## Probar el ejecutable F0
+
+Requiere Windows 10/11 y .NET SDK 10.0.300. El programa es un spike técnico Windows; no representa todavía Fase 1 ni UI/formato finales.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/manual-gate.ps1
+```
+
+El gate exige un worktree Git limpio, compila Release, ejecuta pruebas, registra benchmark, publica un paquete ligado al commit y abre la aplicación. Resultado automático queda en `output/gate/gate-result.json`; paquete queda en `output/manual/Mosaico-F0-<commit>/`.
+
+Seguir [MG-01](docs/manual/MG-01-primer-mapa.md). Luego registrar veredicto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/record-manual-result.ps1 -Status PASS -Operator "Nombre" -Display "1920x1080 100%" -Notes "Sin fallos"
+```
+
+Atajos: `Ctrl+N`, `Ctrl+O`, `Ctrl+Shift+S`, `Ctrl+Z`, `Ctrl+Y`, `P`, `E` y `0` para encuadrar. Pintura, pan y zoom espacial requieren mouse en F0; accesibilidad espacial completa permanece abierta para Fase 1.

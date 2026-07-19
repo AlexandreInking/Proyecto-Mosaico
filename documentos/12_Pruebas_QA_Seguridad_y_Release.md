@@ -18,8 +18,9 @@ colorlinks: true
 ---
 
 > **Documento:** PM-12  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -104,6 +105,37 @@ Los crashes se minimizan y se incorporan como corpus permanente.
 
 El host aplica permisos declarados. Operaciones de red, procesos y escritura fuera del proyecto requieren permisos separados cuando exista sandbox. Los plugins se pueden iniciar deshabilitados en modo seguro.
 
+## Política F0-F1 de scripts y plugins
+
+- Abrir un proyecto nunca ejecuta scripts, hooks, plugins ni instaladores.
+- `Scripts[]` no forma parte del schema ejecutable v0; si una importación lo preserva, queda como dato inerte.
+- El primer ejecutable no incluye host de plugins. Un plugin embebido nunca se carga automáticamente.
+- Un plugin local de desarrollo futuro requerirá switch explícito y directorio externo confiable; in-process significa permisos completos del usuario, no sandbox.
+- Firma demuestra procedencia, no aislamiento. Red, procesos, secretos y escritura externa permanecen prohibidos hasta ADR de aislamiento.
+- Marketplace, actualización automática y plugins de terceros quedan fuera hasta Fase 7.
+
+## Límites hostiles v0
+
+Los valores son provisionales y solo pueden reducirse mediante configuración segura. Un archivo no confiable nunca aumenta hard caps.
+
+| Recurso | Default | Hard cap | Diagnóstico |
+|---|---:|---:|---|
+| Archivo JSON | 64 MiB | 256 MiB | `RESOURCE_LIMIT_FILE_BYTES` |
+| Profundidad JSON | 64 | 128 | `RESOURCE_LIMIT_DEPTH` |
+| String | 1 MiB | 8 MiB | `RESOURCE_LIMIT_STRING` |
+| Elementos por array | 1.000.000 | 4.000.000 | `RESOURCE_LIMIT_COUNT` |
+| Imagen por lado | 8.192 px | 16.384 px | `RESOURCE_LIMIT_IMAGE_DIMENSION` |
+| Imagen decodificada | 256 MiB | 512 MiB | `RESOURCE_LIMIT_MEMORY` |
+| Descompresión total | 1 GiB | 4 GiB | `RESOURCE_LIMIT_EXPANDED_BYTES` |
+| Ratio de descompresión | 50× | 100× | `RESOURCE_LIMIT_COMPRESSION_RATIO` |
+| Capas | 1.024 | 4.096 | `RESOURCE_LIMIT_LAYERS` |
+| Objetos | 1.000.000 | 4.000.000 | `RESOURCE_LIMIT_OBJECTS` |
+| Manifiesto de plugin | 1 MiB | 4 MiB | `RESOURCE_LIMIT_MANIFEST` |
+| Parse/importación | 10 s | 30 s | `RESOURCE_LIMIT_TIME` |
+| Memoria por importación | 512 MiB | 1 GiB | `RESOURCE_LIMIT_MEMORY` |
+
+Todo rechazo informa recurso, observado, límite y acción. La cancelación deja documento y destino intactos. Paths se validan sobre destino final contra `..`, absolutas, UNC, device paths, ADS, symlinks/junctions y carreras TOCTOU.
+
 # Actualizaciones
 
 - Canal estable, beta y nightly.
@@ -140,6 +172,22 @@ Logs estructurados con correlation ID por job. Niveles: información, warning, e
 - Verificación de firmas.
 - Sesión exploratoria de integridad.
 - Documentación y ejemplos actualizados.
+
+# Gate ejecutable por fase
+
+Desde Fase 1 cada checkpoint exige checkout limpio, build reproducible, binario identificado por commit, comando de arranque, fixture versionado, suite verde, walkthrough manual, caso de error/recuperación, benchmark, evidencia de entorno, accesibilidad por teclado/escala y revisión humana. Evidencia de otro commit invalida el gate. S0/S1 mantiene fase abierta; S2 requiere waiver con dueño y caducidad.
+
+| Fase | Escenario manual mínimo |
+|---|---|
+| 1 | TR-01: crear, pintar, borrar/fill, undo/redo, guardar, reabrir y exportar CSV/PNG |
+| 2 | Objetos/propiedades y autosave; matar proceso, recuperar y consumir exportación en motor propio |
+| 3 | TR-02: cambio semántico incremental igual a full, explicable y reversible |
+| 4 | Crear/editar/exportar isométrico y hex; picking y seis vecinos correctos |
+| 5 | TR-03: preview, cancelación, regiones bloqueadas, reproducibilidad y reparación |
+| 6 | Completar fixture WFC sin adyacencias inválidas; contradicción explica causa y acción |
+| 7 | Importar/exportar corpus Tiled; aceptar plugin compatible y rechazar incompatible con diagnóstico |
+
+El primer spike F0 usa una versión reducida de MG-01 limitada a viewport ortogonal, pincel/borrador, undo/redo y round-trip. No cuenta como gate completo de Fase 1.
 
 # Severidad de bugs
 
