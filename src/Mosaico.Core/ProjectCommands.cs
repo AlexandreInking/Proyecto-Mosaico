@@ -183,6 +183,47 @@ public sealed class AddLayerCommand(string name, Guid id) : IProjectCommand
     }
 }
 
+public sealed class RemoveLayerCommand(Guid layerId) : IProjectCommand
+{
+    private TileLayer? _removed;
+    private int? _index;
+    private Guid? _previousActive;
+
+    public bool Execute(MapProject project)
+    {
+        _removed ??= project.Layers.Single(item => item.Id == layerId);
+        _index ??= project.IndexOfLayer(layerId);
+        _previousActive ??= project.ActiveLayerId;
+        project.RemoveLayer(layerId);
+        return true;
+    }
+
+    public void Undo(MapProject project)
+    {
+        project.RestoreLayer(_removed ?? throw new InvalidOperationException("Command has not executed."),
+            _index ?? throw new InvalidOperationException("Command has not executed."));
+        project.SetActiveLayer(_previousActive ?? throw new InvalidOperationException("Command has not executed."));
+    }
+}
+
+public sealed class RemoveTilesetCommand(Guid tilesetId) : IProjectCommand
+{
+    private TilesetDefinition? _removed;
+    private int? _index;
+
+    public bool Execute(MapProject project)
+    {
+        _removed ??= project.Tilesets.Single(item => item.Id == tilesetId);
+        _index ??= project.Tilesets.ToList().FindIndex(item => item.Id == tilesetId);
+        project.RemoveTileset(tilesetId);
+        return true;
+    }
+
+    public void Undo(MapProject project)
+        => project.RestoreTileset(_removed ?? throw new InvalidOperationException("Command has not executed."),
+            _index ?? throw new InvalidOperationException("Command has not executed."));
+}
+
 public sealed class RenameLayerCommand(Guid layerId, string name) : IProjectCommand
 {
     private string? _previous;

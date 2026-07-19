@@ -192,7 +192,12 @@ public static class MapProjectFileStore
         foreach (var layerDto in orderedLayers)
         {
             foreach (var cell in layerDto.Cells!)
-                project.SetTile(layerDto.Id, new(cell.X, cell.Y), new(cell.TilesetId, cell.TileId));
+            {
+                var tile = new TileRef(cell.TilesetId, cell.TileId);
+                if (project.Tilesets.Any(item => item.Id == cell.TilesetId))
+                    project.SetTile(layerDto.Id, new(cell.X, cell.Y), tile);
+                else project.RestoreTileReference(layerDto.Id, new(cell.X, cell.Y), tile);
+            }
             project.SetLayerVisibility(layerDto.Id, layerDto.IsVisible);
             project.SetLayerLocked(layerDto.Id, layerDto.IsLocked);
         }
@@ -251,7 +256,6 @@ public static class MapProjectFileStore
 
     internal static void ValidateAssets(MapProject project, IReadOnlyDictionary<Guid, byte[]> assets)
     {
-        if (assets.Count != project.Tilesets.Count) throw new MapFormatException("Asset set does not match project tilesets.");
         long totalBytes = 0;
         foreach (var tileset in project.Tilesets)
         {

@@ -127,6 +127,20 @@ public sealed class MapProject
         _tilesets.Add(tileset);
     }
 
+    public void RemoveTileset(Guid tilesetId)
+    {
+        var tileset = _tilesets.SingleOrDefault(item => item.Id == tilesetId)
+            ?? throw new KeyNotFoundException("Tileset was not found.");
+        _tilesets.Remove(tileset);
+    }
+
+    internal void RestoreTileset(TilesetDefinition tileset, int index)
+    {
+        ValidateTilesetAddition(tileset);
+        if (index < 0 || index > _tilesets.Count) throw new ArgumentOutOfRangeException(nameof(index));
+        _tilesets.Insert(index, tileset);
+    }
+
     public void ValidateTilesetAddition(TilesetDefinition tileset)
     {
         ArgumentNullException.ThrowIfNull(tileset);
@@ -169,6 +183,15 @@ public sealed class MapProject
         if (ActiveLayerId == layerId) ActiveLayerId = _layers[^1].Id;
     }
 
+    internal void RestoreLayer(TileLayer layer, int index)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+        if (_layers.Count >= MaximumLayers) throw new InvalidOperationException("RESOURCE_LIMIT_LAYERS");
+        if (_layers.Any(item => item.Id == layer.Id)) throw new ArgumentException("Layer identifier already exists.", nameof(layer));
+        if (index < 0 || index > _layers.Count) throw new ArgumentOutOfRangeException(nameof(index));
+        _layers.Insert(index, layer);
+    }
+
     public int IndexOfLayer(Guid layerId) => _layers.IndexOf(RequireLayer(layerId));
 
     public void SetLayerVisibility(Guid layerId, bool isVisible) => RequireLayer(layerId).IsVisible = isVisible;
@@ -200,6 +223,17 @@ public sealed class MapProject
             if (layer.GetTile(coordinate) is null && OccupiedCellCount >= MaximumOccupiedCells)
                 throw new InvalidOperationException("RESOURCE_LIMIT_OCCUPIED_CELLS");
         }
+        layer.SetTile(coordinate, tile);
+    }
+
+    internal void RestoreTileReference(Guid layerId, GridCoordinate coordinate, TileRef tile)
+    {
+        if (coordinate.X < 0 || coordinate.X >= Width || coordinate.Y < 0 || coordinate.Y >= Height)
+            throw new ArgumentOutOfRangeException(nameof(coordinate), "Coordinate is outside map bounds.");
+        if (tile.TileId < 0) throw new ArgumentOutOfRangeException(nameof(tile));
+        var layer = RequireLayer(layerId);
+        if (layer.GetTile(coordinate) is null)
+            ValidateOccupiedCellBudget(OccupiedCellCount, 1);
         layer.SetTile(coordinate, tile);
     }
 

@@ -30,6 +30,9 @@ var tests = new (string Name, Action Run)[]
     ("Tile editing preflights the global occupied cell budget", TileEditingPreflightsGlobalBudget),
     ("Cell size change is reversible and preserves placed tiles", CellSizeChangeIsReversibleAndPreservesPlacedTiles),
     ("Layer commands are fully reversible", LayerCommandsAreFullyReversible),
+    ("Layer deletion is reversible with content and order", LayerDeletionIsReversibleWithContentAndOrder),
+    ("Tileset deletion preserves and groups orphan references", TilesetDeletionPreservesAndGroupsOrphanReferences),
+    ("Orphan references survive save and block export", OrphanReferencesSurviveSaveAndBlockExport),
     ("Active layer changes are reversible", ActiveLayerChangesAreReversible),
     ("Project ZIP round trip preserves assets and layers", ProjectZipRoundTripPreservesAssetsAndLayers),
     ("Project ZIP rejects traversal entries", ProjectZipRejectsTraversalEntries),
@@ -395,6 +398,75 @@ static void LayerCommandsAreFullyReversible()
     Equal(baseline, project.StructuralHash());
     for (var index = 0; index < 5; index++) history.Redo();
     Equal(final, project.StructuralHash());
+}
+
+static void LayerDeletionIsReversibleWithContentAndOrder()
+{
+    var project = CreateTileProject();
+    var firstLayer = project.Layers[0].Id;
+    var removedLayer = project.AddLayer("Objetos", Guid.Parse("20000000-0000-0000-0000-000000000004"));
+    project.SetTile(removedLayer.Id, new(4, 5), new TileRef(project.Tilesets[0].Id, 2));
+    project.SetLayerVisibility(removedLayer.Id, false);
+    project.SetLayerLocked(removedLayer.Id, true);
+    project.SetActiveLayer(removedLayer.Id);
+    var baseline = project.StructuralHash();
+    var history = new ProjectCommandHistory(project);
+
+    Equal(true, history.Execute(new RemoveLayerCommand(removedLayer.Id)));
+    Equal(1, project.Layers.Count);
+    Equal(firstLayer, project.ActiveLayerId);
+    history.Undo();
+    Equal(baseline, project.StructuralHash());
+    history.Redo();
+    Equal(1, project.Layers.Count);
+}
+
+static void TilesetDeletionPreservesAndGroupsOrphanReferences()
+{
+    var project = CreateTileProject();
+    var tileset = project.Tilesets[0];
+    var upper = project.AddLayer("Superior", Guid.Parse("20000000-0000-0000-0000-000000000005"));
+    project.SetTile(project.Layers[0].Id, new(1, 2), new TileRef(tileset.Id, 1));
+    project.SetTile(upper.Id, new(3, 4), new TileRef(tileset.Id, 2));
+    var history = new ProjectCommandHistory(project);
+
+    Equal(true, history.Execute(new RemoveTilesetCommand(tileset.Id)));
+    Equal(0, project.Tilesets.Count);
+    Equal(new TileRef(tileset.Id, 1), project.GetTile(project.Layers[0].Id, new(1, 2)));
+    var issue = MapProjectDiagnostics.Analyze(project).Single();
+    Equal("MISSING_TILESET", issue.Code);
+    Equal(2, issue.Count);
+    Equal(tileset.Id, issue.TilesetId);
+
+    history.Undo();
+    Equal(tileset.Id, project.Tilesets.Single().Id);
+    Equal(0, MapProjectDiagnostics.Analyze(project).Count);
+    history.Redo();
+    Equal(2, MapProjectDiagnostics.Analyze(project).Single().Count);
+}
+
+static void OrphanReferencesSurviveSaveAndBlockExport()
+{
+    var png = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "fixtures", "phase1", "atlas-8.png"));
+    var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png));
+    var tilesetId = Guid.Parse("10000000-0000-0000-0000-000000000099");
+    var project = MapProject.Create("Huérfanos", 8, 8, 8, 8);
+    project.AddTileset(TilesetDefinition.Create(tilesetId, "Temporal", $"assets/{tilesetId:D}.png", 32, 16, 8, 8, hash));
+    project.SetTile(project.ActiveLayerId, new(2, 3), new TileRef(tilesetId, 4));
+    new RemoveTilesetCommand(tilesetId).Execute(project);
+    var assets = new Dictionary<Guid, byte[]> { [tilesetId] = png };
+    var directory = Path.Combine(Path.GetTempPath(), $"mosaico-orphan-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    try
+    {
+        var path = Path.Combine(directory, "orphan.mosaico");
+        MapProjectFileStore.SaveAtomic(path, project, assets);
+        var loaded = MapProjectFileStore.Load(path);
+        Equal(new TileRef(tilesetId, 4), loaded.Project.GetTile(loaded.Project.ActiveLayerId, new(2, 3)));
+        Equal(1, MapProjectDiagnostics.Analyze(loaded.Project).Single().Count);
+        Throws<MapFormatException>(() => MosaicPackExporter.CreateBytes(project, assets));
+    }
+    finally { Directory.Delete(directory, recursive: true); }
 }
 
 static void ActiveLayerChangesAreReversible()

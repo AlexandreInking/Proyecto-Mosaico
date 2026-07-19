@@ -18,6 +18,9 @@ public static class MosaicPackExporter
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(assets);
+        var issues = MapProjectDiagnostics.Analyze(project);
+        if (issues.Count > 0)
+            throw new MapFormatException($"PROJECT_HAS_ERRORS: {issues.Sum(issue => issue.Count)} referencias usan tilesets ausentes.");
         MapProjectFileStore.ValidateAssets(project, assets);
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
