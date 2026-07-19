@@ -1,0 +1,22 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="white", pad=0.25, nodesep=0.45, ranksep=0.5];
+  node [shape=box, style="rounded", fontname="Lato", fontsize=10, margin="0.15,0.1"];
+  edge [arrowsize=0.65];
+  UI [label="Presentación\nVentanas, paneles, herramientas, atajos"];
+  APP [label="Aplicación\nComandos, transacciones, selección, documentos"];
+  DOMAIN [label="Dominio\nMapas, capas, tiles, objetos, topologías"];
+  RULES [label="Reglas\nAutotiling, patrones, Wang, validación"];
+  PROC [label="Procedural\nGeneradores, WFC, restricciones"];
+  RENDER [label="Renderizado\nViewport, cámara, batching, overlays"];
+  INFRA [label="Infraestructura\nArchivos, plugins, importación, exportación"];
+  UI -> APP;
+  APP -> DOMAIN;
+  APP -> RULES;
+  APP -> PROC;
+  UI -> RENDER;
+  RENDER -> DOMAIN;
+  RULES -> DOMAIN;
+  PROC -> DOMAIN;
+  INFRA -> DOMAIN;
+  APP -> INFRA;
+}

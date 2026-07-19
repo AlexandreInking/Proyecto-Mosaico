@@ -1,0 +1,25 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="white", pad=0.3, nodesep=0.4, ranksep=0.55];
+  node [shape=box, style="rounded", fontname="Lato", fontsize=10, margin="0.15,0.1"];
+  edge [arrowsize=0.65];
+  Human [label="Director humano\nproducto y aceptación", penwidth=2];
+  Lead [label="Agente coordinador\nSol 5.6"];
+  Arch [label="Arquitectura"];
+  Core [label="Dominio y persistencia"];
+  UX [label="Editor y UX"];
+  Algo [label="Reglas, procedural y WFC"];
+  Render [label="Renderizado y rendimiento"];
+  QA [label="QA adversarial y revisión"];
+  Human -> Lead [label="prioriza y aprueba"];
+  Lead -> Arch;
+  Lead -> Core;
+  Lead -> UX;
+  Lead -> Algo;
+  Lead -> Render;
+  Lead -> QA;
+  Arch -> QA [style=dashed];
+  Core -> QA [style=dashed];
+  UX -> QA [style=dashed];
+  Algo -> QA [style=dashed];
+  Render -> QA [style=dashed];
+}

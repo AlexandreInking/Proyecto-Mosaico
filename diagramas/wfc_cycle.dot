@@ -1,0 +1,19 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad=0.3, nodesep=0.4];
+  node [shape=box, style="rounded", fontname="Lato", fontsize=10, margin="0.15,0.1"];
+  edge [arrowsize=0.65];
+  Init [label="Inicializar dominios"];
+  Observe [label="Elegir menor entropía"];
+  Collapse [label="Colapsar una opción"];
+  Propagate [label="Propagar restricciones"];
+  Check [shape=diamond, label="¿Contradicción?"];
+  Done [shape=diamond, label="¿Todo resuelto?"];
+  Back [label="Retroceder, reparar\no reiniciar"];
+  Output [label="Resultado validado"];
+  Init -> Observe -> Collapse -> Propagate -> Check;
+  Check -> Back [label="sí"];
+  Back -> Observe;
+  Check -> Done [label="no"];
+  Done -> Observe [label="no"];
+  Done -> Output [label="sí"];
+}

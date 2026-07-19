@@ -1,0 +1,15 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad=0.3, nodesep=0.4];
+  node [shape=box, style="rounded", fontname="Lato", fontsize=9.5, margin="0.13,0.09"];
+  edge [arrowsize=0.6];
+  Commit [label="Commit / PR"];
+  Static [label="Formato, lint,\nanálisis estático"];
+  Unit [label="Pruebas unitarias"];
+  Int [label="Integración y archivos\ndorados"];
+  Visual [label="Regresión visual\ny UI automation"];
+  Perf [label="Benchmarks y\npresupuesto de memoria"];
+  Package [label="Empaquetado\ny firma"];
+  Canary [label="Canal nightly / beta"];
+  Stable [label="Versión estable"];
+  Commit -> Static -> Unit -> Int -> Visual -> Perf -> Package -> Canary -> Stable;
+}

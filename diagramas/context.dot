@@ -1,0 +1,16 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad=0.3, nodesep=0.55, ranksep=0.7];
+  node [shape=box, style="rounded", fontname="Lato", fontsize=11, margin="0.18,0.12"];
+  edge [fontname="Lato", fontsize=9, arrowsize=0.7];
+  Creator [label="Diseñador de niveles\nArtista técnico\nDiseñador procedural"];
+  Editor [label="Proyecto Mosaico\nEditor universal 2D", penwidth=2];
+  Assets [label="Tilesets, atlas, imágenes\ny plantillas"];
+  Engines [label="Unity, Godot, motores propios\ny pipelines de build"];
+  VCS [label="Git / almacenamiento\nde proyectos"];
+  Agents [label="Sistema agéntico\nde desarrollo y QA"];
+  Creator -> Editor [label="edita y genera"];
+  Assets -> Editor [label="importa"];
+  Editor -> Engines [label="exporta"];
+  Editor -> VCS [label="guarda documentos"];
+  Agents -> Editor [label="desarrolla, prueba\ny mantiene", style=dashed];
+}

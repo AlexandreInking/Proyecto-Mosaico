@@ -1,0 +1,19 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad=0.3, nodesep=0.45, ranksep=0.55];
+  node [shape=box, style="rounded", fontname="Lato", fontsize=10, margin="0.15,0.1"];
+  edge [arrowsize=0.65];
+  Intent [label="Edición manual\no generador"];
+  Semantic [label="Mapa semántico\nGROUND, WATER, ROAD..."];
+  Constraints [label="Restricciones y\nvalidadores"];
+  Rules [label="Reglas de patrones\ny autotiling"];
+  Visual [label="Capas visuales\ny decorativas"];
+  Game [label="Colisión, navegación,\nobjetos y gameplay"];
+  Export [label="Exportación al motor"];
+  Intent -> Semantic;
+  Semantic -> Constraints;
+  Constraints -> Rules;
+  Rules -> Visual;
+  Semantic -> Game;
+  Visual -> Export;
+  Game -> Export;
+}

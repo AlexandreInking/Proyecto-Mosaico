@@ -1,0 +1,12 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad=0.3];
+  node [shape=box, style="rounded", fontname="Lato", fontsize=10, margin="0.15,0.1"];
+  edge [arrowsize=0.65];
+  Logical [label="Coordenada lógica\nGridCoordinate"];
+  Topology [label="Topología\nvecinos, bordes, distancias"];
+  Projection [label="Proyección\nortogonal, iso, hex, oblicua"];
+  World [label="Espacio mundo\nWorldPosition"];
+  Camera [label="Cámara\nzoom, paneo, viewport"];
+  Screen [label="Píxel de pantalla"];
+  Logical -> Topology -> Projection -> World -> Camera -> Screen;
+}

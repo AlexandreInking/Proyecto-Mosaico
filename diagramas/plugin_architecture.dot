@@ -1,0 +1,20 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad=0.3, nodesep=0.45];
+  node [shape=box, style="rounded", fontname="Lato", fontsize=10, margin="0.15,0.1"];
+  edge [arrowsize=0.65];
+  Host [label="Editor Host\nservicios estables", penwidth=2];
+  API [label="Plugin API\ncontratos versionados"];
+  Import [label="Importadores"];
+  Export [label="Exportadores"];
+  Gen [label="Generadores"];
+  Tool [label="Herramientas"];
+  Validate [label="Validadores"];
+  Panels [label="Paneles"];
+  Host -> API;
+  API -> Import;
+  API -> Export;
+  API -> Gen;
+  API -> Tool;
+  API -> Validate;
+  API -> Panels;
+}

@@ -1,0 +1,31 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editors and operating systems
+.idea/
+.vscode/
+.vs/
+.DS_Store
+Thumbs.db
+
+# Build, test and package outputs
+bin/
+obj/
+dist/
+build/
+artifacts/
+TestResults/
+coverage/
+BenchmarkDotNet.Artifacts/
+node_modules/
+
+# Local caches, autosaves and logs
+.cache/
+.autosave/
+*.log
+*.tmp
+*.bak
