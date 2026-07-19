@@ -8,6 +8,8 @@ public readonly record struct CellEntry(GridCoordinate Coordinate, int TileId);
 public sealed class MapDocument
 {
     public const int MaximumDimension = 16_384;
+    public const int MaximumNameLength = 200;
+    public const int MaximumCells = 1_000_000;
     private readonly Dictionary<GridCoordinate, int> _cells = [];
 
     private MapDocument(Guid id, string name, int width, int height)
@@ -30,11 +32,20 @@ public sealed class MapDocument
         {
             throw new ArgumentException("Map name is required.", nameof(name));
         }
+        if (name.Length > MaximumNameLength)
+        {
+            throw new ArgumentException($"Map name cannot exceed {MaximumNameLength} characters.", nameof(name));
+        }
         if (width is < 1 or > MaximumDimension || height is < 1 or > MaximumDimension)
         {
             throw new ArgumentOutOfRangeException(nameof(width), $"Dimensions must be between 1 and {MaximumDimension}.");
         }
-        return new MapDocument(id ?? Guid.NewGuid(), name.Trim(), width, height);
+        var documentId = id ?? Guid.NewGuid();
+        if (documentId == Guid.Empty)
+        {
+            throw new ArgumentException("Map identifier cannot be empty.", nameof(id));
+        }
+        return new MapDocument(documentId, name.Trim(), width, height);
     }
 
     public int GetTile(GridCoordinate coordinate) => _cells.GetValueOrDefault(coordinate);
@@ -48,7 +59,19 @@ public sealed class MapDocument
         }
         else
         {
+            if (!_cells.ContainsKey(coordinate) && _cells.Count >= MaximumCells)
+            {
+                throw new InvalidOperationException($"RESOURCE_LIMIT_COUNT: maximum is {MaximumCells} cells.");
+            }
             _cells[coordinate] = tileId;
+        }
+    }
+
+    public IEnumerable<CellEntry> EnumerateCells()
+    {
+        foreach (var (coordinate, tileId) in _cells)
+        {
+            yield return new CellEntry(coordinate, tileId);
         }
     }
 

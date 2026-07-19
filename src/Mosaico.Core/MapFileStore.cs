@@ -8,7 +8,7 @@ public sealed class MapFormatException(string message, Exception? inner = null) 
 public static class MapFileStore
 {
     public const long MaximumFileBytes = 64L * 1024 * 1024;
-    public const int MaximumCells = 1_000_000;
+    public const int MaximumCells = MapDocument.MaximumCells;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -31,7 +31,12 @@ public static class MapFileStore
                 .Select(cell => new CellDto(cell.Coordinate.X, cell.Coordinate.Y, cell.TileId))
                 .ToArray(),
         };
-        return JsonSerializer.Serialize(dto, JsonOptions) + "\n";
+        var json = JsonSerializer.Serialize(dto, JsonOptions) + "\n";
+        if (Encoding.UTF8.GetByteCount(json) > MaximumFileBytes)
+        {
+            throw new MapFormatException($"RESOURCE_LIMIT_FILE_BYTES: maximum is {MaximumFileBytes} bytes.");
+        }
+        return json;
     }
 
     public static MapDocument Deserialize(string json)
@@ -47,6 +52,14 @@ public static class MapFileStore
             if (dto.Format != "mosaico-map" || dto.FormatVersion != 0)
             {
                 throw new MapFormatException("Unsupported map format or experimental version.");
+            }
+            if (dto.Id == Guid.Empty)
+            {
+                throw new MapFormatException("Map identifier cannot be empty.");
+            }
+            if (dto.Cells is null)
+            {
+                throw new MapFormatException("Cells collection is required and cannot be null.");
             }
             if (dto.Cells.Length > MaximumCells)
             {
@@ -100,11 +113,15 @@ public static class MapFileStore
         try
         {
             var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(Serialize(document));
-            _ = Deserialize(Encoding.UTF8.GetString(bytes));
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
             {
                 stream.Write(bytes);
                 stream.Flush(flushToDisk: true);
+            }
+            var written = Load(temporary);
+            if (written.StructuralHash() != document.StructuralHash())
+            {
+                throw new MapFormatException("Temporary file verification failed before atomic replace.");
             }
             if (File.Exists(fullPath))
             {
@@ -133,7 +150,7 @@ public static class MapFileStore
         public string Name { get; init; } = "";
         public int Width { get; init; }
         public int Height { get; init; }
-        public CellDto[] Cells { get; init; } = [];
+        public CellDto[]? Cells { get; init; } = [];
     }
 
     private sealed record CellDto(int X, int Y, int TileId);

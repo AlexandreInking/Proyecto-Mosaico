@@ -1,12 +1,84 @@
-﻿<Window x:Class="Mosaico.App.MainWindow"
+<Window x:Class="Mosaico.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Mosaico.App"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+        Title="Mosaico — Spike F0" Width="1280" Height="800" MinWidth="960" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
+        <Border Grid.Row="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+            <DockPanel LastChildFill="False">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button Content="_Nuevo" Click="NewMap_Click" ToolTip="Definir un mapa nuevo (Ctrl+N)" />
+                    <Button Content="_Abrir" Click="OpenMap_Click" ToolTip="Abrir mapa (Ctrl+O)" />
+                    <Button Content="Guardar _como" Click="SaveMap_Click" ToolTip="Guardar como (Ctrl+Shift+S)" />
+                    <Separator Margin="7,3" />
+                    <Button x:Name="UndoButton" Content="_Deshacer" Click="Undo_Click" ToolTip="Deshacer (Ctrl+Z)" />
+                    <Button x:Name="RedoButton" Content="_Rehacer" Click="Redo_Click" ToolTip="Rehacer (Ctrl+Y)" />
+                    <Separator Margin="7,3" />
+                    <ToggleButton x:Name="PaintButton" Content="_Pincel" IsChecked="True" Click="PaintTool_Click" ToolTip="Pincel (P)" />
+                    <ToggleButton x:Name="EraseButton" Content="_Borrador" Click="EraseTool_Click" ToolTip="Borrador (E)" />
+                    <Button Content="_Encuadrar" Click="FitMap_Click" ToolTip="Encuadrar mapa (0)" />
+                </StackPanel>
+                <TextBlock x:Name="ZoomText" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="14,0,4,0" Foreground="{StaticResource MutedBrush}" Text="Zoom 100 %" />
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="230" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="240" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0" Padding="14">
+                <StackPanel>
+                    <TextBlock Text="PROYECTO" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,14" />
+                    <TextBlock Text="Nombre" />
+                    <TextBox x:Name="NameBox" Text="Prueba Ñ" automation:AutomationProperties.Name="Nombre del mapa" />
+                    <TextBlock Text="Ancho de referencia" />
+                    <TextBox x:Name="WidthBox" Text="32" automation:AutomationProperties.Name="Ancho del mapa" />
+                    <TextBlock Text="Alto de referencia" />
+                    <TextBox x:Name="HeightBox" Text="18" automation:AutomationProperties.Name="Alto del mapa" />
+                    <Button Content="Crear mapa" Click="CreateMap_Click" Margin="0,4,0,16" />
+                    <Separator />
+                    <TextBlock Text="Documento" FontWeight="SemiBold" Margin="0,14,0,6" />
+                    <TextBlock x:Name="DocumentInfoText" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock Text="Hash semántico" FontWeight="SemiBold" Margin="0,14,0,6" />
+                    <TextBlock x:Name="HashText" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                </StackPanel>
+            </Border>
+
+            <local:MapViewport x:Name="Viewport" Grid.Column="1" Focusable="True"
+                               automation:AutomationProperties.Name="Lienzo del mapa"
+                               automation:AutomationProperties.HelpText="Pinta con mouse; rueda cambia zoom; botón central o Espacio y arrastre mueve la cámara." />
+
+            <Border Grid.Column="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Padding="14">
+                <StackPanel>
+                    <TextBlock Text="SPIKE F0" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,14" />
+                    <TextBlock Text="Control" FontWeight="SemiBold" />
+                    <TextBlock Margin="0,7,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
+                        Click/arrastre: pintar o borrar&#x0a;Rueda: zoom al cursor&#x0a;Botón central o Espacio+arrastre: mover&#x0a;P / E: herramienta&#x0a;Ctrl+Z / Ctrl+Y: historial
+                    </TextBlock>
+                    <TextBlock Text="Celda activa" FontWeight="SemiBold" Margin="0,18,0,6" />
+                    <TextBlock x:Name="HoverText" FontFamily="Consolas" Text="(0, 0)" Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock Text="Límites" FontWeight="SemiBold" Margin="0,18,0,6" />
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Text="Formato experimental v0. Sin scripts, plugins, red ni telemetría. WPF es un host descartable, no la UI final." />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Background="#101519" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="10,6">
+            <DockPanel>
+                <TextBlock x:Name="CellCountText" DockPanel.Dock="Right" Foreground="{StaticResource MutedBrush}" />
+                <TextBlock x:Name="StatusText" Text="Listo" />
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>
