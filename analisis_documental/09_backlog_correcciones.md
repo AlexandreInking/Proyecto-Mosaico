@@ -2,11 +2,14 @@
 
 **Fecha:** 19 de julio de 2026  
 **Entrada:** E-01…E-08 y H-001…H-020  
-**Estado:** propuesta; no autoriza modificar PM-00…PM-14
+**Estado:** Ola 0 aprobada y en ejecución desde el 19 de julio de 2026
+**Alcance autorizado:** ejecutar Ola 0; Olas posteriores conservan sus checkpoints y aprobaciones
 
 ## Regla de ejecución
 
 Cada tarea se implementa en rama corta, modifica fuentes canónicas bajo `documentos/`, valida enlaces/trazabilidad y regenera dossier en commit separado o paso reproducible. Revisión humana obligatoria si cambia alcance, requisito, formato, seguridad o gate.
+
+La aprobación permite corregir gobernanza, portabilidad y estados documentales. No autoriza iniciar Fase 0, copiar código externo ni cambiar requisitos funcionales.
 
 ## Ola 0 — Recuperabilidad y corpus
 
@@ -229,4 +232,3 @@ DOC-011 + DOC-012 → DOC-013 → DOC-014
 Checkpoint O2
 DOC-016 → DOC-017 → DOC-018 según roadmap
 ```
-
