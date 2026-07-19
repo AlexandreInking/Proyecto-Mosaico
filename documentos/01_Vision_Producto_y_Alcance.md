@@ -18,8 +18,9 @@ colorlinks: true
 ---
 
 > **Documento:** PM-01  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -67,6 +68,24 @@ Integra formatos, escribe plugins y exportadores, automatiza builds y valida con
 ## Equipo pequeño o creador independiente
 
 Busca reducir tareas repetitivas sin construir un editor interno. Necesita instalación sencilla, documentación local y un camino gradual desde uso manual hasta automatización.
+
+# Usuario primario F0-F1
+
+La hipótesis primaria es un creador independiente o diseñador de niveles 2D con experiencia básica o intermedia en tilemaps, que trabaja solo o en un equipo de hasta cinco personas sobre escritorio Windows. Construye niveles ortogonales cenitales o laterales, usa teclado y mouse, y necesita editar, deshacer, guardar, reabrir y exportar sin programar plugins.
+
+Reclutamiento para validación: al menos seis meses creando mapas 2D, un proyecto terminado o prototipo jugable, experiencia con Tiled, Unity Tilemap, Godot TileMap o equivalente y ninguna participación previa en el diseño de Mosaico. Cada ronda usa cinco participantes y registra experiencia y herramienta habitual.
+
+Antiusuario F0-F1: equipo AAA que exige colaboración simultánea o pipeline propietario; artista que busca pintura raster/vectorial profesional; desarrollador cuyo objetivo principal es plugins o CI; usuario que exige isométrico, hexagonal, WFC o procedural avanzado desde el primer uso; y usuario móvil/tablet. Estos perfiles siguen siendo futuros o secundarios, pero no deciden el primer slice.
+
+Problema verificable: construir y mantener niveles ortogonales obliga a repetir colocación y correcciones, mientras automatizaciones existentes suelen ser difíciles de corregir o revertir. La primera evidencia debe demostrar edición directa predecible y cero pérdida antes de medir automatización.
+
+# Tareas de referencia
+
+| ID | Tarea | Éxito | Requisitos | Fase |
+|---|---|---|---|---|
+| TR-01 | Crear mapa ortogonal 32×18, pintar, borrar, deshacer/rehacer, guardar, cerrar, reabrir y exportar | Estado semántico e IDs iguales; exportación válida; sin rescate | REQ-PROJ-001, REQ-MAP-004, REQ-EDIT-001/004, REQ-ASSET-001, REQ-IO-003, REQ-NFR-006 | Spike reducido F0; completo F1 |
+| TR-02 | Pintar WATER, inspeccionar regla, modificar una celda y deshacer | Incremental igual a recálculo completo; usuario explica causa y reversión | REQ-MAP-005, REQ-EDIT-004, REQ-RULE-001/006/007 | Spike F0; entrega F3 |
+| TR-03 | Previsualizar regeneración localizada con semilla y región bloqueada, cancelar, aceptar y deshacer | Cancelación no muta; semilla reproduce; bloqueos intactos | REQ-EDIT-004, REQ-PCG-003…006 | Spike F0; entrega F5 |
 
 # Escenarios principales
 
@@ -144,6 +163,22 @@ Mosaico no se define por tener más botones, sino por mantener un modelo semánt
 - Número de formatos y motores mantenidos por plugins externos.
 - Retención de usuarios que completan el primer mapa.
 
+## Contratos métricos F0-F1
+
+Toda ejecución registra ID, tipo, REQ, hipótesis, fixture y hash, unidad, método, muestra, entorno, baseline, objetivo, umbral de fallo, evidencia, acción posterior y dueño. Baseline desconocido nunca cuenta como éxito.
+
+| ID | Tipo | Baseline | Objetivo | Muestra y método | Fallo |
+|---|---|---|---|---|---|
+| USER-TR01-001 | Usuario | Herramienta habitual, medido en ronda | ≥4/5 completan sin ayuda crítica; mediana ≤20 min y no peor que baseline | Cinco usuarios, Windows 11, fixture fijo, observación y cronómetro | Corregir flujo/onboarding y repetir |
+| FUNC-RT-001 | Funcional | Corpus inicial | 100 % conserva hash semántico e IDs | Corpus canónico; comparación automática antes/después | Cualquier diferencia es S0 |
+| FUNC-UNDO-001 | Funcional | Matriz inicial | 100 % restaura hash previo y redo final | Herramientas esenciales y secuencias deterministas | Divergencia es S0 |
+| FUNC-SAVE-001 | Integridad | Sin baseline aceptable | Tras fallo existe versión anterior o nueva completa; cero mezclas | Fault injection en cada etapa | Spike rechazado |
+| PERF-FRAME-001 | Benchmark | Se mide en F0 | Frame p95 ≤16,7 ms | Build Release, fixture y máquina publicados, 30 muestras | Optimizar o rechazar stack |
+| PERF-BRUSH-001 | Benchmark | Se mide en F0 | Commit p95 <50 ms | Misma máquina/fixture, 30 muestras | Optimizar o reducir alcance con decisión |
+| SEC-OPEN-001 | Seguridad | Cero actividad esperada | Cero procesos, red o escrituras fuera de roots al abrir | Fixture canario y observación de efectos | S0/S1, fase abierta |
+
+Evidencia de usuario, evidencia funcional y benchmark se reportan por separado. S0/S1 no admite waiver; S2 exige dueño, justificación y caducidad.
+
 # Estrategia de producto
 
 La primera versión debe ser un editor ortogonal excelente y una demostración clara del mapa semántico. Isométrico y hexagonal se añaden cuando el contrato topológico ha sido probado. WFC aparece después de que el motor de reglas, el sistema de transacciones y los validadores sean confiables.
@@ -162,7 +197,7 @@ La mitigación principal es una UX progresiva: modo básico para edición direct
 
 # Criterio de salida de la fase de descubrimiento
 
-La visión se considera validada cuando tres prototipos verticales demuestran: edición ortogonal manual completa; transformación semántica por patrones con actualización incremental; y regeneración localizada reproducible con conservación de regiones bloqueadas.
+La visión se considera validada cuando una matriz `hipótesis → spike → evidencia → decisión` demuestra TR-01, TR-02 y TR-03; compara stack/renderer en viewport, input, HiDPI, accesibilidad, packaging y automatización; prueba atomicidad y chunks; registra ADR, formato experimental y presupuestos; y obtiene revisión humana de Producto/UX, Arquitectura, QA y Seguridad. Cada spike se marca descartable. F0 no promete formato estable, compatibilidad externa ni UI final. Cero S0/S1 puede permanecer abierto.
 
 
 ## Referencias técnicas de inspiración

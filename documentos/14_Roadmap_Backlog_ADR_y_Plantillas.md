@@ -18,8 +18,9 @@ colorlinks: true
 ---
 
 > **Documento:** PM-14  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -37,6 +38,18 @@ Objetivos:
 - Probar automatización visual.
 
 Salida: ADR de stack, repositorio, CI, proyecto ejemplo y presupuestos iniciales.
+
+Gate F0 unificado con PM-01:
+
+| Hipótesis | Spike descartable | Evidencia | Decisión |
+|---|---|---|---|
+| Edición directa segura | S0 ortogonal reducido de TR-01 | Ejecutable, hash round-trip, undo/redo, picking y benchmark | Viabilidad de núcleo, input y viewport |
+| Transformación incremental explicable | S1 semántico de TR-02 | Incremental = full, radio afectado y revisión humana | Contrato de reglas para F3 |
+| Regeneración localizada reversible | S2 snapshot de TR-03 | Cancelación sin delta, seed repetible y bloqueos intactos | Contrato de jobs/generación para F5 |
+| Stack y renderer adecuados | Comparadores con fixture común | Input, HiDPI, accesibilidad, packaging, automatización, memoria y frame p95 | ADR-001 aceptado o NO-GO |
+| Persistencia recuperable | Archivo único y comparador multifichero | Fault injection, chunks y diagnóstico | Formato/atomicidad experimentales |
+
+F0 no congela formato, compatibilidad ni UI final. Cada artefacto declara si es descartable. Requiere métricas DOC-005, revisión Producto/UX + Arquitectura + QA/Seguridad y cero S0/S1 abiertos.
 
 # Fase 1 - Editor ortogonal mínimo
 
@@ -111,6 +124,22 @@ Criterio: catálogos de referencia sin adyacencias inválidas y con diagnóstico
 - Plugin API estable 1.0.
 - Paquetes y lockfile.
 - Seguridad y firma según modelo de distribución.
+
+# Gate manual común F1-F7
+
+Cada fase produce binario o paquete portable del mismo commit, fixture versionado, suite automática, benchmark aplicable, walkthrough manual, evidencia de entorno y revisión humana. Falla S0/S1 mantiene fase abierta; S2 solo avanza con waiver de dueño y caducidad.
+
+| Fase | Walkthrough mínimo |
+|---|---|
+| 1 | TR-01 completo: crear, pintar/fill/borrar, capas, undo/redo, guardar/reabrir y CSV/PNG |
+| 2 | Objetos/propiedades, autosave y recuperación tras matar proceso; exportación consumida |
+| 3 | TR-02 incremental, explicable, editable y reversible |
+| 4 | Proyecto isométrico y hexagonal; picking y vecinos correctos |
+| 5 | TR-03 con preview, cancelación, locks, seed y reparación |
+| 6 | WFC válido y contradicción con causa/acción |
+| 7 | Corpus Tiled y plugins compatible/incompatible con diagnóstico |
+
+Evidencia mínima: commit, toolchain, plataforma/hardware, fixture/hash, comandos y exit codes, pruebas, métricas, logs redactados, capturas y firma del operador. El gate se repite completo después de una corrección.
 
 # Backlog de epics
 

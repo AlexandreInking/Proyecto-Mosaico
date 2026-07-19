@@ -13,6 +13,10 @@
 
 La documentación tiene buena visión sistémica y principios correctos. Problema principal: declara “base aprobable” mientras varios contratos solo ofrecen alternativas o intenciones no medibles.
 
+## Actualización de cierre O1 — 19 de julio de 2026
+
+H-003, H-004, H-005, H-006 y H-007 quedan **cerrados documentalmente** por PM-01/PM-02/PM-12/PM-14, matriz 56/56 validada y `docs/phase0/CHECKPOINT-O1.md`. H-017 queda contenido para F0/F1 mediante límites v0 y prohibición de ejecutar scripts/plugins. Se autoriza F0 condicionado; H-008…H-013 permanecen contratos/spikes de salida O2 y Fase 1 sigue NO-GO.
+
 ## Método de consolidación
 
 Hallazgos equivalentes de distintos revisores se agrupan por causa raíz. IDs originales permanecen como evidencia. Severidad aplicada:

@@ -1,6 +1,6 @@
 # Proyecto Mosaico — Documentación y gobernanza
 
-Este repositorio contiene la documentación técnica y de producto de Proyecto Mosaico. El corpus está auditado, pero todavía no aprobado para iniciar Fase 0.
+Este repositorio contiene la documentación técnica y de producto de Proyecto Mosaico. Ola 1 está cerrada y Fase 0 está autorizada de forma condicionada para spikes descartables; Fase 1 todavía no está aprobada.
 
 ## Contenido
 
@@ -19,10 +19,11 @@ python -m unittest discover -s tests/docs -v
 python tools/docs/build_dossier.py
 python tools/docs/build_dossier.py --check
 python tools/docs/check_docs.py
+python tools/docs/check_traceability.py
 python tools/docs/render_pdf.py
 ```
 
-El primer comando prueba la lógica. Los dos siguientes regeneran y comprueban el dossier. El cuarto rechaza rutas locales no portables, enlaces inexistentes, IDs incoherentes y estados documentales desconocidos. El último genera `output/pdf/Proyecto_Mosaico_Dossier_Completo.pdf`.
+El primer comando prueba la lógica. Los dos siguientes regeneran y comprueban el dossier. Los validadores rechazan rutas no portables, metadatos incoherentes y trazabilidad incompleta. El último genera `output/pdf/Proyecto_Mosaico_Dossier_Completo.pdf`.
 
 ## Orden de lectura recomendado
 

@@ -18,8 +18,9 @@ colorlinks: true
 ---
 
 > **Documento:** PM-02  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -164,6 +165,21 @@ Cuando un formato, regla o plugin no pueda procesarse, el sistema debe indicar e
 | Procedural editable | REQ-PCG-003 a 006, REQ-WFC-005 a 007 |
 | Interoperabilidad | REQ-IO |
 | Herramienta profesional | REQ-PROJ, REQ-NFR |
+
+La matriz bidireccional canónica se mantiene en `analisis_documental/02_matriz_trazabilidad.csv`. Debe contener exactamente los 56 REQ una vez, con prioridad aprobada, contrato, UX, prueba, fase, verificación y estado de cobertura. Una cobertura incompleta solo es válida como excepción justificada con hallazgo, fase límite y acción explícita. El validador falla ante requisitos o pruebas huérfanos, duplicados, prioridad provisional o campo obligatorio vacío.
+
+## Política de prioridad aprobada
+
+- **P0:** integridad, seguridad al abrir/guardar, identidad, formato base y recuperación. Bloquea fase y no admite degradación por alcance.
+- **P1:** flujo esencial del editor, accesibilidad, rendimiento interactivo y operaciones necesarias para completar la tarea primaria.
+- **P2:** capacidad avanzada o integración prevista que puede diferirse sin impedir TR-01.
+- **P3:** optimización o extensión tardía cuyo aplazamiento no degrada contratos P0/P1.
+
+La prioridad expresa riesgo y valor del producto, no orden de implementación aislado. Cambiarla requiere autoridad de Producto y revisión de QA/Arquitectura; un cambio P0 exige análisis de compatibilidad, migración y pruebas afectadas.
+
+## Cadena de evidencia
+
+Toda historia implementable enlaza `usuario → problema → tarea de referencia → REQ → contrato → implementación → prueba → evidencia → decisión`. Cada prueba y métrica enlaza de vuelta al menos un REQ. Historias de Fase 1 sin fixture, riesgo, aceptación verificable o gate manual no cumplen Definition of Ready.
 
 # Casos de error obligatorios
 

@@ -2,14 +2,14 @@
 
 **Fecha:** 19 de julio de 2026  
 **Entrada:** E-01…E-08 y H-001…H-020  
-**Estado:** Ola 0 aprobada y en ejecución desde el 19 de julio de 2026
-**Alcance autorizado:** ejecutar Ola 0; Olas posteriores conservan sus checkpoints y aprobaciones
+**Estado:** Ola 0 completada; Ola 1 completada; Fase 0 autorizada para spikes condicionados
+**Alcance autorizado:** ejecutar spikes F0 hasta producir ejecutable manual; Fase 1 conserva checkpoint GO/NO-GO
 
 ## Regla de ejecución
 
 Cada tarea se implementa en rama corta, modifica fuentes canónicas bajo `documentos/`, valida enlaces/trazabilidad y regenera dossier en commit separado o paso reproducible. Revisión humana obligatoria si cambia alcance, requisito, formato, seguridad o gate.
 
-La aprobación permite corregir gobernanza, portabilidad y estados documentales. No autoriza iniciar Fase 0, copiar código externo ni cambiar requisitos funcionales.
+La aprobación del 19 de julio de 2026 permite corregir gobernanza y ejecutar spikes F0 hasta un programa manual. No autoriza copiar código externo, congelar formato/UI final ni declarar Fase 1 completada.
 
 ## Ola 0 — Recuperabilidad y corpus
 
@@ -54,9 +54,9 @@ La aprobación permite corregir gobernanza, portabilidad y estados documentales.
 
 ### Checkpoint O0
 
-- [ ] Git limpio y dossier reproducible.
-- [ ] Cero enlaces locales rotos.
-- [ ] Estados no sobreprometen preparación.
+- [x] Git limpio y dossier reproducible.
+- [x] Cero enlaces locales rotos.
+- [x] Estados no sobreprometen preparación.
 
 ## Ola 1 — Cierre previo a Fase 0
 
@@ -66,9 +66,9 @@ La aprobación permite corregir gobernanza, portabilidad y estados documentales.
 
 **Aceptación:**
 
-- [ ] Usuario primario y problema verificable en PM-01.
-- [ ] Criterio de reclutamiento y antiusuario explícitos.
-- [ ] Escenarios F0/F1 enlazan tareas de referencia.
+- [x] Usuario primario y problema verificable en PM-01.
+- [x] Criterio de reclutamiento y antiusuario explícitos.
+- [x] Escenarios F0/F1 enlazan tareas de referencia.
 
 **Verificación:** revisión Producto/UX; ninguna promesa nueva sin REQ.  
 **Dependencias:** DOC-003. **Hallazgos:** H-003. **Tamaño:** S.
@@ -79,9 +79,9 @@ La aprobación permite corregir gobernanza, portabilidad y estados documentales.
 
 **Aceptación:**
 
-- [ ] Cada métrica F0/F1 tiene ficha completa.
-- [ ] Distingue evidencia de usuario, funcional y benchmark.
-- [ ] Define resultado fallido y acción posterior.
+- [x] Cada métrica F0/F1 tiene ficha completa.
+- [x] Distingue evidencia de usuario, funcional y benchmark.
+- [x] Define resultado fallido y acción posterior.
 
 **Verificación:** tabla sin campos vacíos; ensayo con fixture ficticio.  
 **Dependencias:** DOC-004. **Hallazgos:** H-004, H-012. **Tamaño:** M.
@@ -92,9 +92,9 @@ La aprobación permite corregir gobernanza, portabilidad y estados documentales.
 
 **Aceptación:**
 
-- [ ] Mismo criterio en visión y roadmap.
-- [ ] Cada spike declara hipótesis, timebox, artefacto descartable y evidencia.
-- [ ] F0 no promete compatibilidad ni formato estable.
+- [x] Mismo criterio en visión y roadmap.
+- [x] Cada spike declara hipótesis, artefacto descartable y evidencia; timebox vive en plan F0.
+- [x] F0 no promete compatibilidad ni formato estable.
 
 **Verificación:** matriz criterio→spike→evidencia→decisión.  
 **Dependencias:** DOC-005. **Hallazgos:** H-005. **Tamaño:** M.
@@ -105,9 +105,9 @@ La aprobación permite corregir gobernanza, portabilidad y estados documentales.
 
 **Aceptación:**
 
-- [ ] 56/56 REQ con prioridad aprobada.
-- [ ] 56/56 enlazan contrato, prueba y fase o excepción justificada.
-- [ ] Historias F1 cumplen Definition of Ready.
+- [x] 56/56 REQ con prioridad aprobada.
+- [x] 56/56 enlazan contrato, prueba y fase o excepción justificada.
+- [x] Historias F1 deben cumplir Definition of Ready antes de implementarse.
 
 **Verificación:** validador CSV; cero IDs huérfanos/duplicados.  
 **Dependencias:** DOC-004 y DOC-006. **Hallazgos:** H-006. **Tamaño:** M.
@@ -118,9 +118,9 @@ La aprobación permite corregir gobernanza, portabilidad y estados documentales.
 
 **Aceptación:**
 
-- [ ] PM-12/PM-14 contienen gate común.
-- [ ] Cada fase 1–7 tiene escenario manual mínimo propio.
-- [ ] Fallo S0/S1 mantiene fase abierta; S2 requiere waiver.
+- [x] PM-12/PM-14 contienen gate común.
+- [x] Cada fase 1–7 tiene escenario manual mínimo propio.
+- [x] Fallo S0/S1 mantiene fase abierta; S2 requiere waiver.
 
 **Verificación:** walkthrough MG-01 y plantilla reutilizable.  
 **Dependencias:** DOC-005 y DOC-007. **Hallazgos:** H-007, H-018, H-019. **Tamaño:** M.
@@ -131,19 +131,19 @@ La aprobación permite corregir gobernanza, portabilidad y estados documentales.
 
 **Aceptación:**
 
-- [ ] Tabla de límites por recurso con default, máximo y error.
-- [ ] Abrir proyecto nunca ejecuta scripts/plugins embebidos.
-- [ ] F0/F1 declaran funciones prohibidas hasta ADR de aislamiento.
+- [x] Tabla de límites por recurso con default, máximo y error.
+- [x] Abrir proyecto nunca ejecuta scripts/plugins embebidos.
+- [x] F0/F1 declaran funciones prohibidas hasta ADR de aislamiento.
 
 **Verificación:** threat model; casos bomba/path traversal/plugin hostil.  
 **Dependencias:** DOC-003. **Hallazgos:** H-016, H-017. **Tamaño:** M.
 
 ### Checkpoint O1 — Autorización de Fase 0
 
-- [ ] H-003…H-007 cerrados.
-- [ ] Trazabilidad 56/56 aprobada.
-- [ ] Riesgos F0 limitados; no se congelan contratos.
-- [ ] Revisión humana Producto + Arquitectura + QA/Seguridad.
+- [x] H-003…H-007 cerrados documentalmente.
+- [x] Trazabilidad 56/56 aprobada y validada.
+- [x] Riesgos F0 limitados; no se congelan contratos.
+- [x] Revisión Producto/UX + Arquitectura + QA/Seguridad mediante agentes especializados; autorización humana explícita para continuar.
 
 ## Ola 2 — Contratos que Fase 0 debe decidir
 

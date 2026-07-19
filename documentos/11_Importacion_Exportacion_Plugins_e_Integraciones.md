@@ -18,8 +18,9 @@ colorlinks: true
 ---
 
 > **Documento:** PM-11  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -148,6 +149,8 @@ Niveles posibles:
 4. Scripting sandbox limitado.
 
 El MVP puede comenzar con nivel 1, pero debe advertir que un plugin tiene los permisos del usuario. Antes de un marketplace se requiere aislamiento y firma.
+
+Para F0 y F1 el nivel activo es **ninguno**: el ejecutable no contiene host de plugins, no interpreta `Scripts[]` y no ejecuta hooks al abrir. Un descriptor externo se trata como dato no confiable. Si un spike posterior habilita nivel 1, exige switch de desarrollo explícito, directorio confiable fuera del proyecto y advertencia de permisos completos; los permisos declarados son informativos hasta existir aislamiento real. Red, procesos, secretos y escritura fuera del proyecto permanecen prohibidos hasta ADR específico.
 
 # Versionado de API
 

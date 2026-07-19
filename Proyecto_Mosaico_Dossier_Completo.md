@@ -157,8 +157,9 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-01  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -206,6 +207,24 @@ Integra formatos, escribe plugins y exportadores, automatiza builds y valida con
 ## Equipo pequeño o creador independiente
 
 Busca reducir tareas repetitivas sin construir un editor interno. Necesita instalación sencilla, documentación local y un camino gradual desde uso manual hasta automatización.
+
+# Usuario primario F0-F1
+
+La hipótesis primaria es un creador independiente o diseñador de niveles 2D con experiencia básica o intermedia en tilemaps, que trabaja solo o en un equipo de hasta cinco personas sobre escritorio Windows. Construye niveles ortogonales cenitales o laterales, usa teclado y mouse, y necesita editar, deshacer, guardar, reabrir y exportar sin programar plugins.
+
+Reclutamiento para validación: al menos seis meses creando mapas 2D, un proyecto terminado o prototipo jugable, experiencia con Tiled, Unity Tilemap, Godot TileMap o equivalente y ninguna participación previa en el diseño de Mosaico. Cada ronda usa cinco participantes y registra experiencia y herramienta habitual.
+
+Antiusuario F0-F1: equipo AAA que exige colaboración simultánea o pipeline propietario; artista que busca pintura raster/vectorial profesional; desarrollador cuyo objetivo principal es plugins o CI; usuario que exige isométrico, hexagonal, WFC o procedural avanzado desde el primer uso; y usuario móvil/tablet. Estos perfiles siguen siendo futuros o secundarios, pero no deciden el primer slice.
+
+Problema verificable: construir y mantener niveles ortogonales obliga a repetir colocación y correcciones, mientras automatizaciones existentes suelen ser difíciles de corregir o revertir. La primera evidencia debe demostrar edición directa predecible y cero pérdida antes de medir automatización.
+
+# Tareas de referencia
+
+| ID | Tarea | Éxito | Requisitos | Fase |
+|---|---|---|---|---|
+| TR-01 | Crear mapa ortogonal 32×18, pintar, borrar, deshacer/rehacer, guardar, cerrar, reabrir y exportar | Estado semántico e IDs iguales; exportación válida; sin rescate | REQ-PROJ-001, REQ-MAP-004, REQ-EDIT-001/004, REQ-ASSET-001, REQ-IO-003, REQ-NFR-006 | Spike reducido F0; completo F1 |
+| TR-02 | Pintar WATER, inspeccionar regla, modificar una celda y deshacer | Incremental igual a recálculo completo; usuario explica causa y reversión | REQ-MAP-005, REQ-EDIT-004, REQ-RULE-001/006/007 | Spike F0; entrega F3 |
+| TR-03 | Previsualizar regeneración localizada con semilla y región bloqueada, cancelar, aceptar y deshacer | Cancelación no muta; semilla reproduce; bloqueos intactos | REQ-EDIT-004, REQ-PCG-003…006 | Spike F0; entrega F5 |
 
 # Escenarios principales
 
@@ -283,6 +302,22 @@ Mosaico no se define por tener más botones, sino por mantener un modelo semánt
 - Número de formatos y motores mantenidos por plugins externos.
 - Retención de usuarios que completan el primer mapa.
 
+## Contratos métricos F0-F1
+
+Toda ejecución registra ID, tipo, REQ, hipótesis, fixture y hash, unidad, método, muestra, entorno, baseline, objetivo, umbral de fallo, evidencia, acción posterior y dueño. Baseline desconocido nunca cuenta como éxito.
+
+| ID | Tipo | Baseline | Objetivo | Muestra y método | Fallo |
+|---|---|---|---|---|---|
+| USER-TR01-001 | Usuario | Herramienta habitual, medido en ronda | ≥4/5 completan sin ayuda crítica; mediana ≤20 min y no peor que baseline | Cinco usuarios, Windows 11, fixture fijo, observación y cronómetro | Corregir flujo/onboarding y repetir |
+| FUNC-RT-001 | Funcional | Corpus inicial | 100 % conserva hash semántico e IDs | Corpus canónico; comparación automática antes/después | Cualquier diferencia es S0 |
+| FUNC-UNDO-001 | Funcional | Matriz inicial | 100 % restaura hash previo y redo final | Herramientas esenciales y secuencias deterministas | Divergencia es S0 |
+| FUNC-SAVE-001 | Integridad | Sin baseline aceptable | Tras fallo existe versión anterior o nueva completa; cero mezclas | Fault injection en cada etapa | Spike rechazado |
+| PERF-FRAME-001 | Benchmark | Se mide en F0 | Frame p95 ≤16,7 ms | Build Release, fixture y máquina publicados, 30 muestras | Optimizar o rechazar stack |
+| PERF-BRUSH-001 | Benchmark | Se mide en F0 | Commit p95 <50 ms | Misma máquina/fixture, 30 muestras | Optimizar o reducir alcance con decisión |
+| SEC-OPEN-001 | Seguridad | Cero actividad esperada | Cero procesos, red o escrituras fuera de roots al abrir | Fixture canario y observación de efectos | S0/S1, fase abierta |
+
+Evidencia de usuario, evidencia funcional y benchmark se reportan por separado. S0/S1 no admite waiver; S2 exige dueño, justificación y caducidad.
+
 # Estrategia de producto
 
 La primera versión debe ser un editor ortogonal excelente y una demostración clara del mapa semántico. Isométrico y hexagonal se añaden cuando el contrato topológico ha sido probado. WFC aparece después de que el motor de reglas, el sistema de transacciones y los validadores sean confiables.
@@ -301,7 +336,7 @@ La mitigación principal es una UX progresiva: modo básico para edición direct
 
 # Criterio de salida de la fase de descubrimiento
 
-La visión se considera validada cuando tres prototipos verticales demuestran: edición ortogonal manual completa; transformación semántica por patrones con actualización incremental; y regeneración localizada reproducible con conservación de regiones bloqueadas.
+La visión se considera validada cuando una matriz `hipótesis → spike → evidencia → decisión` demuestra TR-01, TR-02 y TR-03; compara stack/renderer en viewport, input, HiDPI, accesibilidad, packaging y automatización; prueba atomicidad y chunks; registra ADR, formato experimental y presupuestos; y obtiene revisión humana de Producto/UX, Arquitectura, QA y Seguridad. Cada spike se marca descartable. F0 no promete formato estable, compatibilidad externa ni UI final. Cero S0/S1 puede permanecer abierto.
 
 
 ## Referencias técnicas de inspiración
@@ -321,8 +356,9 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-02  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -467,6 +503,21 @@ Cuando un formato, regla o plugin no pueda procesarse, el sistema debe indicar e
 | Procedural editable | REQ-PCG-003 a 006, REQ-WFC-005 a 007 |
 | Interoperabilidad | REQ-IO |
 | Herramienta profesional | REQ-PROJ, REQ-NFR |
+
+La matriz bidireccional canónica se mantiene en `analisis_documental/02_matriz_trazabilidad.csv`. Debe contener exactamente los 56 REQ una vez, con prioridad aprobada, contrato, UX, prueba, fase, verificación y estado de cobertura. Una cobertura incompleta solo es válida como excepción justificada con hallazgo, fase límite y acción explícita. El validador falla ante requisitos o pruebas huérfanos, duplicados, prioridad provisional o campo obligatorio vacío.
+
+## Política de prioridad aprobada
+
+- **P0:** integridad, seguridad al abrir/guardar, identidad, formato base y recuperación. Bloquea fase y no admite degradación por alcance.
+- **P1:** flujo esencial del editor, accesibilidad, rendimiento interactivo y operaciones necesarias para completar la tarea primaria.
+- **P2:** capacidad avanzada o integración prevista que puede diferirse sin impedir TR-01.
+- **P3:** optimización o extensión tardía cuyo aplazamiento no degrada contratos P0/P1.
+
+La prioridad expresa riesgo y valor del producto, no orden de implementación aislado. Cambiarla requiere autoridad de Producto y revisión de QA/Arquitectura; un cambio P0 exige análisis de compatibilidad, migración y pruebas afectadas.
+
+## Cadena de evidencia
+
+Toda historia implementable enlaza `usuario → problema → tarea de referencia → REQ → contrato → implementación → prueba → evidencia → decisión`. Cada prueba y métrica enlaza de vuelta al menos un REQ. Historias de Fase 1 sin fixture, riesgo, aceptación verificable o gate manual no cumplen Definition of Ready.
 
 # Casos de error obligatorios
 
@@ -2168,8 +2219,9 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-11  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2299,6 +2351,8 @@ Niveles posibles:
 
 El MVP puede comenzar con nivel 1, pero debe advertir que un plugin tiene los permisos del usuario. Antes de un marketplace se requiere aislamiento y firma.
 
+Para F0 y F1 el nivel activo es **ninguno**: el ejecutable no contiene host de plugins, no interpreta `Scripts[]` y no ejecuta hooks al abrir. Un descriptor externo se trata como dato no confiable. Si un spike posterior habilita nivel 1, exige switch de desarrollo explícito, directorio confiable fuera del proyecto y advertencia de permisos completos; los permisos declarados son informativos hasta existir aislamiento real. Red, procesos, secretos y escritura fuera del proyecto permanecen prohibidos hasta ADR específico.
+
 # Versionado de API
 
 SemVer con políticas claras. Cambios aditivos compatibles dentro de major. Deprecaciones con al menos una ventana publicada. Un plugin incompatible no se carga parcialmente.
@@ -2359,8 +2413,9 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-12  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2445,6 +2500,37 @@ Los crashes se minimizan y se incorporan como corpus permanente.
 
 El host aplica permisos declarados. Operaciones de red, procesos y escritura fuera del proyecto requieren permisos separados cuando exista sandbox. Los plugins se pueden iniciar deshabilitados en modo seguro.
 
+## Política F0-F1 de scripts y plugins
+
+- Abrir un proyecto nunca ejecuta scripts, hooks, plugins ni instaladores.
+- `Scripts[]` no forma parte del schema ejecutable v0; si una importación lo preserva, queda como dato inerte.
+- El primer ejecutable no incluye host de plugins. Un plugin embebido nunca se carga automáticamente.
+- Un plugin local de desarrollo futuro requerirá switch explícito y directorio externo confiable; in-process significa permisos completos del usuario, no sandbox.
+- Firma demuestra procedencia, no aislamiento. Red, procesos, secretos y escritura externa permanecen prohibidos hasta ADR de aislamiento.
+- Marketplace, actualización automática y plugins de terceros quedan fuera hasta Fase 7.
+
+## Límites hostiles v0
+
+Los valores son provisionales y solo pueden reducirse mediante configuración segura. Un archivo no confiable nunca aumenta hard caps.
+
+| Recurso | Default | Hard cap | Diagnóstico |
+|---|---:|---:|---|
+| Archivo JSON | 64 MiB | 256 MiB | `RESOURCE_LIMIT_FILE_BYTES` |
+| Profundidad JSON | 64 | 128 | `RESOURCE_LIMIT_DEPTH` |
+| String | 1 MiB | 8 MiB | `RESOURCE_LIMIT_STRING` |
+| Elementos por array | 1.000.000 | 4.000.000 | `RESOURCE_LIMIT_COUNT` |
+| Imagen por lado | 8.192 px | 16.384 px | `RESOURCE_LIMIT_IMAGE_DIMENSION` |
+| Imagen decodificada | 256 MiB | 512 MiB | `RESOURCE_LIMIT_MEMORY` |
+| Descompresión total | 1 GiB | 4 GiB | `RESOURCE_LIMIT_EXPANDED_BYTES` |
+| Ratio de descompresión | 50× | 100× | `RESOURCE_LIMIT_COMPRESSION_RATIO` |
+| Capas | 1.024 | 4.096 | `RESOURCE_LIMIT_LAYERS` |
+| Objetos | 1.000.000 | 4.000.000 | `RESOURCE_LIMIT_OBJECTS` |
+| Manifiesto de plugin | 1 MiB | 4 MiB | `RESOURCE_LIMIT_MANIFEST` |
+| Parse/importación | 10 s | 30 s | `RESOURCE_LIMIT_TIME` |
+| Memoria por importación | 512 MiB | 1 GiB | `RESOURCE_LIMIT_MEMORY` |
+
+Todo rechazo informa recurso, observado, límite y acción. La cancelación deja documento y destino intactos. Paths se validan sobre destino final contra `..`, absolutas, UNC, device paths, ADS, symlinks/junctions y carreras TOCTOU.
+
 # Actualizaciones
 
 - Canal estable, beta y nightly.
@@ -2481,6 +2567,22 @@ Logs estructurados con correlation ID por job. Niveles: información, warning, e
 - Verificación de firmas.
 - Sesión exploratoria de integridad.
 - Documentación y ejemplos actualizados.
+
+# Gate ejecutable por fase
+
+Desde Fase 1 cada checkpoint exige checkout limpio, build reproducible, binario identificado por commit, comando de arranque, fixture versionado, suite verde, walkthrough manual, caso de error/recuperación, benchmark, evidencia de entorno, accesibilidad por teclado/escala y revisión humana. Evidencia de otro commit invalida el gate. S0/S1 mantiene fase abierta; S2 requiere waiver con dueño y caducidad.
+
+| Fase | Escenario manual mínimo |
+|---|---|
+| 1 | TR-01: crear, pintar, borrar/fill, undo/redo, guardar, reabrir y exportar CSV/PNG |
+| 2 | Objetos/propiedades y autosave; matar proceso, recuperar y consumir exportación en motor propio |
+| 3 | TR-02: cambio semántico incremental igual a full, explicable y reversible |
+| 4 | Crear/editar/exportar isométrico y hex; picking y seis vecinos correctos |
+| 5 | TR-03: preview, cancelación, regiones bloqueadas, reproducibilidad y reparación |
+| 6 | Completar fixture WFC sin adyacencias inválidas; contradicción explica causa y acción |
+| 7 | Importar/exportar corpus Tiled; aceptar plugin compatible y rechazar incompatible con diagnóstico |
+
+El primer spike F0 usa una versión reducida de MG-01 limitada a viewport ortogonal, pincel/borrador, undo/redo y round-trip. No cuenta como gate completo de Fase 1.
 
 # Severidad de bugs
 
@@ -2756,8 +2858,9 @@ La disponibilidad, precios, límites y nombres de modelos son configurables y pu
 ---
 
 > **Documento:** PM-14  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Ola 1 incorporada
+> **Estado:** Aprobado
+> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2775,6 +2878,18 @@ Objetivos:
 - Probar automatización visual.
 
 Salida: ADR de stack, repositorio, CI, proyecto ejemplo y presupuestos iniciales.
+
+Gate F0 unificado con PM-01:
+
+| Hipótesis | Spike descartable | Evidencia | Decisión |
+|---|---|---|---|
+| Edición directa segura | S0 ortogonal reducido de TR-01 | Ejecutable, hash round-trip, undo/redo, picking y benchmark | Viabilidad de núcleo, input y viewport |
+| Transformación incremental explicable | S1 semántico de TR-02 | Incremental = full, radio afectado y revisión humana | Contrato de reglas para F3 |
+| Regeneración localizada reversible | S2 snapshot de TR-03 | Cancelación sin delta, seed repetible y bloqueos intactos | Contrato de jobs/generación para F5 |
+| Stack y renderer adecuados | Comparadores con fixture común | Input, HiDPI, accesibilidad, packaging, automatización, memoria y frame p95 | ADR-001 aceptado o NO-GO |
+| Persistencia recuperable | Archivo único y comparador multifichero | Fault injection, chunks y diagnóstico | Formato/atomicidad experimentales |
+
+F0 no congela formato, compatibilidad ni UI final. Cada artefacto declara si es descartable. Requiere métricas DOC-005, revisión Producto/UX + Arquitectura + QA/Seguridad y cero S0/S1 abiertos.
 
 # Fase 1 - Editor ortogonal mínimo
 
@@ -2849,6 +2964,22 @@ Criterio: catálogos de referencia sin adyacencias inválidas y con diagnóstico
 - Plugin API estable 1.0.
 - Paquetes y lockfile.
 - Seguridad y firma según modelo de distribución.
+
+# Gate manual común F1-F7
+
+Cada fase produce binario o paquete portable del mismo commit, fixture versionado, suite automática, benchmark aplicable, walkthrough manual, evidencia de entorno y revisión humana. Falla S0/S1 mantiene fase abierta; S2 solo avanza con waiver de dueño y caducidad.
+
+| Fase | Walkthrough mínimo |
+|---|---|
+| 1 | TR-01 completo: crear, pintar/fill/borrar, capas, undo/redo, guardar/reabrir y CSV/PNG |
+| 2 | Objetos/propiedades, autosave y recuperación tras matar proceso; exportación consumida |
+| 3 | TR-02 incremental, explicable, editable y reversible |
+| 4 | Proyecto isométrico y hexagonal; picking y vecinos correctos |
+| 5 | TR-03 con preview, cancelación, locks, seed y reparación |
+| 6 | WFC válido y contradicción con causa/acción |
+| 7 | Corpus Tiled y plugins compatible/incompatible con diagnóstico |
+
+Evidencia mínima: commit, toolchain, plataforma/hardware, fixture/hash, comandos y exit codes, pruebas, métricas, logs redactados, capturas y firma del operador. El gate se repite completo después de una corrección.
 
 # Backlog de epics
 
