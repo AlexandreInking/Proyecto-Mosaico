@@ -1,161 +1,137 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using Microsoft.Win32;
+using System.Windows.Media.Imaging;
 using Mosaico.Core;
 
 namespace Mosaico.App;
 
+public sealed record TilePaletteItem(TileRef Tile, string Label, BitmapSource Image);
+public sealed class TilesetPaletteTab(Guid? id, string name, int tileCount = 0, bool isImport = false) : INotifyPropertyChanged
+{
+    private TilePaletteItem? _selectedTile;
+    public const int PageSize = 256;
+    public Guid? Id { get; } = id;
+    public string Name { get; } = name;
+    public bool IsImport { get; } = isImport;
+    public int TileCount { get; } = tileCount;
+    public ObservableCollection<TilePaletteItem> Tiles { get; } = [];
+    public TilePaletteItem? SelectedTile
+    {
+        get => _selectedTile;
+        set
+        {
+            if (ReferenceEquals(_selectedTile, value)) return;
+            _selectedTile = value;
+            PropertyChanged?.Invoke(this, new(nameof(SelectedTile)));
+        }
+    }
+    public int PageIndex { get; private set; }
+    public int PageCount => Math.Max(1, (TileCount + PageSize - 1) / PageSize);
+    public string PageLabel => $"{PageIndex + 1} / {PageCount}";
+    public bool CanGoPrevious => PageIndex > 0;
+    public bool CanGoNext => PageIndex + 1 < PageCount;
+    public Visibility PaginationVisibility => PageCount > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void LoadPage(TilesetDefinition definition, TileBitmapStore bitmaps, int pageIndex, int? selectedTileId = null)
+    {
+        PageIndex = Math.Clamp(pageIndex, 0, PageCount - 1);
+        var first = PageIndex * PageSize;
+        var end = Math.Min(TileCount, first + PageSize);
+        Tiles.Clear();
+        for (var tileId = first; tileId < end; tileId++)
+            Tiles.Add(new(new(definition.Id, tileId), $"{definition.Name} · tile #{tileId}", bitmaps.GetTile(definition.Id, tileId)));
+        SelectedTile = selectedTileId is { } id
+            ? Tiles.FirstOrDefault(item => item.Tile.TileId == id)
+            : Tiles.FirstOrDefault();
+        PropertyChanged?.Invoke(this, new(nameof(PageIndex)));
+        PropertyChanged?.Invoke(this, new(nameof(PageLabel)));
+        PropertyChanged?.Invoke(this, new(nameof(CanGoPrevious)));
+        PropertyChanged?.Invoke(this, new(nameof(CanGoNext)));
+    }
+}
+public sealed record LayerListItem(Guid Id, string Name, bool IsVisible, bool IsLocked, int CellCount)
+{
+    public string VisibilityIcon => IsVisible ? "eye" : "eye-off";
+    public string LockIcon => IsLocked ? "lock" : "lock-open";
+}
+
 public partial class MainWindow : Window
 {
-    private MapDocument _document = MapDocument.Create("Prueba Ñ", 32, 18);
-    private CommandHistory _history;
+    private MapProject _project = MapProject.Create("Mapa sin título", 32, 18, 16, 16);
+    private ProjectCommandHistory _history;
+    private Dictionary<Guid, byte[]> _assets = [];
+    private TileBitmapStore _bitmaps = new();
+    private readonly ObservableCollection<TilesetPaletteTab> _tilesetTabs = [];
+    private readonly ObservableCollection<LayerListItem> _layerItems = [];
     private string? _currentPath;
+    private Guid? _selectedTilesetId;
+    private Guid? _paletteProjectId;
     private bool _dirty;
+    private bool _openingTilesetImport;
+    private bool _refreshingPanels;
 
     public MainWindow()
     {
         InitializeComponent();
-        _history = new CommandHistory(_document);
-        Viewport.StrokeCommitted += Viewport_StrokeCommitted;
-        Viewport.HoverChanged += (_, cell) => HoverText.Text = $"({cell.X}, {cell.Y})";
-        Viewport.ZoomChanged += (_, zoom) => ZoomText.Text = $"Zoom {zoom:P0}";
+        _history = new(_project);
+        TilesetTabs.ItemsSource = _tilesetTabs;
+        LayersList.ItemsSource = _layerItems;
+        Viewport.PaintRequested += Viewport_PaintRequested;
+        Viewport.FillRequested += Viewport_FillRequested;
+        Viewport.PickRequested += Viewport_PickRequested;
+        Viewport.SelectionChanged += (_, selection) => StatusText.Text = $"Selección: {selection.Selection.CellCount:N0} celdas";
+        Viewport.HoverChanged += (_, cell) => CoordinateText.Text = $"x {cell.X}  y {cell.Y}";
+        Viewport.ZoomChanged += (_, zoom) => ZoomText.Text = $"{zoom:P0}";
         Viewport.Loaded += (_, _) => Viewport.FitDocument();
-        SetDocument(_document, null);
+        SetProject(_project, new Dictionary<Guid, byte[]>(), null);
+        var startupProject = Environment.GetCommandLineArgs().Skip(1)
+            .FirstOrDefault(path => path.EndsWith(".mosaico", StringComparison.OrdinalIgnoreCase) && File.Exists(path));
+        if (startupProject is not null) OpenProjectPath(startupProject);
     }
 
-    private void NewMap_Click(object sender, RoutedEventArgs e)
+    private void SetProject(MapProject project, IReadOnlyDictionary<Guid, byte[]> assets, string? path)
     {
-        NameBox.Focus();
-        NameBox.SelectAll();
-        StatusText.Text = "Define nombre y dimensiones; luego pulsa Crear mapa.";
-    }
+        var nextAssets = assets.ToDictionary(pair => pair.Key, pair => pair.Value);
+        var nextBitmaps = new TileBitmapStore();
+        nextBitmaps.ReplaceAssets(project.Tilesets, nextAssets);
 
-    private void CreateMap_Click(object sender, RoutedEventArgs e)
-    {
-        if (!int.TryParse(WidthBox.Text, out var width) || !int.TryParse(HeightBox.Text, out var height))
-        {
-            ShowError("Dimensiones inválidas", "Usa enteros entre 1 y 16.384.");
-            return;
-        }
-        try
-        {
-            var candidate = MapDocument.Create(NameBox.Text, width, height);
-            if (!ConfirmReplaceDirtyDocument()) return;
-            SetDocument(candidate, null);
-            SetDirty(true);
-            StatusText.Text = "Mapa nuevo creado. Pinta también fuera del borde para probar coordenadas negativas.";
-        }
-        catch (ArgumentException error)
-        {
-            ShowError("No se pudo crear el mapa", error.Message);
-        }
-    }
-
-    private void OpenMap_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Filter = "Mapa Mosaico experimental (*.mosaic.json)|*.mosaic.json|JSON (*.json)|*.json", CheckFileExists = true };
-        if (dialog.ShowDialog(this) != true) return;
-        try
-        {
-            var candidate = MapFileStore.Load(dialog.FileName);
-            if (!ConfirmReplaceDirtyDocument()) return;
-            SetDocument(candidate, dialog.FileName);
-            StatusText.Text = $"Abierto: {dialog.FileName}";
-        }
-        catch (Exception error) when (error is MapFormatException or IOException or UnauthorizedAccessException)
-        {
-            ShowError("No se pudo abrir el recurso", $"Causa: {error.Message}\nAcción: revisa formato, permisos y límites; el documento actual no cambió.");
-        }
-    }
-
-    private void SaveMap_Click(object sender, RoutedEventArgs e) => SaveAs();
-
-    private bool SaveAs()
-    {
-        var dialog = new SaveFileDialog
-        {
-            Filter = "Mapa Mosaico experimental (*.mosaic.json)|*.mosaic.json",
-            FileName = _currentPath is null ? "prueba.mosaic.json" : System.IO.Path.GetFileName(_currentPath),
-            InitialDirectory = _currentPath is null ? null : System.IO.Path.GetDirectoryName(_currentPath),
-            AddExtension = true,
-        };
-        if (dialog.ShowDialog(this) != true) return false;
-        try
-        {
-            MapFileStore.SaveAtomic(dialog.FileName, _document);
-            _currentPath = dialog.FileName;
-            SetDirty(false);
-            StatusText.Text = $"Guardado atómico: {dialog.FileName}";
-            return true;
-        }
-        catch (Exception error) when (error is MapFormatException or IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
-        {
-            ShowError("No se pudo guardar", $"Recurso: {dialog.FileName}\nCausa: {error.Message}\nAcción: elige otra ruta; no se confirmó ningún archivo parcial.");
-            return false;
-        }
-    }
-
-    private void Undo_Click(object sender, RoutedEventArgs e)
-    {
-        if (_history.Undo()) { SetDirty(true); Viewport.InvalidateVisual(); RefreshDocumentInfo(); }
-    }
-
-    private void Redo_Click(object sender, RoutedEventArgs e)
-    {
-        if (_history.Redo()) { SetDirty(true); Viewport.InvalidateVisual(); RefreshDocumentInfo(); }
-    }
-
-    private void PaintTool_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Paint);
-    private void EraseTool_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Erase);
-    private void FitMap_Click(object sender, RoutedEventArgs e) => Viewport.FitDocument();
-
-    private void SetTool(EditorTool tool)
-    {
-        Viewport.Tool = tool;
-        PaintButton.IsChecked = tool == EditorTool.Paint;
-        EraseButton.IsChecked = tool == EditorTool.Erase;
-        StatusText.Text = tool == EditorTool.Paint ? "Pincel activo" : "Borrador activo";
-        Viewport.Focus();
-    }
-
-    private void Viewport_StrokeCommitted(object? sender, StrokeCommittedEventArgs e)
-    {
-        _history.Execute(new PaintCellsCommand(e.Cells, e.TileId));
-        SetDirty(true);
-        RefreshDocumentInfo();
-        StatusText.Text = $"Transacción: {e.Cells.Count} celda(s)";
-    }
-
-    private void SetDocument(MapDocument document, string? path)
-    {
-        _document = document;
-        _history = new CommandHistory(document);
+        _project = project;
+        _history = new(project);
+        _assets = nextAssets;
+        _bitmaps = nextBitmaps;
         _currentPath = path;
-        Viewport.Document = document;
-        Viewport.FitDocument();
-        NameBox.Text = document.Name;
-        WidthBox.Text = document.Width.ToString();
-        HeightBox.Text = document.Height.ToString();
+        Viewport.Project = project;
+        Viewport.Bitmaps = _bitmaps;
+        Viewport.SelectedTile = null;
+        _selectedTilesetId = null;
+        _paletteProjectId = null;
         SetDirty(false);
-        RefreshDocumentInfo();
+        RefreshPanels();
+        Viewport.FitDocument();
     }
 
-    private void RefreshDocumentInfo()
+    private void SetDirty(bool dirty)
     {
-        DocumentInfoText.Text = $"{_document.Name}\n{_document.Width} × {_document.Height}\nID {_document.Id}";
-        HashText.Text = _document.StructuralHash();
-        CellCountText.Text = $"{_document.OccupiedCellCount} celdas con contenido";
+        _dirty = dirty;
+        DirtyMarkerText.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
+        Title = $"Mosaico — {_project.Name}{(dirty ? " • sin guardar" : "")}";
+    }
+
+    private void RefreshDocumentState()
+    {
+        ProjectNameText.Text = _project.Name;
+        MapMetricsText.Text = $"{_project.Width} × {_project.Height} · celda {_project.CellWidth} × {_project.CellHeight} px";
+        CellCountText.Text = $"{_project.OccupiedCellCount:N0} tiles";
+        var active = _project.Layers.Single(layer => layer.Id == _project.ActiveLayerId);
+        ActiveLayerText.Text = active.IsLocked ? $"{active.Name} · bloqueada" : active.Name;
         UndoButton.IsEnabled = _history.CanUndo;
         RedoButton.IsEnabled = _history.CanRedo;
-    }
-
-    private void SetDirty(bool value)
-    {
-        _dirty = value;
-        Title = $"Mosaico — Spike F0{(_dirty ? " • sin guardar" : "")}";
+        Viewport.InvalidateVisual();
     }
 
     private void ShowError(string title, string message)
@@ -164,41 +140,9 @@ public partial class MainWindow : Window
         MessageBox.Show(this, message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
-    private bool ConfirmReplaceDirtyDocument()
-    {
-        if (!_dirty) return true;
-        var result = MessageBox.Show(
-            this,
-            "Hay cambios sin guardar. ¿Guardarlos antes de continuar?\n\nSí: guardar · No: descartar · Cancelar: volver al mapa",
-            "Cambios sin guardar",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Warning);
-        return result switch
-        {
-            MessageBoxResult.Yes => SaveAs(),
-            MessageBoxResult.No => true,
-            _ => false,
-        };
-    }
-
-    protected override void OnPreviewKeyDown(KeyEventArgs e)
-    {
-        base.OnPreviewKeyDown(e);
-        var control = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
-        var shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-        if (control && e.Key == Key.N) { NewMap_Click(this, new RoutedEventArgs()); e.Handled = true; }
-        else if (control && e.Key == Key.O) { OpenMap_Click(this, new RoutedEventArgs()); e.Handled = true; }
-        else if (control && shift && e.Key == Key.S) { SaveAs(); e.Handled = true; }
-        else if (control && e.Key == Key.Z) { Undo_Click(this, new RoutedEventArgs()); e.Handled = true; }
-        else if (control && e.Key == Key.Y) { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }
-        else if (!control && Keyboard.FocusedElement is not TextBoxBase && e.Key == Key.P) { SetTool(EditorTool.Paint); e.Handled = true; }
-        else if (!control && Keyboard.FocusedElement is not TextBoxBase && e.Key == Key.E) { SetTool(EditorTool.Erase); e.Handled = true; }
-        else if (!control && Keyboard.FocusedElement is not TextBoxBase && e.Key == Key.D0) { Viewport.FitDocument(); e.Handled = true; }
-    }
-
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (_dirty && !ConfirmReplaceDirtyDocument()) e.Cancel = true;
+        if (_dirty && !ConfirmReplaceDirtyProject()) e.Cancel = true;
         base.OnClosing(e);
     }
 }

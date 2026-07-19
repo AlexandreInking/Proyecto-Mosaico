@@ -4,6 +4,11 @@
     <ProjectReference Include="..\Mosaico.Core\Mosaico.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="..\..\assets\icons\lucide\*.svg" Link="Assets\Icons\%(Filename)%(Extension)" />
+    <None Include="..\..\assets\icons\lucide\LICENSE" Link="THIRD_PARTY_LICENSES\LUCIDE-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
