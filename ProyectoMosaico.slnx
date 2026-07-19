@@ -8,4 +8,7 @@
     <Project Path="tests/Mosaico.Benchmarks/Mosaico.Benchmarks.csproj" />
     <Project Path="tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Mosaico.Phase1Fixture/Mosaico.Phase1Fixture.csproj" />
+  </Folder>
 </Solution>

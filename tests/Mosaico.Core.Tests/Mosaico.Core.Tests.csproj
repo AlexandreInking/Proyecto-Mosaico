@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <None Include="..\..\fixtures\phase0\*.mosaic.json" Link="fixtures\phase0\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\fixtures\phase1\*.png" Link="fixtures\phase1\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

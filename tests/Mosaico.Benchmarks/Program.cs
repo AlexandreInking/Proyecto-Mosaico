@@ -31,6 +31,22 @@ MapFileStore.SaveAtomic(mapPath, roundTripDocument);
 for (var index = 0; index < warmups; index++) _ = MapFileStore.Load(mapPath);
 var openMilliseconds = Measure(samples, () => _ = MapFileStore.Load(mapPath));
 
+var visibleQueryProject = MapProject.Create("Benchmark viewport", 1_000, 1_000, 16, 16);
+var visibleQueryTilesetId = Guid.Parse("10000000-0000-0000-0000-000000000099");
+visibleQueryProject.AddTileset(TilesetDefinition.Create(visibleQueryTilesetId, "Benchmark", "assets/benchmark.png",
+    16, 16, 16, 16, new string('0', 64)));
+var visibleQueryTile = new TileRef(visibleQueryTilesetId, 0);
+for (var y = 0; y < visibleQueryProject.Height; y++)
+for (var x = 0; x < visibleQueryProject.Width; x++)
+    visibleQueryProject.SetTile(visibleQueryProject.ActiveLayerId, new(x, y), visibleQueryTile);
+var visibleQueryLayer = visibleQueryProject.Layers.Single();
+var visibleQueryBounds = new GridRectangle(480, 480, 511, 511);
+var visibleQueryResultCells = 0;
+for (var index = 0; index < warmups; index++)
+    visibleQueryResultCells = visibleQueryLayer.EnumerateCells(visibleQueryBounds).Count();
+var visibleQueryMilliseconds = Measure(samples, () =>
+    visibleQueryResultCells = visibleQueryLayer.EnumerateCells(visibleQueryBounds).Count());
+
 GC.Collect();
 GC.WaitForPendingFinalizers();
 var report = new
@@ -57,11 +73,14 @@ var report = new
         brushCells = brushCells.Length,
         openCells = roundTripDocument.OccupiedCellCount,
         mapBytes = new FileInfo(mapPath).Length,
+        visibleQueryOccupiedCells = visibleQueryProject.OccupiedCellCount,
+        visibleQueryResultCells,
     },
     metrics = new
     {
         brushExecuteUndoMs = Percentiles(brushMilliseconds),
         openJsonMs = Percentiles(openMilliseconds),
+        visibleCellQueryMs = Percentiles(visibleQueryMilliseconds),
         processWorkingSetBytes = Environment.WorkingSet,
     },
 };
@@ -71,7 +90,7 @@ Directory.CreateDirectory(Path.GetDirectoryName(fullOutput)!);
 File.WriteAllText(fullOutput, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }) + "\n");
 Directory.Delete(temporaryDirectory, recursive: true);
 Console.WriteLine($"Benchmark written: {fullOutput}");
-Console.WriteLine($"Brush p95: {Percentile(brushMilliseconds, 0.95):F3} ms; open p95: {Percentile(openMilliseconds, 0.95):F3} ms");
+Console.WriteLine($"Brush p95: {Percentile(brushMilliseconds, 0.95):F3} ms; open p95: {Percentile(openMilliseconds, 0.95):F3} ms; visible query p95: {Percentile(visibleQueryMilliseconds, 0.95):F3} ms");
 return 0;
 
 static double[] Measure(int count, Action action)

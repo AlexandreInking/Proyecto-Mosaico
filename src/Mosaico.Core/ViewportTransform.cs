@@ -6,11 +6,23 @@ public readonly record struct ScreenPoint(double X, double Y);
 public readonly record struct ViewportTransform(
     double ViewportWidth,
     double ViewportHeight,
-    double CellSize,
+    double CellWidth,
+    double CellHeight,
     double Zoom,
     double CameraWorldX,
     double CameraWorldY)
 {
+    public ViewportTransform(
+        double viewportWidth,
+        double viewportHeight,
+        double cellSize,
+        double zoom,
+        double cameraWorldX,
+        double cameraWorldY)
+        : this(viewportWidth, viewportHeight, cellSize, cellSize, zoom, cameraWorldX, cameraWorldY)
+    {
+    }
+
     public WorldPoint ScreenToWorld(double screenX, double screenY) => new(
         (screenX - ViewportWidth / 2) / Zoom + CameraWorldX,
         (screenY - ViewportHeight / 2) / Zoom + CameraWorldY);
@@ -23,7 +35,7 @@ public readonly record struct ViewportTransform(
     {
         var world = ScreenToWorld(screenX, screenY);
         return new GridCoordinate(
-            (int)Math.Floor(world.X / CellSize),
-            (int)Math.Floor(world.Y / CellSize));
+            (int)Math.Floor(world.X / CellWidth),
+            (int)Math.Floor(world.Y / CellHeight));
     }
 }
