@@ -53,8 +53,8 @@ def render_dossier(root: Path) -> str:
 
     preface = (
         "# Proyecto Mosaico — Dossier completo\n\n"
-        "> **Artefacto generado. No editar directamente.**  \n"
-        "> Fuentes canónicas: `documentos/00_...md` a `documentos/14_...md`.  \n"
+        "> **Artefacto generado. No editar directamente.**\n"
+        "> Fuentes canónicas: `documentos/00_...md` a `documentos/14_...md`.\n"
         "> Regenerar: `python tools/docs/build_dossier.py`.\n"
     )
     return preface + "\n\n---\n\n" + "\n\n---\n\n".join(sections) + "\n"

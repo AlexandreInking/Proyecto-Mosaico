@@ -1,35 +1,15 @@
 # Proyecto Mosaico — Dossier completo
 
-> Compendio generado a partir de los quince documentos independientes.
+> **Artefacto generado. No editar directamente.**
+> Fuentes canónicas: `documentos/00_...md` a `documentos/14_...md`.
+> Regenerar: `python tools/docs/build_dossier.py`.
 
 
----
-
----
-title: "Proyecto Mosaico - Índice maestro y gobernanza documental"
-subtitle: "Mapa de documentos, principios rectores, control de cambios y orden de lectura"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-00  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -39,7 +19,7 @@ Este paquete convierte la idea de un editor universal 2D en una base de ingenier
 
 El producto objetivo permite editar y generar niveles o mapas 2D en múltiples topologías: ortogonal, lateral sobre cuadrícula ortogonal, isométrica, escalonada, oblicua y hexagonal. Su rasgo diferencial es la separación entre intención semántica, representación visual y datos de juego, combinando edición manual, reglas de patrones, autotiling, generación procedural y Wave Function Collapse.
 
-![Contexto general del producto](/mnt/data/proyecto_mosaico_documentacion/assets/context.png)
+![Contexto general del producto](diagramas/context.png)
 
 # Principios rectores
 
@@ -98,6 +78,28 @@ Todo cambio relevante debe incluir:
 
 Cambios locales y reversibles pueden entrar por pull request ordinario. Cambios que afecten el formato nativo, topologías, modelo de identidad, threading, sistema de plugins o semántica de reglas requieren un ADR.
 
+## Estados documentales
+
+| Estado | Significado | Autoridad necesaria para avanzar |
+|---|---|---|
+| Borrador | Hipótesis incompleta; puede contener alternativas y huecos conocidos. | Propietario temporal del documento. |
+| Auditado | Revisado contra corpus y riesgos; los hallazgos están registrados, pero pueden quedar bloqueos. | Revisor independiente del dominio. |
+| Aprobado | Suficiente para ejecutar la fase indicada; contratos, aceptación y decisiones límite están cerrados. | Responsables humanos definidos por gobernanza. |
+| Estable | Validado por implementación, pruebas, migraciones y uso; cambios incompatibles exigen ADR. | Aprobación humana y evidencia de release. |
+| Sustituido | Reemplazado por versión, ADR o documento posterior identificado. | Responsable del documento y enlace al reemplazo. |
+
+`Auditado` no significa listo para implementar. Cada documento debe declarar fase objetivo, bloqueos y evidencia pendiente antes de pasar a `Aprobado`.
+
+## Fuentes canónicas y artefactos generados
+
+- Los quince capítulos `documentos/00_...md` a `documentos/14_...md` son fuentes canónicas y se editan por separado.
+- `Proyecto_Mosaico_Dossier_Completo.md` es generado; no se edita directamente.
+- Los archivos `diagramas/*.dot` son fuente de los PNG con el mismo nombre base. Los PNG se versionan para lectura sin Graphviz.
+- `README.md` orienta navegación y comandos, pero no reemplaza contratos PM ni ADR.
+- La auditoría bajo `analisis_documental/` registra evidencia y backlog; no cambia requisitos por sí sola.
+
+El dossier se regenera con `python tools/docs/build_dossier.py`. `python tools/docs/build_dossier.py --check` debe fallar cuando el artefacto difiera de sus fuentes.
+
 # Roles de gobernanza
 
 | Rol | Responsabilidad |
@@ -152,34 +154,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Visión de producto y alcance"
-subtitle: "Propuesta de valor, usuarios, escenarios, límites y métricas de éxito"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-01  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -194,7 +173,7 @@ Proyecto Mosaico es un editor de mapas y niveles 2D independiente del motor. Per
 
 El producto no intenta reproducir un editor pictórico de mapas. Las capas, máscaras, imágenes y paralaje existen para componer niveles, no para sustituir una aplicación de ilustración.
 
-![Flujo de intención a exportación](/mnt/data/proyecto_mosaico_documentacion/assets/semantic_pipeline.png)
+![Flujo de intención a exportación](diagramas/semantic_pipeline.png)
 
 # Problema que resuelve
 
@@ -339,34 +318,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Especificación de requisitos"
-subtitle: "Requisitos funcionales, no funcionales, reglas de aceptación y trazabilidad"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-02  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -539,34 +495,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Arquitectura de software"
-subtitle: "Límites de módulos, dependencias, servicios, comandos y decisiones estructurales"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-03  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -574,7 +507,7 @@ header-includes:
 
 La arquitectura debe permitir probar algoritmos sin interfaz, cambiar el framework visual sin reescribir el dominio, añadir formatos sin contaminar el modelo interno y ejecutar operaciones largas de manera cancelable. También debe mantener una frontera clara entre datos autoritativos y cachés reconstruibles.
 
-![Arquitectura por capas](/mnt/data/proyecto_mosaico_documentacion/assets/architecture.png)
+![Arquitectura por capas](diagramas/architecture.png)
 
 # Estilo general
 
@@ -769,34 +702,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Modelo espacial, grillas y proyecciones"
-subtitle: "Topologías, sistemas de coordenadas, selección, vecinos, orden y geometría"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-04  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -804,7 +714,7 @@ header-includes:
 
 El sistema no codifica "top-down", "plataformas" o "isométrico" como matrices incompatibles. Define topologías lógicas y proyecciones visuales. Los perfiles de juego añaden semántica y validadores, pero no cambian la identidad de una celda.
 
-![Cadena de transformaciones espaciales](/mnt/data/proyecto_mosaico_documentacion/assets/spatial_transform.png)
+![Cadena de transformaciones espaciales](diagramas/spatial_transform.png)
 
 # Tipos fundamentales
 
@@ -983,34 +893,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Modelo de datos y persistencia"
-subtitle: "Identidad, documentos, chunks, propiedades, formato nativo, migraciones y recuperación"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-05  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -1250,34 +1137,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - UX del editor y flujos de trabajo"
-subtitle: "Modelo mental, disposición, herramientas, modos progresivos y accesibilidad"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-06  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -1455,34 +1319,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Autotiling, Wang y motor de patrones"
-subtitle: "Condiciones, coincidencia, fases, conflictos, actualización incremental y depuración"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-07  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -1705,34 +1546,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Marco de generación procedural 2D"
-subtitle: "Generadores, semillas, máscaras, validación, reparación, presets y composición"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-08  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -1939,34 +1757,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Motor Wave Function Collapse"
-subtitle: "Modelos, dominios, entropía, propagación, backtracking, restricciones y depuración"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-09  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -1974,7 +1769,7 @@ header-includes:
 
 WFC es un solucionador especializado para completar configuraciones bajo restricciones locales. No sustituye al generador estructural ni garantiza progresión global. Se usa después de fijar esqueleto, regiones obligatorias o límites.
 
-![Ciclo principal de WFC](/mnt/data/proyecto_mosaico_documentacion/assets/wfc_cycle.png)
+![Ciclo principal de WFC](diagramas/wfc_cycle.png)
 
 # Modelos soportados
 
@@ -2205,34 +2000,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Renderizado, rendimiento y concurrencia"
-subtitle: "Viewport, batching, chunks, cachés, presupuestos, jobs y perfilado"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-10  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2393,34 +2165,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Importación, exportación, plugins e integraciones"
-subtitle: "Puertos, compatibilidad, reportes de pérdida, CLI y extensibilidad segura"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-11  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2428,7 +2177,7 @@ header-includes:
 
 El formato interno representa el producto; los formatos externos son adaptadores. No se debe deformar el dominio para imitar cada particularidad de un motor.
 
-![Arquitectura de plugins](/mnt/data/proyecto_mosaico_documentacion/assets/plugin_architecture.png)
+![Arquitectura de plugins](diagramas/plugin_architecture.png)
 
 # Importadores
 
@@ -2607,34 +2356,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Pruebas, QA, seguridad y release"
-subtitle: "Estrategia de evidencia, automatización, archivos no confiables y puertas de entrega"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-12  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2642,7 +2368,7 @@ header-includes:
 
 Un editor de contenido administra trabajo creativo valioso. La prioridad es no perderlo. La estrategia de calidad se organiza alrededor de integridad, previsibilidad, compatibilidad, rendimiento y experiencia.
 
-![Pipeline de calidad y release](/mnt/data/proyecto_mosaico_documentacion/assets/release_pipeline.png)
+![Pipeline de calidad y release](diagramas/release_pipeline.png)
 
 # Pirámide de pruebas
 
@@ -2792,34 +2518,11 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
 
-
----
-
----
-title: "Proyecto Mosaico - Sistema agéntico de desarrollo"
-subtitle: "Organización con GPT-5.6 Sol, agentes especializados, herramientas, evals y control humano"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-13  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2827,7 +2530,7 @@ header-includes:
 
 Usar un sistema agéntico para acelerar diseño, implementación, pruebas y mantenimiento sin delegar ciegamente decisiones irreversibles. GPT-5.6 Sol actúa como coordinador y revisor de trabajos complejos; agentes especializados implementan módulos acotados; herramientas deterministas deciden si el resultado compila y cumple pruebas.
 
-![Organización agéntica propuesta](/mnt/data/proyecto_mosaico_documentacion/assets/agentic_org.png)
+![Organización agéntica propuesta](diagramas/agentic_org.png)
 
 # Principio de operación
 
@@ -3050,34 +2753,11 @@ El piloto agéntico implementa un slice vertical ortogonal: documento, tileset, 
 
 La disponibilidad, precios, límites y nombres de modelos son configurables y pueden cambiar. La arquitectura propuesta encapsula el proveedor de modelos para evitar que el proceso dependa de una única versión.
 
-
----
-
----
-title: "Proyecto Mosaico - Roadmap, backlog, ADR y plantillas"
-subtitle: "Fases, entregables, riesgos, definition of done y artefactos de gestión"
-author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
-lang: es-ES
-documentclass: article
-papersize: a4
-fontsize: 10pt
-mainfont: "Lato"
-sansfont: "Lato"
-monofont: "DejaVu Sans Mono"
-geometry: margin=1.8cm
-toc: true
-toc-depth: 3
-numbersections: true
-colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-14  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -3381,4 +3061,3 @@ Estas referencias se emplean para estudiar conceptos y formatos, no para copiar 
 - Wave Function Collapse, repositorio de referencia: https://github.com/mxgmn/WaveFunctionCollapse
 
 Toda dependencia o reutilización de código deberá pasar por una revisión específica de licencia, atribución y compatibilidad con el modelo de distribución del producto.
-

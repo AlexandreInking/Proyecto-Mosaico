@@ -22,6 +22,10 @@ TestResults/
 coverage/
 BenchmarkDotNet.Artifacts/
 node_modules/
+output/
+tmp/
+__pycache__/
+*.py[cod]
 
 # Local caches, autosaves and logs
 .cache/

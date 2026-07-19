@@ -2,7 +2,7 @@
 title: "Proyecto Mosaico - Importación, exportación, plugins e integraciones"
 subtitle: "Puertos, compatibilidad, reportes de pérdida, CLI y extensibilidad segura"
 author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
+date: "19 de julio de 2026"
 lang: es-ES
 documentclass: article
 papersize: a4
@@ -15,14 +15,11 @@ toc: true
 toc-depth: 3
 numbersections: true
 colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-11  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -30,7 +27,7 @@ header-includes:
 
 El formato interno representa el producto; los formatos externos son adaptadores. No se debe deformar el dominio para imitar cada particularidad de un motor.
 
-![Arquitectura de plugins](/mnt/data/proyecto_mosaico_documentacion/assets/plugin_architecture.png)
+![Arquitectura de plugins](../diagramas/plugin_architecture.png)
 
 # Importadores
 

@@ -2,7 +2,7 @@
 title: "Proyecto Mosaico - Motor Wave Function Collapse"
 subtitle: "Modelos, dominios, entropía, propagación, backtracking, restricciones y depuración"
 author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
+date: "19 de julio de 2026"
 lang: es-ES
 documentclass: article
 papersize: a4
@@ -15,14 +15,11 @@ toc: true
 toc-depth: 3
 numbersections: true
 colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-09  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -30,7 +27,7 @@ header-includes:
 
 WFC es un solucionador especializado para completar configuraciones bajo restricciones locales. No sustituye al generador estructural ni garantiza progresión global. Se usa después de fijar esqueleto, regiones obligatorias o límites.
 
-![Ciclo principal de WFC](/mnt/data/proyecto_mosaico_documentacion/assets/wfc_cycle.png)
+![Ciclo principal de WFC](../diagramas/wfc_cycle.png)
 
 # Modelos soportados
 

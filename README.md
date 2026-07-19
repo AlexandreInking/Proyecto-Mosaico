@@ -1,12 +1,28 @@
-# Proyecto Mosaico — Documentación en Markdown
+# Proyecto Mosaico — Documentación y gobernanza
 
-Este paquete contiene la documentación técnica y de producto de Proyecto Mosaico en formato Markdown.
+Este repositorio contiene la documentación técnica y de producto de Proyecto Mosaico. El corpus está auditado, pero todavía no aprobado para iniciar Fase 0.
 
 ## Contenido
 
-- `documentos/`: quince volúmenes independientes, numerados del 00 al 14.
-- `Proyecto_Mosaico_Dossier_Completo.md`: todos los volúmenes reunidos en un solo archivo.
+- `documentos/`: quince capítulos canónicos, numerados del 00 al 14. Toda edición normativa empieza aquí.
+- `Proyecto_Mosaico_Dossier_Completo.md`: artefacto generado desde los capítulos; no editar directamente.
 - `diagramas/`: diagramas en PNG y sus fuentes Graphviz `.dot`.
+- `analisis_documental/`: inventario, trazabilidad, auditorías, backlog y dictamen.
+- `tools/docs/` y `tests/docs/`: generación y verificaciones documentales reproducibles.
+
+## Verificación
+
+Requiere Python 3.11 o posterior. El generador y los validadores usan solo biblioteca estándar. El render PDF y su prueba requieren las dependencias de `requirements-docs.txt`.
+
+```text
+python -m unittest discover -s tests/docs -v
+python tools/docs/build_dossier.py
+python tools/docs/build_dossier.py --check
+python tools/docs/check_docs.py
+python tools/docs/render_pdf.py
+```
+
+El primer comando prueba la lógica. Los dos siguientes regeneran y comprueban el dossier. El cuarto rechaza rutas locales no portables, enlaces inexistentes, IDs incoherentes y estados documentales desconocidos. El último genera `output/pdf/Proyecto_Mosaico_Dossier_Completo.pdf`.
 
 ## Orden de lectura recomendado
 
@@ -16,4 +32,4 @@ Este paquete contiene la documentación técnica y de producto de Proyecto Mosai
 4. `03_Arquitectura_de_Software.md`
 5. Continúe en orden numérico hasta el documento 14.
 
-Los enlaces relativos a imágenes pueden ajustarse según el visor Markdown o repositorio donde se importe el paquete.
+Los capítulos son la fuente de verdad. Cambios de requisitos, arquitectura, formato, seguridad o gates requieren la autoridad definida en PM-00.

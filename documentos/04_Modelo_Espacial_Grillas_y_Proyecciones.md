@@ -2,7 +2,7 @@
 title: "Proyecto Mosaico - Modelo espacial, grillas y proyecciones"
 subtitle: "Topologías, sistemas de coordenadas, selección, vecinos, orden y geometría"
 author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
+date: "19 de julio de 2026"
 lang: es-ES
 documentclass: article
 papersize: a4
@@ -15,14 +15,11 @@ toc: true
 toc-depth: 3
 numbersections: true
 colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-04  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -30,7 +27,7 @@ header-includes:
 
 El sistema no codifica "top-down", "plataformas" o "isométrico" como matrices incompatibles. Define topologías lógicas y proyecciones visuales. Los perfiles de juego añaden semántica y validadores, pero no cambian la identidad de una celda.
 
-![Cadena de transformaciones espaciales](/mnt/data/proyecto_mosaico_documentacion/assets/spatial_transform.png)
+![Cadena de transformaciones espaciales](../diagramas/spatial_transform.png)
 
 # Tipos fundamentales
 

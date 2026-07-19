@@ -2,7 +2,7 @@
 title: "Proyecto Mosaico - Arquitectura de software"
 subtitle: "Límites de módulos, dependencias, servicios, comandos y decisiones estructurales"
 author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
+date: "19 de julio de 2026"
 lang: es-ES
 documentclass: article
 papersize: a4
@@ -15,14 +15,11 @@ toc: true
 toc-depth: 3
 numbersections: true
 colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-03  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -30,7 +27,7 @@ header-includes:
 
 La arquitectura debe permitir probar algoritmos sin interfaz, cambiar el framework visual sin reescribir el dominio, añadir formatos sin contaminar el modelo interno y ejecutar operaciones largas de manera cancelable. También debe mantener una frontera clara entre datos autoritativos y cachés reconstruibles.
 
-![Arquitectura por capas](/mnt/data/proyecto_mosaico_documentacion/assets/architecture.png)
+![Arquitectura por capas](../diagramas/architecture.png)
 
 # Estilo general
 

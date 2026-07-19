@@ -2,7 +2,7 @@
 title: "Proyecto Mosaico - Índice maestro y gobernanza documental"
 subtitle: "Mapa de documentos, principios rectores, control de cambios y orden de lectura"
 author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
+date: "19 de julio de 2026"
 lang: es-ES
 documentclass: article
 papersize: a4
@@ -15,14 +15,11 @@ toc: true
 toc-depth: 3
 numbersections: true
 colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-00  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -32,7 +29,7 @@ Este paquete convierte la idea de un editor universal 2D en una base de ingenier
 
 El producto objetivo permite editar y generar niveles o mapas 2D en múltiples topologías: ortogonal, lateral sobre cuadrícula ortogonal, isométrica, escalonada, oblicua y hexagonal. Su rasgo diferencial es la separación entre intención semántica, representación visual y datos de juego, combinando edición manual, reglas de patrones, autotiling, generación procedural y Wave Function Collapse.
 
-![Contexto general del producto](/mnt/data/proyecto_mosaico_documentacion/assets/context.png)
+![Contexto general del producto](../diagramas/context.png)
 
 # Principios rectores
 
@@ -90,6 +87,28 @@ Todo cambio relevante debe incluir:
 - Decisión y responsables.
 
 Cambios locales y reversibles pueden entrar por pull request ordinario. Cambios que afecten el formato nativo, topologías, modelo de identidad, threading, sistema de plugins o semántica de reglas requieren un ADR.
+
+## Estados documentales
+
+| Estado | Significado | Autoridad necesaria para avanzar |
+|---|---|---|
+| Borrador | Hipótesis incompleta; puede contener alternativas y huecos conocidos. | Propietario temporal del documento. |
+| Auditado | Revisado contra corpus y riesgos; los hallazgos están registrados, pero pueden quedar bloqueos. | Revisor independiente del dominio. |
+| Aprobado | Suficiente para ejecutar la fase indicada; contratos, aceptación y decisiones límite están cerrados. | Responsables humanos definidos por gobernanza. |
+| Estable | Validado por implementación, pruebas, migraciones y uso; cambios incompatibles exigen ADR. | Aprobación humana y evidencia de release. |
+| Sustituido | Reemplazado por versión, ADR o documento posterior identificado. | Responsable del documento y enlace al reemplazo. |
+
+`Auditado` no significa listo para implementar. Cada documento debe declarar fase objetivo, bloqueos y evidencia pendiente antes de pasar a `Aprobado`.
+
+## Fuentes canónicas y artefactos generados
+
+- Los quince capítulos `documentos/00_...md` a `documentos/14_...md` son fuentes canónicas y se editan por separado.
+- `Proyecto_Mosaico_Dossier_Completo.md` es generado; no se edita directamente.
+- Los archivos `diagramas/*.dot` son fuente de los PNG con el mismo nombre base. Los PNG se versionan para lectura sin Graphviz.
+- `README.md` orienta navegación y comandos, pero no reemplaza contratos PM ni ADR.
+- La auditoría bajo `analisis_documental/` registra evidencia y backlog; no cambia requisitos por sí sola.
+
+El dossier se regenera con `python tools/docs/build_dossier.py`. `python tools/docs/build_dossier.py --check` debe fallar cuando el artefacto difiera de sus fuentes.
 
 # Roles de gobernanza
 

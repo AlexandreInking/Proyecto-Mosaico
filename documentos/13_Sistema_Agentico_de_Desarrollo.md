@@ -2,7 +2,7 @@
 title: "Proyecto Mosaico - Sistema agéntico de desarrollo"
 subtitle: "Organización con GPT-5.6 Sol, agentes especializados, herramientas, evals y control humano"
 author: "Proyecto Mosaico - documentación de diseño"
-date: "18 de julio de 2026"
+date: "19 de julio de 2026"
 lang: es-ES
 documentclass: article
 papersize: a4
@@ -15,14 +15,11 @@ toc: true
 toc-depth: 3
 numbersections: true
 colorlinks: true
-header-includes:
-  - |-
-    \input{/mnt/data/proyecto_mosaico_documentacion/src/header.tex}
 ---
 
 > **Documento:** PM-13  
-> **Versión:** 0.1.0 - Base de diseño  
-> **Estado:** Base aprobable para iniciar implementación; sujeto a ADR y control de cambios.  
+> **Versión:** 0.1.1 - Auditoría incorporada
+> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -30,7 +27,7 @@ header-includes:
 
 Usar un sistema agéntico para acelerar diseño, implementación, pruebas y mantenimiento sin delegar ciegamente decisiones irreversibles. GPT-5.6 Sol actúa como coordinador y revisor de trabajos complejos; agentes especializados implementan módulos acotados; herramientas deterministas deciden si el resultado compila y cumple pruebas.
 
-![Organización agéntica propuesta](/mnt/data/proyecto_mosaico_documentacion/assets/agentic_org.png)
+![Organización agéntica propuesta](../diagramas/agentic_org.png)
 
 # Principio de operación
 
