@@ -74,6 +74,9 @@ importers:
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.13.3
       '@types/react':
         specifier: ^19.1.10
         version: 19.2.17
