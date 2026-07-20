@@ -1,7 +1,7 @@
 # Especificación de transformación: Mosaico Asset Pipeline AI
 
 **Versión:** 0.1.0  
-**Estado:** Propuesto; requiere aprobación humana antes de implementar  
+**Estado:** Aprobado para T0-T1; fases posteriores requieren su gate humano
 **Fecha:** 19 de julio de 2026  
 **Autoridad:** complementa PM-01/PM-02 y se aplica mediante ADR-003 y ADR-004
 
@@ -9,7 +9,7 @@
 
 Mosaico evoluciona de editor de tilemaps a entorno integrado de preparación de assets y diseño procedural para desarrollo de videojuegos. Conserva edición de mapas, topologías ortogonal/isométrica/hexagonal, patrones y WFC; añade pipelines reproducibles para imágenes, modelos 3D y audio, más generación asistida de contenido estructurado.
 
-La promesa corta es: **un Photoshop de pipeline para desarrolladores**, no un sustituto de pintura raster. El usuario importa recursos, encadena transformaciones no destructivas, inspecciona diferencias, valida calidad y exporta artefactos listos para motor.
+La promesa corta es: **un Photoshop de pipeline para desarrolladores**. Incluye edición raster/pixel-art profesional, tilemaps y animación; además permite importar recursos, encadenar transformaciones no destructivas, inspeccionar diferencias, validar calidad y exportar artefactos listos para motor.
 
 ## 2. Productos
 
@@ -57,6 +57,15 @@ La promesa corta es: **un Photoshop de pipeline para desarrolladores**, no un su
 - Generación de atlas determinista con padding, extrusión y manifiesto.
 - Compresión de texturas por perfil de plataforma; preservar fuente.
 - Validaciones: transparencia, bleeding, dimensiones máximas, potencia de dos opcional y presupuesto de memoria.
+
+### 4.2.1 Editor raster y pixel-art
+
+- Documento nativo versionado con sprites, capas/grupos, frames, cels, paletas, selecciones, slices, tags y tilemap layers.
+- Herramientas de dibujo, selección, transformación, color, simetría, sombreado, dithering, animación y scripting medibles en `PIXEL_ART_CAPABILITY_MATRIX.md`.
+- Historial transaccional, autosave, recuperación y originales/exports separados.
+- Integración directa con recetas: cualquier documento o selección puede alimentar resize, conversión, atlas, optimización y exportación.
+- Objetivo de producto: cubrir la matriz funcional de referencia Aseprite y superarla en pipeline, mapas multi-topología, automatización y proceduralidad.
+- Implementación clean-room: Aseprite se usa solo como referencia funcional pública; no se copia código, recursos, identidad visual ni formato interno no autorizado.
 
 ### 4.3 Pipeline de modelos 3D
 
@@ -198,4 +207,3 @@ Implementación comienza solo después de aprobar:
 - ADR-003 (plataforma dual);
 - ADR-004 (pipeline e IA estructurada);
 - orden y gates de `PLAN.md`.
-

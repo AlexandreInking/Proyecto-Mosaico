@@ -1,6 +1,6 @@
 # Plan de transformación y migración dual
 
-**Estado:** Propuesto  
+**Estado:** T0 completado; T1 aprobado y en ejecución
 **Fecha:** 19 de julio de 2026  
 **Regla:** desde cada fase implementable existe programa arrancable, fixture y validación manual antes de avanzar.
 
@@ -74,6 +74,17 @@ Aceptación:
 - [ ] Oracle WPF y nueva app coinciden en fixture semántico.
 
 Validación manual: MG-02 adaptado en ambas apps. Solo entonces LegacyWpf queda deprecado.
+
+## Fases T2P-T4P — Editor raster y pixel-art profesional
+
+**Objetivo:** cumplir y superar la matriz funcional de referencia sin copiar Aseprite.
+
+- T2P entrega Pixel Core ejecutable: documento sprite, lienzo, herramientas esenciales, capas y animación base.
+- T3P entrega Pixel Pro: herramientas avanzadas, paletas/indexado, timeline profesional y spritesheets.
+- T4P entrega automatización: macros, CLI, scripting aislado e integración procedural.
+- Estas fases se intercalan con T2-T4: comparten canvas, comandos, historial, tilesets y exportadores.
+
+Aceptación: cada fila de `PIXEL_ART_CAPABILITY_MATRIX.md` necesita evidencia automática y manual. Nunca se declara “paridad” por semejanza visual.
 
 ## Fase T3 — Pipeline profesional de sprites
 
@@ -222,4 +233,3 @@ Cada fase requiere:
 3. Levantar shell React compartido en WebApp.
 4. Empaquetar mismo shell en Tauri.
 5. Entregar ejecutables T0 y guion manual.
-

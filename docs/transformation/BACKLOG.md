@@ -18,6 +18,13 @@
 | TRN-104 | T1 | Resize/conversión/export | TRN-103 | golden images + tolerancia |
 | TRN-105 | T1 | Consola agrupada y progreso | TRN-103 | agrupación/cancelación |
 | TRN-106 | T1 | Persistencia local y web temporal | TRN-101/103 | reopen round-trip |
+| PXL-001 | T2P | Documento sprite: capas/frames/cels/paleta | T1 | schema + round-trip + recovery |
+| PXL-002 | T2P | Canvas pixel-perfect y herramientas esenciales | PXL-001 | golden strokes + walkthrough |
+| PXL-003 | T2P | Timeline, playback y onion skin base | PXL-001 | timing + composite tests |
+| PXL-004 | T2P | Selección, transformación y undo/redo | PXL-002 | command/property tests |
+| PXL-101 | T3P | Herramientas avanzadas, brushes, simetría y dithering | PXL-002 | capability matrix corpus |
+| PXL-102 | T3P | Indexed color, palettes, tags, slices y spritesheets | PXL-001/003 | round-trip + golden exports |
+| PXL-201 | T4P | Macros, CLI y scripting aislado con permisos | PXL-101/102 | sandbox/security tests |
 | TRN-201 | T2 | Portar viewport PixiJS | T0 | clip/picking/HiDPI tests |
 | TRN-202 | T2 | Adaptar formato `.mosaico` | TRN-002 | fixture F1 round-trip |
 | TRN-203 | T2 | Portar layers/tilesets/tools | TRN-201/202 | walkthrough MG-02 |
@@ -62,4 +69,3 @@
 - Procedencia y diagnóstico visibles.
 - Documentación y licencias actualizadas.
 - Usuario recibe mensaje exacto de qué revisar.
-
