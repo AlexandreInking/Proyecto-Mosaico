@@ -26,8 +26,8 @@ $clientLog = Join-Path $repoRoot 'output\logs\web-client.log'
 $apiLog = Join-Path $repoRoot 'output\logs\web-api.log'
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $clientLog) | Out-Null
 
-$clientProcess = Start-Process -FilePath $pnpm.Source -ArgumentList ($pnpmArguments + @('dev:web', '--', '--host', '127.0.0.1')) -WorkingDirectory $repoRoot -RedirectStandardOutput $clientLog -RedirectStandardError "$clientLog.err" -WindowStyle Hidden -PassThru
-$apiProcess = Start-Process -FilePath $pnpm.Source -ArgumentList ($pnpmArguments + @('dev:api')) -WorkingDirectory $repoRoot -RedirectStandardOutput $apiLog -RedirectStandardError "$apiLog.err" -WindowStyle Hidden -PassThru
+$clientProcess = Start-Process -FilePath $pnpm.Source -ArgumentList ($pnpmArguments + @('--filter', '@mosaico/web-client', 'exec', 'vite', '--host', '127.0.0.1')) -WorkingDirectory $repoRoot -RedirectStandardOutput $clientLog -RedirectStandardError "$clientLog.err" -WindowStyle Hidden -PassThru
+$apiProcess = Start-Process -FilePath $pnpm.Source -ArgumentList ($pnpmArguments + @('--filter', '@mosaico/web-server', 'exec', 'node', 'ace', 'serve', '--hmr')) -WorkingDirectory $repoRoot -RedirectStandardOutput $apiLog -RedirectStandardError "$apiLog.err" -WindowStyle Hidden -PassThru
 
 function Wait-Endpoint([string]$Uri) {
     for ($attempt = 0; $attempt -lt 30; $attempt++) {

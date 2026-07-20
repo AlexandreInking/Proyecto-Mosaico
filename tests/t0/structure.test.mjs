@@ -32,3 +32,14 @@ test('web server is an AdonisJS application', () => {
   assert.ok(server.dependencies['@adonisjs/core'])
   assert.equal(existsSync('WebApp/server/ace.js'), true)
 })
+
+test('Windows web launcher invokes workspace commands directly', () => {
+  const launcher = readFileSync('scripts/start-webapp.ps1', 'utf8')
+
+  assert.match(launcher, /@mosaico\/web-client/)
+  assert.match(launcher, /@mosaico\/web-server/)
+  assert.match(launcher, /'exec', 'vite'/)
+  assert.match(launcher, /'exec', 'node', 'ace', 'serve', '--hmr'/)
+  assert.doesNotMatch(launcher, /'dev:web'/)
+  assert.doesNotMatch(launcher, /'dev:api'/)
+})
