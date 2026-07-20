@@ -15,7 +15,7 @@ public static class MapProjectDiagnostics
         ArgumentNullException.ThrowIfNull(project);
         var knownTilesets = project.Tilesets.ToDictionary(item => item.Id);
         return project.Layers
-            .SelectMany(layer => layer.Cells().Select(cell => (Layer: layer, Cell: cell)))
+            .SelectMany(layer => layer.CellReferences().Select(cell => (Layer: layer, Cell: cell)))
             .Where(item => !knownTilesets.ContainsKey(item.Cell.Tile.TilesetId))
             .GroupBy(item => item.Cell.Tile.TilesetId)
             .OrderBy(group => group.Key)

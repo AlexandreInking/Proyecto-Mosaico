@@ -251,6 +251,9 @@ public static class MapProjectFileStore
             if (cells > MapProject.MaximumOccupiedCells) throw new MapFormatException("RESOURCE_LIMIT_OCCUPIED_CELLS");
             if (layer.Cells.Select(cell => (cell.X, cell.Y)).Distinct().Count() != layer.Cells.Length)
                 throw new MapFormatException("Layer cell coordinates must be unique.");
+            if (layer.Cells.Any(cell => cell.TilesetId == Guid.Empty || cell.TileId < 0
+                || cell.X < 0 || cell.X >= dto.Width || cell.Y < 0 || cell.Y >= dto.Height))
+                throw new MapFormatException("Layer contains an invalid tile reference or coordinate.");
         }
     }
 

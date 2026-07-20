@@ -28,6 +28,9 @@ public sealed class TileLayer
         => _cells.OrderBy(pair => pair.Key.Y).ThenBy(pair => pair.Key.X)
             .Select(pair => (pair.Key, pair.Value)).ToArray();
 
+    internal IEnumerable<(GridCoordinate Coordinate, TileRef Tile)> CellReferences()
+        => _cells.Select(pair => (pair.Key, pair.Value));
+
     public IEnumerable<(GridCoordinate Coordinate, TileRef Tile)> EnumerateCells(GridRectangle bounds)
     {
         var firstChunkX = GridMath.FloorDiv(bounds.Left, ChunkSize);
