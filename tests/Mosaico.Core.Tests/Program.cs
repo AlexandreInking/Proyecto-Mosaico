@@ -38,6 +38,7 @@ var tests = new (string Name, Action Run)[]
     ("Project ZIP rejects traversal entries", ProjectZipRejectsTraversalEntries),
     ("Project ZIP rejects null collection elements", ProjectZipRejectsNullCollectionElements),
     ("Export rejects aggregate assets above archive limit", ExportRejectsAggregateAssetsAboveArchiveLimit),
+    ("Retained asset budget blocks repeated import deletion abuse", RetainedAssetBudgetBlocksRepeatedImportDeletionAbuse),
     ("Mosaic pack export is deterministic and contains no code", MosaicPackExportIsDeterministicAndContainsNoCode),
 };
 
@@ -654,6 +655,13 @@ static void ExportRejectsAggregateAssetsAboveArchiveLimit()
     }
 
     Throws<MapFormatException>(() => MosaicPackExporter.CreateBytes(project, assets));
+}
+
+static void RetainedAssetBudgetBlocksRepeatedImportDeletionAbuse()
+{
+    var retained = Enumerable.Range(0, MapProject.MaximumTilesets + 1)
+        .ToDictionary(_ => Guid.NewGuid(), _ => new byte[] { 1 });
+    Throws<MapFormatException>(() => MapProjectFileStore.ValidateRetainedAssetBudget(retained));
 }
 
 static void Equal<T>(T expected, T actual)

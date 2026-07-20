@@ -273,6 +273,22 @@ public static class MapProjectFileStore
         }
     }
 
+    public static void ValidateRetainedAssetBudget(IReadOnlyDictionary<Guid, byte[]> assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+        if (assets.Count > MapProject.MaximumTilesets)
+            throw new MapFormatException("RESOURCE_LIMIT_RETAINED_ASSETS");
+        long totalBytes = 0;
+        foreach (var bytes in assets.Values)
+        {
+            if (bytes is null || bytes.LongLength > MaximumAssetBytes)
+                throw new MapFormatException("RESOURCE_LIMIT_ASSET_BYTES");
+            if (bytes.LongLength > MaximumArchiveBytes - totalBytes)
+                throw new MapFormatException("RESOURCE_LIMIT_RETAINED_ASSET_BYTES");
+            totalBytes += bytes.LongLength;
+        }
+    }
+
     private static void ValidateEntryName(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Contains('\\') || name.Contains(':') || Path.IsPathRooted(name)

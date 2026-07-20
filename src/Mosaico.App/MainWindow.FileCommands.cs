@@ -104,6 +104,7 @@ public partial class MainWindow
             _project.ValidateTilesetAddition(definition);
             var nextAssets = _assets.ToDictionary(pair => pair.Key, pair => pair.Value);
             nextAssets.Add(definition.Id, importDialog.Result.PngBytes);
+            MapProjectFileStore.ValidateRetainedAssetBudget(nextAssets);
             var nextBitmaps = new TileBitmapStore();
             nextBitmaps.ReplaceAssets(_project.Tilesets.Append(definition), nextAssets);
             _project.AddTileset(definition);
