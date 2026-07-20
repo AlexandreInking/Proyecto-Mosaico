@@ -27,6 +27,7 @@ output/
 tmp/
 __pycache__/
 *.py[cod]
+*.tsbuildinfo
 
 # Local caches, autosaves and logs
 .cache/
