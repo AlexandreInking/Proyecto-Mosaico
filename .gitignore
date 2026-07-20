@@ -22,6 +22,7 @@ TestResults/
 coverage/
 BenchmarkDotNet.Artifacts/
 node_modules/
+.pnpm-store/
 output/
 tmp/
 __pycache__/

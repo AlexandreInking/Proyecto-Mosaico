@@ -1,0 +1,13 @@
+{
+  "name": "@mosaico/ui",
+  "private": true,
+  "version": "0.2.0-t0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  }
+}

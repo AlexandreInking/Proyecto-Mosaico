@@ -1,0 +1,10 @@
+packages:
+  - 'Shared/*'
+  - 'DesktopApp/app'
+  - 'WebApp/client'
+  - 'WebApp/server'
+
+allowBuilds:
+  esbuild: true
+
+confirmModulesPurge: false

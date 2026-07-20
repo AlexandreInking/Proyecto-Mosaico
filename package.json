@@ -1,0 +1,17 @@
+{
+  "name": "mosaico-platform",
+  "private": true,
+  "version": "0.2.0-t0",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "dev:web": "pnpm --filter @mosaico/web-client dev",
+    "dev:desktop": "pnpm --filter @mosaico/desktop-app tauri dev",
+    "dev:api": "pnpm --filter @mosaico/web-server dev",
+    "test": "node --test tests/t0/*.test.mjs && pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck"
+  }
+}
