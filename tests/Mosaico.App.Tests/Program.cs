@@ -284,6 +284,8 @@ internal static class Program
             setProject.Invoke(window, [project, new Dictionary<Guid, byte[]>(), null]);
             if (window.FindName("ProblemsList") is not ListBox { Items.Count: 1 } problems)
                 throw new InvalidOperationException("Two similar orphan references must render as one problem group.");
+            if (problems.Items[0] is not ProjectIssueListItem { Code: "MISSING_TILESET" })
+                throw new InvalidOperationException("Problems console must expose a stable diagnostic code.");
             if (window.FindName("ProblemsCountText") is not TextBlock count || !count.Text.Contains("2", StringComparison.Ordinal))
                 throw new InvalidOperationException("Problems console must show aggregate reference count.");
             if (window.FindName("DeleteLayerButton") is null || window.FindName("DeleteTilesetButton") is null)

@@ -312,6 +312,7 @@
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                     <TextBlock Text="×" Foreground="{StaticResource DangerBrush}" FontWeight="Bold" FontSize="15" />
                                     <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Code}" Foreground="{StaticResource DangerBrush}" FontFamily="Consolas" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding Message}" />
                                         <TextBlock Text="{Binding Details}" Foreground="{StaticResource MutedBrush}" FontFamily="Consolas" FontSize="11" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>

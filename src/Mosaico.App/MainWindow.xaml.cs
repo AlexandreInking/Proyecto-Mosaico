@@ -59,7 +59,7 @@ public sealed record LayerListItem(Guid Id, string Name, bool IsVisible, bool Is
     public string VisibilityIcon => IsVisible ? "eye" : "eye-off";
     public string LockIcon => IsLocked ? "lock" : "lock-open";
 }
-public sealed record ProjectIssueListItem(string Message, string CountLabel, string Details);
+public sealed record ProjectIssueListItem(string Code, string Message, string CountLabel, string Details);
 
 public partial class MainWindow : Window
 {
@@ -151,7 +151,7 @@ public partial class MainWindow : Window
         {
             var details = string.Join(" · ", issue.SampleLocations);
             if (issue.Count > issue.SampleLocations.Count) details += $" · +{issue.Count - issue.SampleLocations.Count} más";
-            _issueItems.Add(new(issue.Message, $"{issue.Count:N0} referencias", details));
+            _issueItems.Add(new(issue.Code, issue.Message, $"{issue.Count:N0} referencias", details));
         }
         var total = issues.Sum(issue => issue.Count);
         ProblemsCountText.Text = total == 0
