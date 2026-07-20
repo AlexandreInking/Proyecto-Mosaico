@@ -1,4 +1,19 @@
-import { UI_CONTRACT_VERSION } from '@mosaico/contracts'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { UI_CONTRACT_VERSION, type Diagnostic } from '@mosaico/contracts'
+import {
+  createImageRecipe,
+  deleteImage,
+  extensionFor,
+  groupDiagnostics,
+  importImage,
+  loadImages,
+  processImage,
+  saveImage,
+  type DiagnosticOccurrence,
+  type ImportedImage,
+  type ProcessedImage,
+  type SupportedImageType,
+} from '@mosaico/pipeline'
 
 export interface AppShellProps {
   platform: 'Web' | 'Desktop'
@@ -6,97 +21,187 @@ export interface AppShellProps {
   online: boolean
 }
 
-const modules = [
-  { name: 'Assets', active: true },
-  { name: 'Pipelines', active: false },
-  { name: 'Mapas', active: false },
-  { name: 'Mundo', active: false },
-  { name: 'Jobs', active: false },
-  { name: 'Exportar', active: false },
-]
+interface VisibleAsset extends ImportedImage { thumbnailUrl: string }
+interface OutputState extends ProcessedImage { previewUrl: string }
+
+const modules = ['Assets', 'Pipelines', 'Mapas', 'Pixel Art', 'Mundo', 'Jobs', 'Exportar']
+const recipeStorageKey = 'mosaico-t1-recipe'
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
+}
+
+function safeBaseName(name: string): string {
+  return name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-') || 'asset'
+}
 
 export function AppShell({ platform, execution, online }: AppShellProps) {
+  const fileInput = useRef<HTMLInputElement>(null)
+  const abortController = useRef<AbortController | null>(null)
+  const [assets, setAssets] = useState<VisibleAsset[]>([])
+  const [selectedId, setSelectedId] = useState<string>()
+  const [search, setSearch] = useState('')
+  const [width, setWidth] = useState(32)
+  const [height, setHeight] = useState(32)
+  const [mediaType, setMediaType] = useState<SupportedImageType>('image/png')
+  const [quality, setQuality] = useState(0.92)
+  const [jobStatus, setJobStatus] = useState<'idle' | 'running' | 'succeeded' | 'cancelled' | 'failed'>('idle')
+  const [progress, setProgress] = useState(0)
+  const [output, setOutput] = useState<OutputState>()
+  const [occurrences, setOccurrences] = useState<DiagnosticOccurrence[]>([])
+  const [consoleOpen, setConsoleOpen] = useState(true)
+
+  const selected = assets.find((asset) => asset.record.id === selectedId)
+  const diagnostics: Diagnostic[] = useMemo(() => groupDiagnostics(occurrences), [occurrences])
+  const filteredAssets = assets.filter((asset) => `${asset.record.name} ${asset.record.mediaType} ${asset.record.sha256}`.toLowerCase().includes(search.toLowerCase()))
+
+  useEffect(() => {
+    let active = true
+    loadImages().then((stored) => {
+      if (!active) return
+      const visible = stored.map((asset) => ({ ...asset, thumbnailUrl: URL.createObjectURL(asset.thumbnail) }))
+      setAssets(visible)
+      setSelectedId(visible[0]?.record.id)
+    }).catch((error: unknown) => {
+      setOccurrences((items) => [...items, { code: 'STORE_LOAD', severity: 'error', groupKey: 'persistence', message: error instanceof Error ? error.message : 'No se pudo restaurar catálogo.' }])
+    })
+    try {
+      const saved = localStorage.getItem(recipeStorageKey)
+      if (saved) {
+        const value = JSON.parse(saved) as { width?: number; height?: number; mediaType?: SupportedImageType; quality?: number }
+        if (value.width) setWidth(value.width)
+        if (value.height) setHeight(value.height)
+        if (value.mediaType) setMediaType(value.mediaType)
+        if (value.quality !== undefined) setQuality(value.quality)
+      }
+    } catch { /* receta inválida vuelve a defaults seguros */ }
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(recipeStorageKey, JSON.stringify({ width, height, mediaType, quality }))
+  }, [width, height, mediaType, quality])
+
+  async function addFiles(files: readonly File[]): Promise<void> {
+    setJobStatus('running')
+    setProgress(0)
+    let completed = 0
+    for (const file of files) {
+      try {
+        const image = await importImage(file)
+        await saveImage(image)
+        const visible = { ...image, thumbnailUrl: URL.createObjectURL(image.thumbnail) }
+        setAssets((items) => {
+          const previous = items.find((item) => item.record.sha256 === image.record.sha256)
+          if (previous) {
+            URL.revokeObjectURL(visible.thumbnailUrl)
+            return items
+          }
+          return [...items, visible]
+        })
+        setSelectedId((current) => current ?? image.record.id)
+      } catch (error: unknown) {
+        setOccurrences((items) => [...items, {
+          code: 'IMAGE_IMPORT', severity: 'error', groupKey: 'image-import',
+          message: error instanceof Error ? error.message : 'Error desconocido al importar imagen.',
+        }])
+      }
+      completed += 1
+      setProgress(files.length ? completed / files.length : 1)
+    }
+    setJobStatus('succeeded')
+  }
+
+  async function removeSelected(): Promise<void> {
+    if (!selected) return
+    await deleteImage(selected.record.id)
+    URL.revokeObjectURL(selected.thumbnailUrl)
+    const remaining = assets.filter((item) => item.record.id !== selected.record.id)
+    setAssets(remaining)
+    setSelectedId(remaining[0]?.record.id)
+    if (output) URL.revokeObjectURL(output.previewUrl)
+    setOutput(undefined)
+  }
+
+  async function runRecipe(): Promise<void> {
+    if (!selected) return
+    if (output) URL.revokeObjectURL(output.previewUrl)
+    setOutput(undefined)
+    const controller = new AbortController()
+    abortController.current = controller
+    setJobStatus('running')
+    setProgress(0)
+    try {
+      const recipe = createImageRecipe(width, height, mediaType, quality)
+      const result = await processImage(selected, recipe, { signal: controller.signal, onProgress: setProgress })
+      setOutput({ ...result, previewUrl: URL.createObjectURL(result.blob) })
+      setJobStatus('succeeded')
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setJobStatus('cancelled')
+      } else {
+        setJobStatus('failed')
+        setOccurrences((items) => [...items, { code: 'RECIPE_RUN', severity: 'error', groupKey: 'recipe', message: error instanceof Error ? error.message : 'La receta falló.', assetId: selected.record.id }])
+      }
+    } finally {
+      abortController.current = null
+    }
+  }
+
   return (
     <div className="app-shell" data-ui-contract={UI_CONTRACT_VERSION}>
       <header className="titlebar">
         <div className="brand-mark" aria-hidden="true">M</div>
-        <div>
-          <p className="eyebrow">Mosaico</p>
-          <h1>Asset Pipeline AI</h1>
-        </div>
-        <div className="runtime-status" role="status">
-          <span className={`status-dot ${online ? 'online' : ''}`} aria-hidden="true" />
-          <span>{platform} · {online ? 'Conectado' : 'Sin conexión'}</span>
-        </div>
+        <div><p className="eyebrow">Mosaico</p><h1>Asset Pipeline AI</h1></div>
+        <div className="runtime-status" role="status"><span className={`status-dot ${online ? 'online' : ''}`} /><span>{platform} · {online ? 'Conectado' : 'Sin conexión'}</span></div>
       </header>
 
       <nav className="module-nav" aria-label="Módulos principales">
-        {modules.map((module) => (
-          <button
-            className={module.active ? 'active' : ''}
-            disabled={!module.active}
-            key={module.name}
-            type="button"
-          >
-            {module.name}
-            {!module.active && <span>Próximamente</span>}
-          </button>
-        ))}
+        {modules.map((module) => <button className={module === 'Assets' ? 'active' : ''} disabled={module !== 'Assets'} key={module} type="button">{module}{module !== 'Assets' && <span>Planificado</span>}</button>)}
       </nav>
 
       <main className="workspace">
         <aside className="sidebar" aria-label="Catálogo de assets">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Workspace</p>
-              <h2>Catálogo</h2>
-            </div>
-            <button type="button" disabled aria-describedby="t1-note">Importar</button>
-          </div>
+          <div className="panel-heading"><div><p className="eyebrow">Workspace</p><h2>Catálogo</h2></div><button className="primary" type="button" onClick={() => fileInput.current?.click()}>Importar</button></div>
+          <input ref={fileInput} className="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void addFiles([...event.target.files ?? []])} />
           <label className="search-label" htmlFor="asset-search">Buscar assets</label>
-          <input id="asset-search" type="search" placeholder="Nombre, tipo o etiqueta" disabled />
-          <div className="empty-compact">
-            <span aria-hidden="true">◇</span>
-            <p>Sin assets importados</p>
+          <input id="asset-search" type="search" placeholder="Nombre, tipo o hash" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <div className="asset-list">
+            {filteredAssets.map((asset) => <button className={`asset-card ${selectedId === asset.record.id ? 'selected' : ''}`} key={asset.record.id} type="button" onClick={() => setSelectedId(asset.record.id)}><img src={asset.thumbnailUrl} alt="" /><span><strong>{asset.record.name}</strong><small>{asset.record.width}×{asset.record.height} · {formatBytes(asset.record.byteSize)}</small></span></button>)}
+            {!filteredAssets.length && <div className="empty-compact"><span>◇</span><p>Sin assets importados</p></div>}
           </div>
         </aside>
 
-        <section className="stage" aria-labelledby="stage-title">
-          <div className="stage-toolbar">
-            <div>
-              <p className="eyebrow">Vista de trabajo</p>
-              <h2 id="stage-title">Preparación de assets</h2>
-            </div>
-            <span className="execution-badge">Ejecución: {execution}</span>
-          </div>
+        <section className="stage" aria-labelledby="stage-title" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addFiles([...event.dataTransfer.files]) }}>
+          <div className="stage-toolbar"><div><p className="eyebrow">Vista de trabajo</p><h2 id="stage-title">Receta no destructiva</h2></div><span className="execution-badge">Ejecución: {execution}</span></div>
+          {selected ? <div className="comparison">
+            <figure><div className="preview-checker"><img src={selected.thumbnailUrl} alt={`Original ${selected.record.name}`} /></div><figcaption>Original · {selected.record.width}×{selected.record.height}<strong>SHA {selected.record.sha256.slice(0, 12)}…</strong></figcaption></figure>
+            <div className="flow-arrow" aria-hidden="true">→</div>
+            <figure><div className="preview-checker">{output ? <img src={output.previewUrl} alt="Resultado procesado" /> : <span>Vista previa pendiente</span>}</div><figcaption>Salida · {width}×{height}<strong>{output ? `SHA ${output.manifest.outputSha256.slice(0, 12)}…` : 'Ejecuta receta'}</strong></figcaption></figure>
+          </div> : <button className="dropzone" type="button" onClick={() => fileInput.current?.click()}><span className="drop-icon">＋</span><strong>Importa o arrastra imágenes</strong><span>PNG, JPEG o WebP · originales inmutables</span></button>}
 
-          <div className="dropzone" role="status">
-            <div className="drop-icon" aria-hidden="true">＋</div>
-            <h3>Importación activada en siguiente fase</h3>
-            <p id="t1-note">T0 valida shell compartido, capacidades y separación de plataformas.</p>
-            <span className="phase-label">Disponible en T1</span>
-          </div>
+          <section className="console-panel" aria-label="Consola de diagnósticos">
+            <button className="console-heading" type="button" onClick={() => setConsoleOpen((value) => !value)}><span>Consola</span><span>{diagnostics.length} grupos · {diagnostics.reduce((sum, item) => sum + item.count, 0)} eventos {consoleOpen ? '⌄' : '›'}</span></button>
+            {consoleOpen && <div className="console-body">{diagnostics.map((item) => <div className={`diagnostic ${item.severity}`} key={`${item.code}:${item.groupKey}`}><code>{item.code}</code><span>{item.message}</span><strong>×{item.count}</strong></div>)}{!diagnostics.length && <p>Sin errores actuales.</p>}</div>}
+          </section>
         </section>
 
         <aside className="inspector" aria-label="Inspector">
-          <p className="eyebrow">Inspector</p>
-          <h2>Capacidades</h2>
-          <dl>
-            <div><dt>Plataforma</dt><dd>{platform}</dd></div>
-            <div><dt>Procesamiento</dt><dd>{execution}</dd></div>
-            <div><dt>UI Contract</dt><dd>T0 v1</dd></div>
-          </dl>
-          <div className="notice">
-            <strong>Originales inmutables</strong>
-            <p>Futuras recetas trabajarán sobre copias y registrarán procedencia.</p>
-          </div>
+          <p className="eyebrow">Inspector</p><h2>Resize + conversión</h2>
+          <div className="form-grid"><label>Ancho<input type="number" min="1" max="16384" value={width} onChange={(event) => setWidth(Number(event.target.value))} /></label><label>Alto<input type="number" min="1" max="16384" value={height} onChange={(event) => setHeight(Number(event.target.value))} /></label></div>
+          <label className="field">Formato<select value={mediaType} onChange={(event) => setMediaType(event.target.value as SupportedImageType)}><option value="image/png">PNG</option><option value="image/jpeg">JPEG</option><option value="image/webp">WebP</option></select></label>
+          <label className="field">Calidad <span>{Math.round(quality * 100)}%</span><input type="range" min="0.1" max="1" step="0.01" value={quality} disabled={mediaType === 'image/png'} onChange={(event) => setQuality(Number(event.target.value))} /></label>
+          <div className="recipe-flow"><span>Original</span><i>→</i><span>Resize</span><i>→</i><span>Convert</span></div>
+          <div className="job-actions"><button className="primary" type="button" disabled={!selected || jobStatus === 'running'} onClick={() => void runRecipe()}>Ejecutar receta</button>{jobStatus === 'running' && <button type="button" onClick={() => abortController.current?.abort()}>Cancelar</button>}{output && selected && <><a className="button-link" href={output.previewUrl} download={`${safeBaseName(selected.record.name)}-${width}x${height}.${extensionFor(mediaType)}`}>Exportar imagen</a><a className="button-link" href={`data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(output.manifest, null, 2))}`} download={`${safeBaseName(selected.record.name)}-manifest.json`}>Exportar manifiesto</a></>}{selected && <button className="danger" type="button" onClick={() => void removeSelected()}>Eliminar asset</button>}</div>
+          <div className="progress-block"><div><span>Job: {jobStatus}</span><span>{Math.round(progress * 100)}%</span></div><progress max="1" value={progress} /></div>
+          {selected && <dl><div><dt>Tipo</dt><dd>{selected.record.mediaType}</dd></div><div><dt>Tamaño</dt><dd>{formatBytes(selected.record.byteSize)}</dd></div><div><dt>Hash original</dt><dd title={selected.record.sha256}>{selected.record.sha256.slice(0, 16)}…</dd></div></dl>}
+          <div className="notice"><strong>Original protegido</strong><p>Resize y conversión crean salida derivada. El hash fuente y receta quedan en manifiesto JSON.</p></div>
         </aside>
       </main>
 
-      <footer className="statusbar">
-        <span>Workspace sin guardar</span>
-        <span>0 assets · 0 jobs · 0 errores</span>
-      </footer>
+      <footer className="statusbar"><span>Persistencia local activa</span><span>{assets.length} assets · {jobStatus === 'idle' ? 0 : 1} jobs · {diagnostics.filter((item) => item.severity === 'error').length} errores agrupados</span></footer>
     </div>
   )
 }

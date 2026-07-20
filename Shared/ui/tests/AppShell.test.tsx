@@ -8,18 +8,19 @@ describe('AppShell', () => {
       <AppShell platform="Web" execution="Navegador" online />,
     )
 
-    expect(SHARED_UI_VERSION).toBe('mosaico-ui-t0-v1')
+    expect(SHARED_UI_VERSION).toBe('mosaico-ui-t1-v1')
     expect(html).toContain('Asset Pipeline AI')
     expect(html).toContain('Ejecución: Navegador')
-    expect(html).toContain('data-ui-contract="mosaico-ui-t0-v1"')
+    expect(html).toContain('data-ui-contract="mosaico-ui-t1-v1"')
   })
 
-  it('marks unavailable T0 modules without pretending they work', () => {
+  it('exposes real T1 import and marks later modules honestly', () => {
     const html = renderToStaticMarkup(
       <AppShell platform="Desktop" execution="Local" online={false} />,
     )
 
-    expect(html).toContain('Disponible en T1')
+    expect(html).toContain('Importar')
+    expect(html).toContain('Planificado')
     expect(html).toContain('Sin conexión')
   })
 })

@@ -12,7 +12,8 @@
     "react-dom": ">=19"
   },
   "dependencies": {
-    "@mosaico/contracts": "workspace:*"
+    "@mosaico/contracts": "workspace:*",
+    "@mosaico/pipeline": "workspace:*"
   },
   "scripts": {
     "test": "vitest run",
