@@ -1,5 +1,7 @@
 # Plan de implementación: Fase 1
 
+**Estado:** completado como baseline; sustituido para trabajo futuro por `../transformation/PLAN.md`.
+
 ## Orden
 
 1. Contratos, fixtures y modelo.

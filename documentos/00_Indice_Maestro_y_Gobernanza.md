@@ -18,9 +18,12 @@ colorlinks: true
 ---
 
 > **Documento:** PM-00  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.3.0 - Transformación Asset Pipeline AI
+> **Estado:** Borrador
+> **Bloqueo:** implementación requiere aprobación de ADR-003/ADR-004.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
+
+> **Cambio de dirección (19-07-2026):** Mosaico pasa a ser una plataforma dual Web/Desktop para preparación de imágenes, modelos y audio, edición/generación de mapas y contenido RPG estructurado. `docs/transformation/SPEC.md` y los ADR-003/ADR-004 gobiernan la transición. El editor 2D anterior permanece como módulo y baseline de migración, no como producto completo.
 
 
 # Propósito del dossier
@@ -61,6 +64,16 @@ El producto objetivo permite editar y generar niveles o mapas 2D en múltiples t
 | PM-12 | QA, seguridad y release | ¿Cómo se evita entregar datos corruptos o una herramienta frágil? |
 | PM-13 | Desarrollo agéntico | ¿Cómo coordinar Sol 5.6 y agentes especializados con control humano? |
 | PM-14 | Roadmap, backlog y plantillas | ¿En qué orden se construye y cómo se documentan decisiones? |
+
+Artefactos normativos de transformación:
+
+| Código | Documento | Autoridad |
+|---|---|---|
+| TR-SPEC | `docs/transformation/SPEC.md` | Alcance propuesto de la nueva plataforma; requiere aprobación humana |
+| TR-PLAN | `docs/transformation/PLAN.md` | Secuencia y gates T0-T9; reemplaza el orden F2-F7 al aprobarse |
+| TR-BACKLOG | `docs/transformation/BACKLOG.md` | Tareas implementables de transformación |
+| ADR-003 | Plataforma dual React/Tauri/AdonisJS | Reemplaza elección provisional WPF como destino final |
+| ADR-004 | Pipeline no destructivo e IA estructurada | Gobierna assets, jobs y contenido generado |
 
 # Jerarquía y autoridad
 
@@ -134,14 +147,14 @@ Para algoritmos: PM-07, PM-08, PM-09 y PM-10.
 
 Para construir el sistema agéntico: PM-13, seguido por los contratos de cada módulo.
 
-# Decisiones que deben tomarse antes del primer sprint
+# Decisiones de plataforma
 
-- Lenguaje y framework de escritorio.
-- Renderer 2D y política de abstracción gráfica.
-- Alcance exacto del MVP: solo ortogonal o también isométrico temprano.
+- Propuesta cerrada pendiente de aprobación: React/TypeScript/Vite, PixiJS, Tauri 2 y AdonisJS.
+- WPF queda como baseline temporal hasta paridad T2.
+- MVP transformado inicia con imagen y shell dual; isométrico/hexagonal siguen después de paridad ortogonal.
 - Licencia del producto y estrategia de monetización.
 - Formato de proyecto: contenedor único o carpeta con manifiesto.
-- Soporte inicial de sistemas operativos.
+- Soporte inicial: web moderna y Desktop Windows; macOS/Linux después de evidencia.
 - Nivel de compatibilidad con Tiled que se promete públicamente.
 - Política de plugins: firmados, aislados, con permisos o solo locales de confianza.
 

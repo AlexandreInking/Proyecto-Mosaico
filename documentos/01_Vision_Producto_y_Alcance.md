@@ -18,13 +18,16 @@ colorlinks: true
 ---
 
 > **Documento:** PM-01  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Transformación Asset Pipeline AI
+> **Estado:** Borrador
+> **Cambio:** sustituido parcialmente por TR-SPEC; nueva dirección pendiente de aprobación.
+> **Alcance:** contenido de mapas se conserva como módulo; usuario, producto, distribución y roadmap anteriores cambian.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
+> **Visión vigente propuesta:** Mosaico es un entorno de asset pipeline y diseño procedural para desarrolladores de videojuegos. Importa sprites, modelos y sonidos; transforma, optimiza, convierte, genera atlas/LOD y exporta. Además crea mapas y contenido RPG estructurado y consistente mediante patrones, proceduralidad, WFC e IA validada. Existe como WebApp online y DesktopApp local con una sola UI React compartida. Ver `docs/transformation/SPEC.md`.
 
-# Resumen ejecutivo
+
+# Resumen ejecutivo del módulo de mapas conservado
 
 Proyecto Mosaico es un editor de mapas y niveles 2D independiente del motor. Permite que una persona combine cuatro maneras de trabajar en un mismo documento:
 
@@ -69,7 +72,7 @@ Integra formatos, escribe plugins y exportadores, automatiza builds y valida con
 
 Busca reducir tareas repetitivas sin construir un editor interno. Necesita instalación sencilla, documentación local y un camino gradual desde uso manual hasta automatización.
 
-# Usuario primario F0-F1
+# Usuario primario histórico F0-F1
 
 La hipótesis primaria es un creador independiente o diseñador de niveles 2D con experiencia básica o intermedia en tilemaps, que trabaja solo o en un equipo de hasta cinco personas sobre escritorio Windows. Construye niveles ortogonales cenitales o laterales, usa teclado y mouse, y necesita editar, deshacer, guardar, reabrir y exportar sin programar plugins.
 
@@ -124,13 +127,13 @@ El producto incluirá mapas finitos e infinitos, capas especializadas, tilesets,
 
 El editor podrá contener imágenes libres y grupos con paralaje, pero no ofrecerá en las primeras versiones pintura raster avanzada, filtros fotográficos, pinceles artísticos complejos ni un catálogo comercial de stamps.
 
-# Fuera de alcance inicial
+# Fuera de alcance histórico del editor de mapas
 
 - Motor de juego completo, física en tiempo real o scripting de gameplay general.
 - Editor vectorial profesional.
 - Colaboración simultánea multiusuario estilo documento en línea.
 - Marketplace dentro de la aplicación.
-- Generación de arte mediante modelos de imagen como requisito central.
+- Generación de arte mediante modelos de imagen. La nueva plataforma transforma assets aportados; no crea imágenes desde texto.
 - Compatibilidad perfecta con cada extensión privada de todos los motores.
 - Sustitución total de Tiled desde la primera versión.
 

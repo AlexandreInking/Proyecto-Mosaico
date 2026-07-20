@@ -1,11 +1,14 @@
 # Especificación ejecutable: Fase 1 — editor ortogonal por tiles
 
-**Estado:** alcance aprobado por el usuario el 19 de julio de 2026  
+**Estado:** baseline histórico implementado; congelado durante transformación T0-T2
+
 **Objetivo:** editor ortogonal utilizable con sprite sheets, tiles reales, capas, persistencia y exportación consumible mediante importador Unity separado
 
 ## Objetivo
 
-Mosaico F1 permite importar uno o varios sprite sheets PNG, cortarlos en tiles, seleccionar tiles por ID y colocarlos en capas de un mapa ortogonal. El usuario puede editar, guardar, reabrir y exportar sin perder IDs ni coordenadas. La aplicación gratuita exporta un bundle neutral; el importador Unity oficial es producto comercial separado.
+Mosaico F1 permite importar uno o varios sprite sheets PNG, cortarlos en tiles, seleccionar tiles por ID y colocarlos en capas de un mapa ortogonal. El usuario puede editar, guardar, reabrir y exportar sin perder IDs ni coordenadas. El baseline exporta un bundle neutral; el importador Unity oficial permanece separado.
+
+> Esta especificación no gobierna funciones nuevas. Sirve como oracle de paridad para `../transformation/PLAN.md`, Fase T2.
 
 ## Decisiones
 

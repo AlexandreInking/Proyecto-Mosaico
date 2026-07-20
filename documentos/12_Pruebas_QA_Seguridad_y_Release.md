@@ -18,9 +18,10 @@ colorlinks: true
 ---
 
 > **Documento:** PM-12  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Gates duales propuestos
+> **Estado:** Borrador
+> **Cambio:** gate F1 histórico conservado; gates T0-T8 pendientes de aprobación.
+> **Alcance:** cada fase nueva exige apps Web/Desktop arrancables, fixture, suite, cancelación/recuperación, benchmark y walkthrough humano.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -93,6 +94,8 @@ Targets:
 Los crashes se minimizan y se incorporan como corpus permanente.
 
 # Seguridad de archivos
+
+La plataforma dual añade cuarentena/staging, detección MIME por contenido, límites por dimensiones/duración/polígonos, timeouts y presupuestos CPU/memoria. Secretos IA viven solo en backend o keychain. Un output de worker se valida antes de entrar al proyecto o descargarse.
 
 - No ejecutar contenido al abrir proyecto.
 - Rechazar rutas fuera del root salvo autorización.

@@ -1,10 +1,18 @@
 # Proyecto Mosaico
 
-Editor gratuito de mapas por tiles para videojuegos. Fase 1 implementa mapas ortogonales con múltiples sprite sheets, capas, edición reversible y exportación neutral `.mosaicpack`.
+Plataforma en transformación para pipelines de assets y diseño procedural de videojuegos. Objetivo: preparar sprites, modelos y audio; optimizar, convertir, generar atlas/LOD; editar mapas; y generar contenido RPG estructurado mediante patrones, proceduralidad, WFC e IA validada.
 
-**Estado:** gate automático F1 aprobado; walkthrough humano pendiente. Isométrico y hexagonal pertenecen a fases posteriores.
+**Estado:** editor WPF F1 funcional preservado como baseline. Arquitectura WebApp + DesktopApp propuesta y pendiente de aprobación antes de migrar código. Ver [especificación](docs/transformation/SPEC.md), [plan](docs/transformation/PLAN.md) y [backlog](docs/transformation/BACKLOG.md).
 
-## Inicio rápido
+## Dirección de producto
+
+- `DesktopApp`: aplicación local, offline y comercial en el futuro.
+- `WebApp`: aplicación online, con suscripción futura.
+- Misma UI React/TypeScript compartida; Tauri 2 para escritorio, AdonisJS para API web y PixiJS para lienzos.
+- IA genera mapas, ciudades, quests, diálogos, economía y árboles de habilidades como datos tipados. No genera imágenes.
+- Pagos, DRM y suscripciones quedan fuera hasta validar ambas aplicaciones.
+
+## Inicio rápido del baseline WPF
 
 Requiere Windows 10/11 y .NET SDK 10.0.300.
 
@@ -48,7 +56,7 @@ powershell -ExecutionPolicy Bypass -File scripts/record-phase1-manual.ps1 `
   -Notes "Sin fallos" -Captures "output/evidence/phase1/captura.png"
 ```
 
-## Arquitectura y negocio
+## Arquitectura actual y migración
 
 - `src/Mosaico.Core/`: modelo, comandos, persistencia y exportación sin dependencia de WPF.
 - `src/Mosaico.App/`: shell WPF, viewport, paletas y paneles.
@@ -56,7 +64,7 @@ powershell -ExecutionPolicy Bypass -File scripts/record-phase1-manual.ps1 `
 - `fixtures/phase1/`: mapas, bundles y atlas reproducibles.
 - `docs/adr/ADR-002-export-and-unity-importer-boundary.md`: contrato editor/importadores.
 
-Editor vive en repositorio privado durante desarrollo y se distribuirá gratis. Importador Unity es producto propietario separado, en repositorio privado independiente, pensado para distribución comercial. Bundle exportado no ejecuta código, scripts ni plugins.
+Durante T0, baseline se moverá con historial a `DesktopApp/LegacyWpf`; nueva UI vivirá compartida entre `DesktopApp` y `WebApp`. Distribución final será Web por suscripción y Desktop mediante compra, pero comercialización se difiere a T9. Bundle exportado no ejecuta código, scripts ni plugins.
 
 ## Documentación canónica
 

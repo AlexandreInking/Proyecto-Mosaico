@@ -18,9 +18,12 @@ colorlinks: true
 ---
 
 > **Documento:** PM-11  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Asset pipeline propuesto
+> **Estado:** Borrador
+> **Cambio:** integraciones de mapas conservadas; pipeline ampliado pendiente de aprobación.
+> **Alcance:** imágenes primero, glTF/GLB después y audio después; Godot/Unity siguen destinos prioritarios.
+
+> **Regla nueva:** todo import pasa por staging, detección real de tipo, límites y hash. Todo export declara formato, versión, pérdidas, perfil de destino y procedencia. Conversores son adapters aislados; ninguna herramienta externa define modelo interno.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 

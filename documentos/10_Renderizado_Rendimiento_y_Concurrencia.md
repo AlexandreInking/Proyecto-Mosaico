@@ -18,8 +18,11 @@ colorlinks: true
 ---
 
 > **Documento:** PM-10  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Renderer web compartido propuesto
+> **Estado:** Borrador
+> **Cambio:** presupuestos históricos conservados; PixiJS pendiente de spike T0.
+
+> **Cambio:** PixiJS 8 será renderer compartido de mapas, previews y grafos sobre WebGL/WebGPU; React DOM conservará controles accesibles. Jobs de assets/IA ejecutan fuera del thread UI mediante worker, backend o sidecar.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 

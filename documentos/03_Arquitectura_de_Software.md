@@ -18,8 +18,11 @@ colorlinks: true
 ---
 
 > **Documento:** PM-03  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.3.0 - Arquitectura dual propuesta
+> **Estado:** Borrador
+> **Bloqueo:** ADR-003/ADR-004 propuestos; implementación pendiente de aprobación.
+
+> **Arquitectura objetivo:** monorepo con `Shared/{contracts,domain,ui,canvas,pipeline}`, `DesktopApp/{app,src-tauri,LegacyWpf}` y `WebApp/{client,server,workers}`. React/TypeScript/Vite y PixiJS se comparten; Tauri 2 adapta capacidades locales; AdonisJS expone API web. WPF es baseline temporal. Detalle y migración: `docs/transformation/SPEC.md` y `PLAN.md`.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -190,6 +193,8 @@ El documento utiliza un modelo de escritor único. Lecturas pesadas trabajan sob
 Los errores se clasifican en validación del usuario, incompatibilidad, fallo recuperable, fallo de integridad y fallo interno. Un fallo de integridad debe detener la operación, conservar evidencia y ofrecer recuperación, no continuar en estado dudoso.
 
 # Estrategia tecnológica
+
+La decisión provisional anterior queda sustituida, tras aprobación, por ADR-003. Dominio se expresa detrás de contratos TypeScript independientes de framework. Los conversores, codecs y runtimes IA entran como workers/sidecars intercambiables gobernados por ADR-004. Ningún componente React conoce Tauri o HTTP directamente.
 
 Una opción razonable es C# con UI multiplataforma y un renderer 2D acelerado, por su ecosistema, tooling, integración con Unity y facilidad para bibliotecas de dominio. Rust con UI nativa o TypeScript con shell de escritorio también son viables, pero la decisión debe basarse en prototipos de viewport, input, HiDPI, packaging y perfilado.
 

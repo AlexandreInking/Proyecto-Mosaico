@@ -18,9 +18,33 @@ colorlinks: true
 ---
 
 > **Documento:** PM-02  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Transformación Asset Pipeline AI
+> **Estado:** Borrador
+> **Cambio:** requisitos históricos aprobados solo para baseline; extensión propuesta pendiente.
+> **Alcance:** REQ existentes conservan semántica del módulo de mapas. TR-SPEC añade requisitos de plataforma/assets/IA y prevalece durante transformación tras aprobación.
+
+## Extensión de requisitos de transformación
+
+| ID | Prioridad | Requisito | Aceptación resumida |
+|---|---:|---|---|
+| REQ-PLAT-001 | P0 | WebApp y DesktopApp comparten UI React real | Mismo paquete UI y contract tests en ambas entradas |
+| REQ-PLAT-002 | P0 | Desktop funciona offline | Slice T1 completo sin red |
+| REQ-PLAT-003 | P0 | Jobs declaran lugar de ejecución y datos enviados | UI y manifiesto muestran target y consentimiento |
+| REQ-PIPE-001 | P0 | Originales son inmutables | Hash original no cambia tras ninguna receta |
+| REQ-PIPE-002 | P0 | Recetas versionadas, cancelables y reproducibles | Staging/commit y manifiesto completo |
+| REQ-IMG-001 | P0 | Importar, inspeccionar, resize, convertir y exportar imágenes | Fixture dual produce salida válida y procedencia |
+| REQ-IMG-002 | P1 | Remover fondo con máscara editable | Preview y corrección antes de commit |
+| REQ-IMG-003 | P1 | Upscale mediante adapter versionado | Modelo/escala/entorno registrados |
+| REQ-IMG-004 | P1 | Atlas y compresión por perfil | Sin bleeding y manifiesto consumible por motor |
+| REQ-MODEL-001 | P1 | Inspeccionar/optimizar glTF/GLB | Jerarquía y contrato de pérdida validados |
+| REQ-MODEL-002 | P1 | Generar LOD medible | Reducción/error visibles por nivel |
+| REQ-AUD-001 | P1 | Normalizar, convertir y preparar loops | Métricas de loudness/clipping/continuidad |
+| REQ-AI-001 | P1 | IA genera solo estructuras tipadas | JSON conforme; texto libre no muta proyecto |
+| REQ-AI-002 | P1 | Generar mapas/ciudades/quests/diálogo/economía/skills | Grafos validados y editables |
+| REQ-AI-003 | P1 | Mantener consistencia mediante WorldBible | Referencias/hechos/restricciones verificados |
+| REQ-AI-004 | P0 | Preview, diff y confirmación antes de mutar | Rechazar/cancelar preserva estado exacto |
+| REQ-SECNEW-001 | P0 | Procesar archivos no confiables con límites y staging | Corpus hostil no escapa ni agota límites acordados |
+
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 

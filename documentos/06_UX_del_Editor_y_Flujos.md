@@ -18,8 +18,11 @@ colorlinks: true
 ---
 
 > **Documento:** PM-06  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Shell dual y pipeline propuestos
+> **Estado:** Borrador
+> **Cambio:** flujos de mapas conservados; expansión pendiente de aprobación.
+
+> **Expansión UX:** mismo shell React en Web/Desktop; navegación principal `Assets`, `Pipelines`, `Maps`, `World`, `Jobs` y `Export`. Toda transformación usa selección -> receta -> preview/diff -> validación -> commit. Cada job muestra ejecución local/navegador/cloud, progreso, cancelación, coste estimado cuando aplique y errores agrupados.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 

@@ -18,8 +18,11 @@ colorlinks: true
 ---
 
 > **Documento:** PM-05  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Extensión Asset Pipeline AI propuesta
+> **Estado:** Borrador
+> **Cambio:** modelo de mapas conservado; nuevos agregados pendientes de aprobación.
+
+> **Extensión:** se añaden `Workspace`, `SourceAsset`, `Recipe`, `PipelineRun`, `DerivedAsset`, `WorldBible`, `GenerationPlan`, `ContentGraph` y `ValidationFinding`. Originales son inmutables; salidas guardan hash y procedencia. Esquema normativo inicial: `docs/transformation/SPEC.md`.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 

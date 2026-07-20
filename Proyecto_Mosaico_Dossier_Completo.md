@@ -8,9 +8,12 @@
 ---
 
 > **Documento:** PM-00  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.3.0 - Transformación Asset Pipeline AI
+> **Estado:** Borrador
+> **Bloqueo:** implementación requiere aprobación de ADR-003/ADR-004.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
+
+> **Cambio de dirección (19-07-2026):** Mosaico pasa a ser una plataforma dual Web/Desktop para preparación de imágenes, modelos y audio, edición/generación de mapas y contenido RPG estructurado. `docs/transformation/SPEC.md` y los ADR-003/ADR-004 gobiernan la transición. El editor 2D anterior permanece como módulo y baseline de migración, no como producto completo.
 
 
 # Propósito del dossier
@@ -51,6 +54,16 @@ El producto objetivo permite editar y generar niveles o mapas 2D en múltiples t
 | PM-12 | QA, seguridad y release | ¿Cómo se evita entregar datos corruptos o una herramienta frágil? |
 | PM-13 | Desarrollo agéntico | ¿Cómo coordinar Sol 5.6 y agentes especializados con control humano? |
 | PM-14 | Roadmap, backlog y plantillas | ¿En qué orden se construye y cómo se documentan decisiones? |
+
+Artefactos normativos de transformación:
+
+| Código | Documento | Autoridad |
+|---|---|---|
+| TR-SPEC | `docs/transformation/SPEC.md` | Alcance propuesto de la nueva plataforma; requiere aprobación humana |
+| TR-PLAN | `docs/transformation/PLAN.md` | Secuencia y gates T0-T9; reemplaza el orden F2-F7 al aprobarse |
+| TR-BACKLOG | `docs/transformation/BACKLOG.md` | Tareas implementables de transformación |
+| ADR-003 | Plataforma dual React/Tauri/AdonisJS | Reemplaza elección provisional WPF como destino final |
+| ADR-004 | Pipeline no destructivo e IA estructurada | Gobierna assets, jobs y contenido generado |
 
 # Jerarquía y autoridad
 
@@ -124,14 +137,14 @@ Para algoritmos: PM-07, PM-08, PM-09 y PM-10.
 
 Para construir el sistema agéntico: PM-13, seguido por los contratos de cada módulo.
 
-# Decisiones que deben tomarse antes del primer sprint
+# Decisiones de plataforma
 
-- Lenguaje y framework de escritorio.
-- Renderer 2D y política de abstracción gráfica.
-- Alcance exacto del MVP: solo ortogonal o también isométrico temprano.
+- Propuesta cerrada pendiente de aprobación: React/TypeScript/Vite, PixiJS, Tauri 2 y AdonisJS.
+- WPF queda como baseline temporal hasta paridad T2.
+- MVP transformado inicia con imagen y shell dual; isométrico/hexagonal siguen después de paridad ortogonal.
 - Licencia del producto y estrategia de monetización.
 - Formato de proyecto: contenedor único o carpeta con manifiesto.
-- Soporte inicial de sistemas operativos.
+- Soporte inicial: web moderna y Desktop Windows; macOS/Linux después de evidencia.
 - Nivel de compatibilidad con Tiled que se promete públicamente.
 - Política de plugins: firmados, aislados, con permisos o solo locales de confianza.
 
@@ -157,13 +170,16 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-01  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Transformación Asset Pipeline AI
+> **Estado:** Borrador
+> **Cambio:** sustituido parcialmente por TR-SPEC; nueva dirección pendiente de aprobación.
+> **Alcance:** contenido de mapas se conserva como módulo; usuario, producto, distribución y roadmap anteriores cambian.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
+> **Visión vigente propuesta:** Mosaico es un entorno de asset pipeline y diseño procedural para desarrolladores de videojuegos. Importa sprites, modelos y sonidos; transforma, optimiza, convierte, genera atlas/LOD y exporta. Además crea mapas y contenido RPG estructurado y consistente mediante patrones, proceduralidad, WFC e IA validada. Existe como WebApp online y DesktopApp local con una sola UI React compartida. Ver `docs/transformation/SPEC.md`.
 
-# Resumen ejecutivo
+
+# Resumen ejecutivo del módulo de mapas conservado
 
 Proyecto Mosaico es un editor de mapas y niveles 2D independiente del motor. Permite que una persona combine cuatro maneras de trabajar en un mismo documento:
 
@@ -208,7 +224,7 @@ Integra formatos, escribe plugins y exportadores, automatiza builds y valida con
 
 Busca reducir tareas repetitivas sin construir un editor interno. Necesita instalación sencilla, documentación local y un camino gradual desde uso manual hasta automatización.
 
-# Usuario primario F0-F1
+# Usuario primario histórico F0-F1
 
 La hipótesis primaria es un creador independiente o diseñador de niveles 2D con experiencia básica o intermedia en tilemaps, que trabaja solo o en un equipo de hasta cinco personas sobre escritorio Windows. Construye niveles ortogonales cenitales o laterales, usa teclado y mouse, y necesita editar, deshacer, guardar, reabrir y exportar sin programar plugins.
 
@@ -263,13 +279,13 @@ El producto incluirá mapas finitos e infinitos, capas especializadas, tilesets,
 
 El editor podrá contener imágenes libres y grupos con paralaje, pero no ofrecerá en las primeras versiones pintura raster avanzada, filtros fotográficos, pinceles artísticos complejos ni un catálogo comercial de stamps.
 
-# Fuera de alcance inicial
+# Fuera de alcance histórico del editor de mapas
 
 - Motor de juego completo, física en tiempo real o scripting de gameplay general.
 - Editor vectorial profesional.
 - Colaboración simultánea multiusuario estilo documento en línea.
 - Marketplace dentro de la aplicación.
-- Generación de arte mediante modelos de imagen como requisito central.
+- Generación de arte mediante modelos de imagen. La nueva plataforma transforma assets aportados; no crea imágenes desde texto.
 - Compatibilidad perfecta con cada extensión privada de todos los motores.
 - Sustitución total de Tiled desde la primera versión.
 
@@ -356,9 +372,33 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-02  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Transformación Asset Pipeline AI
+> **Estado:** Borrador
+> **Cambio:** requisitos históricos aprobados solo para baseline; extensión propuesta pendiente.
+> **Alcance:** REQ existentes conservan semántica del módulo de mapas. TR-SPEC añade requisitos de plataforma/assets/IA y prevalece durante transformación tras aprobación.
+
+## Extensión de requisitos de transformación
+
+| ID | Prioridad | Requisito | Aceptación resumida |
+|---|---:|---|---|
+| REQ-PLAT-001 | P0 | WebApp y DesktopApp comparten UI React real | Mismo paquete UI y contract tests en ambas entradas |
+| REQ-PLAT-002 | P0 | Desktop funciona offline | Slice T1 completo sin red |
+| REQ-PLAT-003 | P0 | Jobs declaran lugar de ejecución y datos enviados | UI y manifiesto muestran target y consentimiento |
+| REQ-PIPE-001 | P0 | Originales son inmutables | Hash original no cambia tras ninguna receta |
+| REQ-PIPE-002 | P0 | Recetas versionadas, cancelables y reproducibles | Staging/commit y manifiesto completo |
+| REQ-IMG-001 | P0 | Importar, inspeccionar, resize, convertir y exportar imágenes | Fixture dual produce salida válida y procedencia |
+| REQ-IMG-002 | P1 | Remover fondo con máscara editable | Preview y corrección antes de commit |
+| REQ-IMG-003 | P1 | Upscale mediante adapter versionado | Modelo/escala/entorno registrados |
+| REQ-IMG-004 | P1 | Atlas y compresión por perfil | Sin bleeding y manifiesto consumible por motor |
+| REQ-MODEL-001 | P1 | Inspeccionar/optimizar glTF/GLB | Jerarquía y contrato de pérdida validados |
+| REQ-MODEL-002 | P1 | Generar LOD medible | Reducción/error visibles por nivel |
+| REQ-AUD-001 | P1 | Normalizar, convertir y preparar loops | Métricas de loudness/clipping/continuidad |
+| REQ-AI-001 | P1 | IA genera solo estructuras tipadas | JSON conforme; texto libre no muta proyecto |
+| REQ-AI-002 | P1 | Generar mapas/ciudades/quests/diálogo/economía/skills | Grafos validados y editables |
+| REQ-AI-003 | P1 | Mantener consistencia mediante WorldBible | Referencias/hechos/restricciones verificados |
+| REQ-AI-004 | P0 | Preview, diff y confirmación antes de mutar | Rechazar/cancelar preserva estado exacto |
+| REQ-SECNEW-001 | P0 | Procesar archivos no confiables con límites y staging | Corpus hostil no escapa ni agota límites acordados |
+
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -549,8 +589,11 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-03  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.3.0 - Arquitectura dual propuesta
+> **Estado:** Borrador
+> **Bloqueo:** ADR-003/ADR-004 propuestos; implementación pendiente de aprobación.
+
+> **Arquitectura objetivo:** monorepo con `Shared/{contracts,domain,ui,canvas,pipeline}`, `DesktopApp/{app,src-tauri,LegacyWpf}` y `WebApp/{client,server,workers}`. React/TypeScript/Vite y PixiJS se comparten; Tauri 2 adapta capacidades locales; AdonisJS expone API web. WPF es baseline temporal. Detalle y migración: `docs/transformation/SPEC.md` y `PLAN.md`.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -721,6 +764,8 @@ El documento utiliza un modelo de escritor único. Lecturas pesadas trabajan sob
 Los errores se clasifican en validación del usuario, incompatibilidad, fallo recuperable, fallo de integridad y fallo interno. Un fallo de integridad debe detener la operación, conservar evidencia y ofrecer recuperación, no continuar en estado dudoso.
 
 # Estrategia tecnológica
+
+La decisión provisional anterior queda sustituida, tras aprobación, por ADR-003. Dominio se expresa detrás de contratos TypeScript independientes de framework. Los conversores, codecs y runtimes IA entran como workers/sidecars intercambiables gobernados por ADR-004. Ningún componente React conoce Tauri o HTTP directamente.
 
 Una opción razonable es C# con UI multiplataforma y un renderer 2D acelerado, por su ecosistema, tooling, integración con Unity y facilidad para bibliotecas de dominio. Rust con UI nativa o TypeScript con shell de escritorio también son viables, pero la decisión debe basarse en prototipos de viewport, input, HiDPI, packaging y perfilado.
 
@@ -947,8 +992,11 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-05  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Extensión Asset Pipeline AI propuesta
+> **Estado:** Borrador
+> **Cambio:** modelo de mapas conservado; nuevos agregados pendientes de aprobación.
+
+> **Extensión:** se añaden `Workspace`, `SourceAsset`, `Recipe`, `PipelineRun`, `DerivedAsset`, `WorldBible`, `GenerationPlan`, `ContentGraph` y `ValidationFinding`. Originales son inmutables; salidas guardan hash y procedencia. Esquema normativo inicial: `docs/transformation/SPEC.md`.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -1191,8 +1239,11 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-06  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Shell dual y pipeline propuestos
+> **Estado:** Borrador
+> **Cambio:** flujos de mapas conservados; expansión pendiente de aprobación.
+
+> **Expansión UX:** mismo shell React en Web/Desktop; navegación principal `Assets`, `Pipelines`, `Maps`, `World`, `Jobs` y `Export`. Toda transformación usa selección -> receta -> preview/diff -> validación -> commit. Cada job muestra ejecución local/navegador/cloud, progreso, cancelación, coste estimado cuando aplique y errores agrupados.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -1600,8 +1651,11 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-08  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - IA estructurada propuesta
+> **Estado:** Borrador
+> **Cambio:** motor determinista conservado; orquestación IA pendiente de aprobación.
+
+> **Extensión:** IA produce planes y grafos tipados para mapas, ciudades, quests, diálogos, economía y árboles de habilidades. Motores deterministas materializan; validadores/simuladores comprueban. WorldBible mantiene coherencia. IA nunca genera imágenes ni confirma su propia validez. Ver ADR-004.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2054,8 +2108,11 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-10  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - Renderer web compartido propuesto
+> **Estado:** Borrador
+> **Cambio:** presupuestos históricos conservados; PixiJS pendiente de spike T0.
+
+> **Cambio:** PixiJS 8 será renderer compartido de mapas, previews y grafos sobre WebGL/WebGPU; React DOM conservará controles accesibles. Jobs de assets/IA ejecutan fuera del thread UI mediante worker, backend o sidecar.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2219,9 +2276,12 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-11  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Asset pipeline propuesto
+> **Estado:** Borrador
+> **Cambio:** integraciones de mapas conservadas; pipeline ampliado pendiente de aprobación.
+> **Alcance:** imágenes primero, glTF/GLB después y audio después; Godot/Unity siguen destinos prioritarios.
+
+> **Regla nueva:** todo import pasa por staging, detección real de tipo, límites y hash. Todo export declara formato, versión, pérdidas, perfil de destino y procedencia. Conversores son adapters aislados; ninguna herramienta externa define modelo interno.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2413,9 +2473,10 @@ Toda dependencia o reutilización de código deberá pasar por una revisión esp
 ---
 
 > **Documento:** PM-12  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Gates duales propuestos
+> **Estado:** Borrador
+> **Cambio:** gate F1 histórico conservado; gates T0-T8 pendientes de aprobación.
+> **Alcance:** cada fase nueva exige apps Web/Desktop arrancables, fixture, suite, cancelación/recuperación, benchmark y walkthrough humano.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 
@@ -2488,6 +2549,8 @@ Targets:
 Los crashes se minimizan y se incorporan como corpus permanente.
 
 # Seguridad de archivos
+
+La plataforma dual añade cuarentena/staging, detección MIME por contenido, límites por dimensiones/duración/polígonos, timeouts y presupuestos CPU/memoria. Secretos IA viven solo en backend o keychain. Un output de worker se valida antes de entrar al proyecto o descargarse.
 
 - No ejecutar contenido al abrir proyecto.
 - Rechazar rutas fuera del root salvo autorización.
@@ -2858,9 +2921,12 @@ La disponibilidad, precios, límites y nombres de modelos son configurables y pu
 ---
 
 > **Documento:** PM-14  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Roadmap histórico sustituido parcialmente
+> **Estado:** Borrador
+> **Cambio:** F0/F1 quedan como baseline entregado; F2-F7 se sustituyen por T0-T8 tras aprobación.
+> **Roadmap vigente propuesto:** `docs/transformation/PLAN.md`; backlog `docs/transformation/BACKLOG.md`.
+
+> **Regla de migración:** no eliminar WPF ni avanzar de fase sin programa Web/Desktop ejecutable, walkthrough manual y aprobación humana. Pagos aparecen solo en T9 y no son prioridad actual.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 

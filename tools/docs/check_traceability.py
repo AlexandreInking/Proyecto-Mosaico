@@ -67,14 +67,12 @@ def main() -> int:
     root = Path(__file__).resolve().parents[2]
     expected = extract_requirement_ids(root / "documentos" / "02_Especificacion_de_Requisitos.md")
     errors = validate_matrix(root / "analisis_documental" / "02_matriz_trazabilidad.csv", expected)
-    if len(expected) != 56:
-        errors.append(f"PM-02 contiene {len(expected)} IDs REQ; se esperaban 56")
     if errors:
         print("Trazabilidad inválida:")
         for error in errors:
             print(f"- {error}")
         return 1
-    print(f"Trazabilidad bidireccional: OK ({len(expected)}/56 REQ)")
+    print(f"Trazabilidad bidireccional: OK ({len(expected)}/{len(expected)} REQ)")
     return 0
 
 
