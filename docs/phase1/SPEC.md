@@ -92,17 +92,17 @@ Fuentes oficiales:
 ## Comandos
 
 ```powershell
-dotnet build ProyectoMosaico.slnx -c Release
-dotnet run --project tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release
-dotnet run --project tests/Mosaico.App.Tests/Mosaico.App.Tests.csproj -c Release
+dotnet build DesktopApp/LegacyWpf/ProyectoMosaico.slnx -c Release
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.App.Tests/Mosaico.App.Tests.csproj -c Release
 powershell -ExecutionPolicy Bypass -File scripts/phase1-gate.ps1
 ```
 
 ## Estructura
 
 ```text
-src/Mosaico.Core/          dominio, comandos y formatos
-src/Mosaico.App/           shell WPF, paleta, capas y viewport
+DesktopApp/LegacyWpf/src/Mosaico.Core/  dominio, comandos y formatos
+DesktopApp/LegacyWpf/src/Mosaico.App/   shell WPF, paleta, capas y viewport
 assets/icons/lucide/       iconos + licencia
 fixtures/phase1/           atlas y proyectos propios
 tests/                     unitarias, integración y WPF

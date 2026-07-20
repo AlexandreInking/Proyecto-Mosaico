@@ -20,7 +20,7 @@ Requiere Windows 10/11 y .NET SDK 10.0.300.
 - Desde código fuente:
 
   ```powershell
-  dotnet run --project src/Mosaico.App/Mosaico.App.csproj -c Release
+  dotnet run --project DesktopApp/LegacyWpf/src/Mosaico.App/Mosaico.App.csproj -c Release
   ```
 
 ## Funciones F1
@@ -41,9 +41,9 @@ Atajos principales: `Ctrl+N`, `Ctrl+O`, `Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+Z`, `Ctr
 ## Verificación F1
 
 ```powershell
-dotnet build ProyectoMosaico.slnx -c Release
-dotnet run --project tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release
-dotnet run --project tests/Mosaico.App.Tests/Mosaico.App.Tests.csproj -c Release
+dotnet build DesktopApp/LegacyWpf/ProyectoMosaico.slnx -c Release
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.App.Tests/Mosaico.App.Tests.csproj -c Release
 powershell -ExecutionPolicy Bypass -File scripts/phase1-gate.ps1
 ```
 
@@ -58,8 +58,11 @@ powershell -ExecutionPolicy Bypass -File scripts/record-phase1-manual.ps1 `
 
 ## Arquitectura actual y migración
 
-- `src/Mosaico.Core/`: modelo, comandos, persistencia y exportación sin dependencia de WPF.
-- `src/Mosaico.App/`: shell WPF, viewport, paletas y paneles.
+- `DesktopApp/LegacyWpf/src/Mosaico.Core/`: modelo, comandos, persistencia y exportación del baseline.
+- `DesktopApp/LegacyWpf/src/Mosaico.App/`: shell WPF conservado hasta paridad T2.
+- `Shared/`: contratos y UI React consumidos por ambas aplicaciones.
+- `DesktopApp/app` + `DesktopApp/src-tauri`: entrada Vite y host local Tauri.
+- `WebApp/client` + `WebApp/server`: entrada web y API AdonisJS.
 - `tests/`: pruebas Core, WPF y benchmarks.
 - `fixtures/phase1/`: mapas, bundles y atlas reproducibles.
 - `docs/adr/ADR-002-export-and-unity-importer-boundary.md`: contrato editor/importadores.

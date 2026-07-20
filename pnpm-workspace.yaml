@@ -4,7 +4,11 @@ packages:
   - 'WebApp/client'
   - 'WebApp/server'
 
+nodeLinker: isolated
+hoist: false
+
 allowBuilds:
+  '@swc/core': true
   esbuild: true
 
 confirmModulesPurge: false

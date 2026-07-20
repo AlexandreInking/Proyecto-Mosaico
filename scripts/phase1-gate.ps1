@@ -115,7 +115,7 @@ $artifactDirectory = Join-Path $outputDirectory 'artifacts'
 $commit = (git rev-parse HEAD).Trim()
 $shortCommit = (git rev-parse --short=12 HEAD).Trim()
 
-dotnet build ProyectoMosaico.slnx -c Release --artifacts-path $artifactDirectory
+dotnet build DesktopApp/LegacyWpf/ProyectoMosaico.slnx -c Release --artifacts-path $artifactDirectory
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $coreAssembly = Join-Path $artifactDirectory 'bin\Mosaico.Core.Tests\release\Mosaico.Core.Tests.dll'
@@ -175,7 +175,7 @@ $unityEvidence = [ordered]@{
 }
 
 $packageDirectory = Join-Path $repoRoot "output\manual\Mosaico-F1-$shortCommit"
-dotnet publish src/Mosaico.App/Mosaico.App.csproj -c Release --no-restore --no-self-contained `
+dotnet publish DesktopApp/LegacyWpf/src/Mosaico.App/Mosaico.App.csproj -c Release --no-restore --no-self-contained `
     --artifacts-path $artifactDirectory -o $packageDirectory
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

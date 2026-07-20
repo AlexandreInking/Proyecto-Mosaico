@@ -6,10 +6,13 @@
   "engines": {
     "node": ">=24"
   },
+  "devDependencies": {
+    "@tauri-apps/cli-win32-x64-msvc": "2.11.4"
+  },
   "scripts": {
     "build": "pnpm -r --if-present build",
     "dev:web": "pnpm --filter @mosaico/web-client dev",
-    "dev:desktop": "pnpm --filter @mosaico/desktop-app tauri dev",
+    "dev:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-desktop-dev.ps1",
     "dev:api": "pnpm --filter @mosaico/web-server dev",
     "test": "node --test tests/t0/*.test.mjs && pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck"

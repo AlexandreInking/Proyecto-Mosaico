@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!WebApp/server/.env.test
 *.pem
 *.key
 
@@ -28,6 +29,8 @@ tmp/
 __pycache__/
 *.py[cod]
 *.tsbuildinfo
+target/
+DesktopApp/src-tauri/gen/
 
 # Local caches, autosaves and logs
 .cache/
