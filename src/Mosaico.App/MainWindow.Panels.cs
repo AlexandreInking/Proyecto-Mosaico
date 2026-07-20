@@ -38,12 +38,16 @@ public partial class MainWindow
             ?? _tilesetTabs.FirstOrDefault(tab => !tab.IsImport)
             ?? _tilesetTabs[0];
         TilesetTabs.SelectedItem = selectedTab;
+        DeleteTilesetButton.IsEnabled = !selectedTab.IsImport;
+        DeleteTilesetMenuItem.IsEnabled = !selectedTab.IsImport;
 
         var selectedLayer = _project.ActiveLayerId;
         _layerItems.Clear();
         foreach (var layer in _project.Layers.Reverse())
             _layerItems.Add(new(layer.Id, layer.Name, layer.IsVisible, layer.IsLocked, layer.OccupiedCellCount));
         LayersList.SelectedItem = _layerItems.FirstOrDefault(item => item.Id == selectedLayer);
+        DeleteLayerButton.IsEnabled = _project.Layers.Count > 1;
+        DeleteLayerMenuItem.IsEnabled = _project.Layers.Count > 1;
         _refreshingPanels = false;
 
         if (!selectedTab.IsImport) ApplyPaletteSelection(selectedTab, selectedTab.SelectedTile);
@@ -100,7 +104,13 @@ public partial class MainWindow
 
     private void SelectTile(TileRef tile)
     {
-        var tab = _tilesetTabs.First(item => item.Id == tile.TilesetId);
+        var tab = _tilesetTabs.FirstOrDefault(item => item.Id == tile.TilesetId);
+        if (tab is null)
+        {
+            StatusText.Text = "El tile usa un tileset eliminado. Revisa la consola.";
+            ProblemsToggle.IsChecked = true;
+            return;
+        }
         if (tab.Tiles.All(item => item.Tile.TileId != tile.TileId))
         {
             var tileset = _project.Tilesets.Single(item => item.Id == tile.TilesetId);
@@ -137,6 +147,33 @@ public partial class MainWindow
 
     private void AddLayer_Click(object sender, RoutedEventArgs e)
         => ExecuteEdit(new AddLayerCommand($"Capa {_project.Layers.Count + 1}", Guid.NewGuid()), "Capa creada");
+
+    private void DeleteLayer_Click(object sender, RoutedEventArgs e)
+    {
+        if (_project.Layers.Count <= 1)
+        {
+            StatusText.Text = "El mapa debe conservar al menos una capa.";
+            return;
+        }
+        var layer = _project.Layers.Single(item => item.Id == _project.ActiveLayerId);
+        var result = MessageBox.Show(this,
+            $"¿Eliminar la capa «{layer.Name}» y sus {layer.OccupiedCellCount:N0} tiles?\n\nPuedes deshacer esta acción.",
+            "Eliminar capa", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (result == MessageBoxResult.Yes)
+            ExecuteEdit(new RemoveLayerCommand(layer.Id), $"Capa eliminada: {layer.Name}");
+    }
+
+    private void DeleteTileset_Click(object sender, RoutedEventArgs e)
+    {
+        if (TilesetTabs.SelectedItem is not TilesetPaletteTab { Id: { } tilesetId }) return;
+        var tileset = _project.Tilesets.Single(item => item.Id == tilesetId);
+        var references = _project.Layers.Sum(layer => layer.Cells().Count(cell => cell.Tile.TilesetId == tilesetId));
+        var result = MessageBox.Show(this,
+            $"¿Eliminar el tileset «{tileset.Name}»?\n\n{references:N0} tiles colocados se conservarán como referencias huérfanas y mostrarán el marcador de error. La consola los agrupará. Puedes deshacer esta acción.",
+            "Eliminar tileset", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (result == MessageBoxResult.Yes)
+            ExecuteEdit(new RemoveTilesetCommand(tilesetId), $"Tileset eliminado: {tileset.Name}");
+    }
 
     private void MoveLayerUp_Click(object sender, RoutedEventArgs e)
     {

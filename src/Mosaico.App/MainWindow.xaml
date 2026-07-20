@@ -10,6 +10,7 @@
             <RowDefinition Height="27" />
             <RowDefinition Height="36" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="25" />
         </Grid.RowDefinitions>
 
@@ -37,6 +38,7 @@
             </MenuItem>
             <MenuItem Header="_Capa">
                 <MenuItem Header="_Nueva capa" Click="AddLayer_Click" />
+                <MenuItem x:Name="DeleteLayerMenuItem" Header="_Eliminar capa" Click="DeleteLayer_Click" />
                 <MenuItem Header="Subir capa" Click="MoveLayerUp_Click" />
                 <MenuItem Header="Bajar capa" Click="MoveLayerDown_Click" />
                 <Separator />
@@ -45,6 +47,7 @@
             </MenuItem>
             <MenuItem Header="_Tileset">
                 <MenuItem Header="_Importar sprite sheet PNG…" Click="ImportTileset_Click" />
+                <MenuItem x:Name="DeleteTilesetMenuItem" Header="_Eliminar tileset activo" Click="DeleteTileset_Click" />
             </MenuItem>
             <MenuItem Header="E_xportar">
                 <MenuItem Header="Bundle para importador Unity…" Click="ExportPack_Click" />
@@ -138,11 +141,17 @@
                     <Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Border Background="{StaticResource RaisedBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,1" Padding="8,4">
                         <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button x:Name="DeleteTilesetButton" Style="{StaticResource IconButton}" Click="DeleteTileset_Click"
+                                        ToolTip="Eliminar tileset activo" automation:AutomationProperties.Name="Eliminar tileset activo">
+                                    <local:LucideIcon IconName="trash-2" Width="17" Height="17" Foreground="{StaticResource DangerBrush}" />
+                                </Button>
+                                <Button Style="{StaticResource IconButton}" Click="ImportTileset_Click"
+                                        ToolTip="Importar sprite sheet" automation:AutomationProperties.Name="Importar sprite sheet">
+                                    <local:LucideIcon IconName="images" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
+                                </Button>
+                            </StackPanel>
                             <TextBlock x:Name="PaletteSummaryText" Text="Sin tileset" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Click="ImportTileset_Click"
-                                    ToolTip="Importar sprite sheet" automation:AutomationProperties.Name="Importar sprite sheet">
-                                <local:LucideIcon IconName="images" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
-                            </Button>
                         </DockPanel>
                     </Border>
                     <TabControl x:Name="TilesetTabs" Grid.Row="1" BorderThickness="1,0,0,1"
@@ -240,6 +249,9 @@
                                 <Button Style="{StaticResource IconButton}" Click="AddLayer_Click" ToolTip="Nueva capa" automation:AutomationProperties.Name="Nueva capa">
                                     <local:LucideIcon IconName="plus" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
                                 </Button>
+                                <Button x:Name="DeleteLayerButton" Style="{StaticResource IconButton}" Click="DeleteLayer_Click" ToolTip="Eliminar capa" automation:AutomationProperties.Name="Eliminar capa">
+                                    <local:LucideIcon IconName="trash-2" Width="17" Height="17" Foreground="{StaticResource DangerBrush}" />
+                                </Button>
                                 <Button Style="{StaticResource IconButton}" Click="MoveLayerUp_Click" ToolTip="Subir capa" automation:AutomationProperties.Name="Subir capa">
                                     <local:LucideIcon IconName="chevron-up" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
                                 </Button>
@@ -270,7 +282,51 @@
             </Grid>
         </Grid>
 
-        <Border Grid.Row="3" Background="#111111" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="7,3">
+        <Border Grid.Row="3" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <ToggleButton x:Name="ProblemsToggle" HorizontalContentAlignment="Stretch" Margin="0" Padding="8,5"
+                              automation:AutomationProperties.Name="Mostrar u ocultar consola de errores">
+                    <DockPanel>
+                        <TextBlock Text="Consola" FontWeight="SemiBold" />
+                        <TextBlock Text="  ×" Foreground="{StaticResource DangerBrush}" FontWeight="Bold" />
+                        <TextBlock x:Name="ProblemsCountText" DockPanel.Dock="Right" Text="0 errores" Foreground="{StaticResource MutedBrush}" />
+                    </DockPanel>
+                </ToggleButton>
+                <ListBox x:Name="ProblemsList" Grid.Row="1" MaxHeight="150"
+                         automation:AutomationProperties.Name="Errores agrupados del proyecto">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox" BasedOn="{StaticResource {x:Type ListBox}}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsChecked, ElementName=ProblemsToggle}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="×" Foreground="{StaticResource DangerBrush}" FontWeight="Bold" FontSize="15" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Message}" />
+                                        <TextBlock Text="{Binding Details}" Foreground="{StaticResource MutedBrush}" FontFamily="Consolas" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="#4A2529" BorderBrush="{StaticResource DangerBrush}" BorderThickness="1" Padding="7,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding CountLabel}" Foreground="{StaticResource TextBrush}" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="4" Background="#111111" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="7,3">
             <DockPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                     <TextBlock x:Name="ActiveLayerText" Foreground="{StaticResource MutedBrush}" Margin="10,0" />

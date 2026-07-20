@@ -38,6 +38,7 @@ public partial class MainWindow
         try
         {
             if (!_history.Execute(command)) return;
+            if (command is RemoveTilesetCommand || _issueItems.Count > 0) _problemsDirty = true;
             SetDirty(true);
             RefreshPanels();
             StatusText.Text = success;
@@ -54,6 +55,7 @@ public partial class MainWindow
         {
             if (_history.Undo())
             {
+                _problemsDirty = true;
                 SetDirty(true);
                 RefreshPanels();
                 StatusText.Text = "Deshacer";
@@ -68,6 +70,7 @@ public partial class MainWindow
         {
             if (_history.Redo())
             {
+                _problemsDirty = true;
                 SetDirty(true);
                 RefreshPanels();
                 StatusText.Text = "Rehacer";

@@ -30,6 +30,9 @@ public sealed class TileMapViewport : FrameworkElement
     private static readonly Brush OutsideBrush = FrozenBrush(Color.FromRgb(39, 39, 39));
     private static readonly Brush CanvasBrush = FrozenBrush(Color.FromRgb(24, 24, 24));
     private static readonly Brush ErasePreviewBrush = FrozenBrush(Color.FromArgb(110, 226, 85, 73));
+    private static readonly Brush MissingTileBrush = FrozenBrush(Color.FromRgb(255, 0, 168));
+    private static readonly Brush MissingTileDarkBrush = FrozenBrush(Color.FromRgb(24, 24, 24));
+    private static readonly Pen MissingTilePen = FrozenPen(Color.FromRgb(255, 255, 255), 2);
     private static readonly Pen BoundaryPen = FrozenPen(Color.FromRgb(74, 153, 142), 1.5);
     private static readonly Pen GridPen = FrozenPen(Color.FromArgb(115, 88, 88, 88), 1);
     private static readonly Pen HoverPen = FrozenPen(Color.FromRgb(240, 240, 240), 1.5);
@@ -157,7 +160,11 @@ public sealed class TileMapViewport : FrameworkElement
             if (!layer.IsVisible) continue;
             foreach (var cell in layer.EnumerateCells(visibleBounds))
             {
-                if (!tilesets.TryGetValue(cell.Tile.TilesetId, out var tileset)) continue;
+                if (!tilesets.TryGetValue(cell.Tile.TilesetId, out var tileset))
+                {
+                    DrawMissingTile(drawing, cell.Coordinate);
+                    continue;
+                }
                 var worldX = cell.Coordinate.X * CellWidth;
                 var worldY = cell.Coordinate.Y * CellHeight + CellHeight - tileset.TileHeight;
                 var screen = Transform.WorldToScreen(worldX, worldY);
@@ -166,6 +173,19 @@ public sealed class TileMapViewport : FrameworkElement
                 drawing.DrawImage(_bitmaps.GetTile(tileset.Id, cell.Tile.TileId), destination);
             }
         }
+    }
+
+    private void DrawMissingTile(DrawingContext drawing, GridCoordinate coordinate)
+    {
+        var topLeft = Transform.WorldToScreen(coordinate.X * CellWidth, coordinate.Y * CellHeight);
+        var width = CellWidth * Zoom;
+        var height = CellHeight * Zoom;
+        var destination = new Rect(topLeft.X, topLeft.Y, width, height);
+        drawing.DrawRectangle(MissingTileBrush, null, destination);
+        drawing.DrawRectangle(MissingTileDarkBrush, null, new Rect(topLeft.X, topLeft.Y, width / 2, height / 2));
+        drawing.DrawRectangle(MissingTileDarkBrush, null, new Rect(topLeft.X + width / 2, topLeft.Y + height / 2, width / 2, height / 2));
+        drawing.DrawLine(MissingTilePen, destination.TopLeft, destination.BottomRight);
+        drawing.DrawLine(MissingTilePen, destination.TopRight, destination.BottomLeft);
     }
 
     private void DrawGrid(DrawingContext drawing)

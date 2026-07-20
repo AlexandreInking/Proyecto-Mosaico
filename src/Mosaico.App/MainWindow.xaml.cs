@@ -59,6 +59,7 @@ public sealed record LayerListItem(Guid Id, string Name, bool IsVisible, bool Is
     public string VisibilityIcon => IsVisible ? "eye" : "eye-off";
     public string LockIcon => IsLocked ? "lock" : "lock-open";
 }
+public sealed record ProjectIssueListItem(string Message, string CountLabel, string Details);
 
 public partial class MainWindow : Window
 {
@@ -68,12 +69,14 @@ public partial class MainWindow : Window
     private TileBitmapStore _bitmaps = new();
     private readonly ObservableCollection<TilesetPaletteTab> _tilesetTabs = [];
     private readonly ObservableCollection<LayerListItem> _layerItems = [];
+    private readonly ObservableCollection<ProjectIssueListItem> _issueItems = [];
     private string? _currentPath;
     private Guid? _selectedTilesetId;
     private Guid? _paletteProjectId;
     private bool _dirty;
     private bool _openingTilesetImport;
     private bool _refreshingPanels;
+    private bool _problemsDirty = true;
 
     public MainWindow()
     {
@@ -81,6 +84,7 @@ public partial class MainWindow : Window
         _history = new(_project);
         TilesetTabs.ItemsSource = _tilesetTabs;
         LayersList.ItemsSource = _layerItems;
+        ProblemsList.ItemsSource = _issueItems;
         Viewport.PaintRequested += Viewport_PaintRequested;
         Viewport.FillRequested += Viewport_FillRequested;
         Viewport.PickRequested += Viewport_PickRequested;
@@ -110,6 +114,7 @@ public partial class MainWindow : Window
         Viewport.SelectedTile = null;
         _selectedTilesetId = null;
         _paletteProjectId = null;
+        _problemsDirty = true;
         SetDirty(false);
         RefreshPanels();
         Viewport.FitDocument();
@@ -131,7 +136,29 @@ public partial class MainWindow : Window
         ActiveLayerText.Text = active.IsLocked ? $"{active.Name} · bloqueada" : active.Name;
         UndoButton.IsEnabled = _history.CanUndo;
         RedoButton.IsEnabled = _history.CanRedo;
+        RefreshProblems();
         Viewport.InvalidateVisual();
+    }
+
+    private void RefreshProblems()
+    {
+        if (!_problemsDirty) return;
+        _problemsDirty = false;
+        var issues = MapProjectDiagnostics.Analyze(_project);
+        var hadIssues = _issueItems.Count > 0;
+        _issueItems.Clear();
+        foreach (var issue in issues)
+        {
+            var details = string.Join(" · ", issue.SampleLocations);
+            if (issue.Count > issue.SampleLocations.Count) details += $" · +{issue.Count - issue.SampleLocations.Count} más";
+            _issueItems.Add(new(issue.Message, $"{issue.Count:N0} referencias", details));
+        }
+        var total = issues.Sum(issue => issue.Count);
+        ProblemsCountText.Text = total == 0
+            ? "0 errores"
+            : $"{total:N0} errores en {issues.Count:N0} grupos";
+        if (!hadIssues && total > 0) ProblemsToggle.IsChecked = true;
+        if (total == 0) ProblemsToggle.IsChecked = false;
     }
 
     private void ShowError(string title, string message)

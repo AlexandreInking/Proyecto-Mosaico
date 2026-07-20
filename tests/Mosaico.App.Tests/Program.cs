@@ -26,10 +26,12 @@ internal static class Program
             ("F1 tile viewport clips layered sprites", F1TileViewportClipsLayeredSprites),
             ("F1 tile viewport clips large tiles to map bounds", F1TileViewportClipsLargeTilesToMapBounds),
             ("Viewport culling retains tall tiles anchored below view", ViewportCullingRetainsTallTilesAnchoredBelowView),
+            ("Orphan tile renders a high contrast error marker", OrphanTileRendersErrorMarker),
             ("Tileset slice preview exposes a 2x2 comparison", TilesetSlicePreviewExposesTwoByTwoComparison),
             ("F1 dialogs use the dark application palette", F1DialogsUseDarkApplicationPalette),
             ("Tileset palette exposes a dedicated import tab", TilesetPaletteExposesImportTab),
             ("Large tileset palettes paginate thumbnails", LargeTilesetPalettesPaginateThumbnails),
+            ("Problems console groups orphan references", ProblemsConsoleGroupsOrphanReferences),
         };
         var failures = 0;
         foreach (var test in tests)
@@ -183,6 +185,24 @@ internal static class Program
             throw new InvalidOperationException("Tall tile was culled although its sprite intersects the viewport.");
     }
 
+    private static void OrphanTileRendersErrorMarker()
+    {
+        var tilesetId = Guid.NewGuid();
+        var project = MapProject.Create("Missing", 1, 1, 16, 16);
+        project.AddTileset(TilesetDefinition.Create(tilesetId, "Deleted", $"assets/{tilesetId:D}.png", 16, 16, 16, 16, new string('A', 64)));
+        project.SetTile(project.ActiveLayerId, new(0, 0), new TileRef(tilesetId, 0));
+        project.RemoveTileset(tilesetId);
+        var viewport = new TileMapViewport { Project = project, Bitmaps = new TileBitmapStore() };
+        viewport.Measure(new Size(100, 100));
+        viewport.Arrange(new Rect(0, 0, 100, 100));
+        viewport.FitDocument();
+
+        var bitmap = new RenderTargetBitmap(100, 100, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(viewport);
+        if (!RegionContainsColor(bitmap, new Int32Rect(32, 32, 36, 36), 168, 0, 255))
+            throw new InvalidOperationException("Missing tile marker must include high-contrast magenta pixels.");
+    }
+
     private static void TilesetSlicePreviewExposesTwoByTwoComparison()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "fixtures", "phase1", "atlas-8.png");
@@ -248,6 +268,36 @@ internal static class Program
             throw new InvalidOperationException("Pagination controls must be visible for large tilesets.");
     }
 
+    private static void ProblemsConsoleGroupsOrphanReferences()
+    {
+        var tilesetId = Guid.NewGuid();
+        var project = MapProject.Create("Problems", 4, 4, 16, 16);
+        project.AddTileset(TilesetDefinition.Create(tilesetId, "Deleted", $"assets/{tilesetId:D}.png", 16, 16, 16, 16, new string('A', 64)));
+        project.SetTile(project.ActiveLayerId, new(0, 0), new TileRef(tilesetId, 0));
+        project.SetTile(project.ActiveLayerId, new(1, 0), new TileRef(tilesetId, 0));
+        project.RemoveTileset(tilesetId);
+        var window = new MainWindow();
+        try
+        {
+            var setProject = typeof(MainWindow).GetMethod("SetProject", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("SetProject was not found.");
+            setProject.Invoke(window, [project, new Dictionary<Guid, byte[]>(), null]);
+            if (window.FindName("ProblemsList") is not ListBox { Items.Count: 1 } problems)
+                throw new InvalidOperationException("Two similar orphan references must render as one problem group.");
+            if (window.FindName("ProblemsCountText") is not TextBlock count || !count.Text.Contains("2", StringComparison.Ordinal))
+                throw new InvalidOperationException("Problems console must show aggregate reference count.");
+            if (window.FindName("DeleteLayerButton") is null || window.FindName("DeleteTilesetButton") is null)
+                throw new InvalidOperationException("Delete controls must be accessible by name.");
+            if (window.FindName("ProblemsToggle") is not System.Windows.Controls.Primitives.ToggleButton toggle)
+                throw new InvalidOperationException("Problems console toggle was not found.");
+            toggle.IsChecked = true;
+            window.UpdateLayout();
+            if (problems.Visibility != Visibility.Visible)
+                throw new InvalidOperationException("Problems console must become visible when expanded.");
+        }
+        finally { window.Close(); }
+    }
+
     private static byte[] ReadPixel(BitmapSource bitmap, int x, int y)
     {
         var pixel = new byte[4];
@@ -266,5 +316,18 @@ internal static class Program
             if (pixels[offset] != blue || pixels[offset + 1] != green || pixels[offset + 2] != red) return false;
         }
         return true;
+    }
+
+    private static bool RegionContainsColor(BitmapSource bitmap, Int32Rect region, byte blue, byte green, byte red)
+    {
+        var pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
+        bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
+        for (var y = region.Y; y < region.Y + region.Height; y++)
+        for (var x = region.X; x < region.X + region.Width; x++)
+        {
+            var offset = (y * bitmap.PixelWidth + x) * 4;
+            if (pixels[offset] == blue && pixels[offset + 1] == green && pixels[offset + 2] == red) return true;
+        }
+        return false;
     }
 }
