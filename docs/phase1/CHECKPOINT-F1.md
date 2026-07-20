@@ -7,8 +7,8 @@
 ## Evidencia automática
 
 - Build Release: 0 errores, 0 advertencias.
-- Core: 32/32 pruebas.
-- WPF: 12/12 pruebas, incluidos clipping, culling visible, tema oscuro, atomicidad, tabs y paginación de tilesets.
+- Core: 36/36 pruebas.
+- WPF: 14/14 pruebas, incluidos clipping, culling visible, tema oscuro, atomicidad, tabs, paginación, marcador de tile huérfano y consola agrupada.
 - Export fixture SHA-256: `08C7CD8D11BB891E9DC36A469A319DD7B06BAF764C71C547AD70CB8D2A89A13C`.
 - Unity 6.3.11f1 batchmode: exit 0, `MOSAICO_IMPORT_SMOKE_PASS`.
 - Importación real: mapa 16×10, 2 capas, 163 celdas, 3 texturas, 13 sprites y 13 tiles.

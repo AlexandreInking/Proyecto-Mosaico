@@ -34,6 +34,8 @@ Mosaico F1 permite importar uno o varios sprite sheets PNG, cortarlos en tiles, 
 - Picker, mano y zoom 25%…800%.
 - Una pincelada/fill/operación de capa es una transacción reversible.
 - Capa bloqueada rechaza mutación; capa oculta no renderiza.
+- Eliminar capa o tileset es reversible. Eliminar tileset conserva `TileRef` colocados como referencias huérfanas.
+- Proyecto con referencias huérfanas puede guardarse/reabrirse para evitar pérdida silenciosa, pero no exportarse.
 
 ## UI
 
@@ -41,8 +43,9 @@ Mosaico F1 permite importar uno o varios sprite sheets PNG, cortarlos en tiles, 
 - Menú textual: Archivo, Editar, Mapa, Capa, Tileset, Exportar, Ayuda.
 - Toolbar vertical compacta con iconos, tooltip, shortcut y `AutomationName`; sin texto visible.
 - Centro: pestaña de documento y viewport recortado.
-- Derecha: paleta Tiles/Tilesets y panel Capas con visibilidad, bloqueo y orden.
-- Inferior: coordenada, zoom, capa activa, tile activo y estado.
+- Derecha: paleta Tiles/Tilesets y panel Capas con visibilidad, bloqueo, orden y eliminación.
+- Inferior: consola plegable de errores agrupados; debajo, coordenada, zoom, capa activa, tile activo y estado.
+- `TileRef` cuyo tileset no existe renderiza patrón magenta/negro con una X blanca, nunca vacío silencioso.
 - Contraste WCAG AA, foco visible y comandos accesibles por teclado.
 
 ## Formatos y seguridad
@@ -121,6 +124,7 @@ IDs forman el contrato; UI no inventa IDs ni modifica colecciones internas direc
 - Unitarias: slicing, referencias, capas, locking, fill, selección y deltas.
 - Integración: round-trip, ZIP hostil, hashes y export determinista.
 - WPF: estado de tools, paleta, capas, clipping y accesibilidad básica.
+- Diagnóstico: referencias huérfanas agrupadas, marcador visual, persistencia y bloqueo de exportación.
 - Unity real: batchmode importa bundle, crea prefab y valida capas/sprites/coordenadas.
 - Manual: importar → pintar/fill/borrar → capas → guardar/reabrir → exportar → abrir resultado Unity.
 
@@ -135,6 +139,7 @@ Nunca: ejecutar contenido importado, generar assets Unity desde app gratuita, co
 - Dos PNG con tiles de distinto tamaño muestran conteos, miniaturas e IDs correctos.
 - Tiles reales se colocan por coordenada en capas ordenables, ocultables y bloqueables.
 - Selección, pincel, borrador y fill tienen undo/redo exacto.
+- Capas y tilesets pueden eliminarse; referencias huérfanas son visibles, agrupadas y persistentes.
 - Guardar/reabrir conserva hash semántico y hashes de assets.
 - Export repetido produce bytes idénticos y no contiene código.
 - Importador separado crea prefab Grid/Tilemaps y pasa smoke real en Unity 6000.3.11f1.

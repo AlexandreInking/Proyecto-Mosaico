@@ -31,10 +31,23 @@ JSON automático liga prueba a commits del editor e importador; limpieza de ambo
 6. Verificar que tile 64×64 conserva tamaño, se ancla abajo a su celda y sobresale sobre celdas vecinas.
 7. Crear capa `Prueba`; subirla, bajarla, ocultarla y bloquearla.
 8. Con capa bloqueada, intentar pintar/borrar/fill: mapa no cambia y UI informa bloqueo.
-9. Usar selección rectangular. Ejecutar fill limitado, borrar selección, deshacer y rehacer cada operación.
-10. Combinar pincel, borrador, picker, mano, zoom y `0` para encuadrar.
-11. Guardar como `output/evidence/phase1/prueba-f1.mosaico`, cerrar/abrir y comprobar tilesets, capas, IDs, coordenadas y visibilidad.
-12. Exportar dos veces dentro de `output/evidence/phase1/`; ambos archivos deben tener SHA-256 idéntico. No escribir evidencia manual fuera de `output/`, porque ensuciaría worktree y recorder la rechazaría.
+9. Pintar varios tiles en `Prueba`, eliminar esa capa con icono papelera y confirmar que desaparece. `Ctrl+Z` debe restaurar capa, contenido, orden y estado; `Ctrl+Y` debe volver a eliminarla.
+10. Usar selección rectangular. Ejecutar fill limitado, borrar selección, deshacer y rehacer cada operación.
+11. Combinar pincel, borrador, picker, mano, zoom y `0` para encuadrar.
+12. Guardar como `output/evidence/phase1/prueba-f1.mosaico`, cerrar/abrir y comprobar tilesets, capas, IDs, coordenadas y visibilidad.
+
+## Qué revisar ahora: eliminación y consola
+
+1. Reabrir `fixtures/phase1/sample.mosaico` desde paquete evaluado.
+2. Seleccionar pestaña `Detalles 8` y pulsar papelera del panel Tilesets. Confirmar diálogo: celdas colocadas no deben borrarse.
+3. Verificar que cada tile afectado se vuelve patrón magenta/negro con X blanca, siempre recortado al mapa y sin cubrir UI.
+4. Abrir consola inferior. Debe mostrar **un grupo** `MISSING_TILESET`, no una fila por celda; badge debe indicar cantidad agregada y mostrar hasta cuatro ubicaciones de ejemplo.
+5. Plegar y desplegar consola. Mapa debe recuperar espacio al plegarse.
+6. Usar `Ctrl+Z`: pestaña, imágenes y tiles originales deben volver; consola debe quedar en `0 errores`. Usar `Ctrl+Y`: marcador y grupo deben reaparecer. Finalmente usar `Ctrl+Z` para restaurar.
+7. Repetir eliminación, guardar como `output/evidence/phase1/tileset-huerfano.mosaico`, cerrar/reabrir. Marcadores y grupo deben persistir.
+8. Intentar exportar proyecto huérfano: debe rechazarse con `PROJECT_HAS_ERRORS`; no debe producir bundle parcial.
+9. Reabrir `sample.mosaico` original para continuar prueba normal.
+10. Exportar dos veces dentro de `output/evidence/phase1/`; ambos archivos deben tener SHA-256 idéntico. No escribir evidencia manual fuera de `output/`, porque ensuciaría worktree y recorder la rechazaría.
 
 ## Recorrido Unity
 
@@ -58,6 +71,9 @@ JSON automático liga prueba a commits del editor e importador; limpieza de ambo
 - [ ] Sprite sheets se cortan con conteo, preview e IDs correctos.
 - [ ] Paleta coloca tiles por `tilesetId + tileId`, no píxeles.
 - [ ] Capas crean, ordenan, ocultan y bloquean correctamente.
+- [ ] Capas y tilesets se eliminan con confirmación y undo/redo exacto.
+- [ ] Tiles huérfanos tienen marcador visible; consola agrupa referencias similares y sobrevive reapertura.
+- [ ] Exportación queda bloqueada mientras existan referencias huérfanas.
 - [ ] Guardar/reabrir conserva assets y semántica.
 - [ ] Selección, fill, borrador y undo/redo son exactos.
 - [ ] Tiles grandes y canvas quedan recortados dentro de UI.

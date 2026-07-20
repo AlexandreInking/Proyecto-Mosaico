@@ -8,7 +8,7 @@ Editor gratuito de mapas por tiles para videojuegos. Fase 1 implementa mapas ort
 
 Requiere Windows 10/11 y .NET SDK 10.0.300.
 
-- Doble clic en `Abrir Mosaico.cmd` para abrir el paquete Release preparado.
+- Doble clic en `Mosaico.cmd` para abrir el paquete Release preparado.
 - Desde código fuente:
 
   ```powershell
@@ -21,6 +21,8 @@ Requiere Windows 10/11 y .NET SDK 10.0.300.
 - Una pestaña compacta por tileset y pestaña `+` para importar otro.
 - Tiles por `tilesetId + tileId` colocados en coordenadas de mapa; no editor de píxeles.
 - Capas ordenables, visibles y bloqueables.
+- Eliminación reversible de capas y tilesets. Tiles huérfanos muestran marcador magenta en vez de desaparecer.
+- Consola inferior agrupa errores equivalentes por tileset ausente y muestra conteo total.
 - Pincel, borrador, fill, picker, selección y undo/redo.
 - Tamaño de celda configurable al crear mapa o después.
 - Guardado `.mosaico` autocontenido y exportación determinista `.mosaicpack`.
@@ -37,7 +39,7 @@ dotnet run --project tests/Mosaico.App.Tests/Mosaico.App.Tests.csproj -c Release
 powershell -ExecutionPolicy Bypass -File scripts/phase1-gate.ps1
 ```
 
-Gate exige worktree limpio, ejecuta 32 pruebas Core, 12 pruebas WPF, smoke real en Unity 6.3 y publica paquete ligado al commit. Seguir [MG-02](docs/manual/MG-02-editor-tilemaps.md) y registrar veredicto con:
+Gate exige worktree limpio, ejecuta 36 pruebas Core, 14 pruebas WPF, smoke real en Unity 6.3 y publica paquete ligado al commit. Seguir [MG-02](docs/manual/MG-02-editor-tilemaps.md) y registrar veredicto con:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/record-phase1-manual.ps1 `
