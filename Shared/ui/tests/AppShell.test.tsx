@@ -10,20 +10,18 @@ describe('AppShell', () => {
 
     expect(SHARED_UI_VERSION).toBe('mosaico-ui-t1-v1')
     expect(html).toContain('Asset Pipeline AI')
-    expect(html).toContain('Ejecución: Navegador')
+    expect(html).toContain('Web · Conectado')
     expect(html).toContain('data-ui-contract="mosaico-ui-t1-v1"')
   })
 
-  it('exposes assets plus real map and pixel modules while marking later modules honestly', () => {
+  it('opens Pixel Art first and exposes assets plus map modules', () => {
     const html = renderToStaticMarkup(
       <AppShell platform="Desktop" execution="Local" online={false} />,
     )
 
-    expect(html).toContain('Importar')
-    expect(html).toContain('Añadir a cola')
-    expect(html).toContain('Sin jobs')
+    expect(html.indexOf('Pixel Art')).toBeLessThan(html.indexOf('Assets'))
+    expect(html).toContain('class="active" type="button">Pixel Art')
     expect(html).toContain('>Mapas<')
-    expect(html).toContain('>Pixel Art<')
     expect(html).not.toContain('disabled="" type="button">Mapas')
     expect(html).toContain('Planificado')
     expect(html).toContain('Sin conexión')

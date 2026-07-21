@@ -1,6 +1,6 @@
 # Evidencia T2 — Checkpoint C
 
-**Estado:** PASS técnico e integrado
+**Estado:** Web PASS; Desktop corregido y pendiente de revalidación humana
 **Fecha:** 21 de julio de 2026
 
 ## Resultado visible
@@ -10,6 +10,8 @@
 - Mapa ortogonal: grid, clip, culling, pan, zoom al cursor y picking.
 - Pixel Art: nearest-neighbor, grid, clip, pan, zoom y picking estricto.
 - Canvas Lab queda como harness interno de diagnóstico; no es producto ni gate humano.
+- `Pixel Art` es ahora primer módulo y vista inicial en ambas plataformas.
+- El lanzador Desktop prioriza el binario Tauri actual; ya no abre artefactos T0 antiguos.
 
 ## Evidencia automatizada
 
@@ -46,3 +48,9 @@ Chrome sobre `http://127.0.0.1:5173`:
 - Seguridad: sin entrada externa ni HTML dinámico en este slice.
 - Rendimiento: índice espacial evita escaneo completo en frames estables.
 - Límite honesto: todavía no hay herramientas de pintura integradas ni importación TMX/Aseprite; pertenecen al siguiente bloque vertical.
+
+## Incidencia y revalidación Desktop
+
+El `FAIL C Desktop` del propietario fue válido: `Mosaico.cmd` abría primero un artefacto manual T0, aunque DesktopApp ya consumía `AppShell`. Se corrigió orden del lanzador, se reconstruyó Tauri y se resolvió incompatibilidad CSP de Pixi mediante su módulo estático `pixi.js/unsafe-eval`.
+
+Validación técnica local: binario Tauri actual, `Pixel Art` activo al abrir, canvas visible, `Assets` y `Mapas` disponibles, sin error CSP. Checkpoint Desktop permanece abierto hasta nuevo `PASS C Desktop` humano.

@@ -1,9 +1,11 @@
 @echo off
 setlocal
 
-for /f "delims=" %%F in ('dir /b /ad /o-d "%~dp0output\manual\Mosaico-T0-*" 2^>nul') do if not defined MOSAICO_EXE set "MOSAICO_EXE=%~dp0output\manual\%%F\Mosaico.exe"
+if exist "%~dp0DesktopApp\src-tauri\target\release\mosaico-desktop.exe" set "MOSAICO_EXE=%~dp0DesktopApp\src-tauri\target\release\mosaico-desktop.exe"
 
-if not defined MOSAICO_EXE if exist "%~dp0DesktopApp\src-tauri\target\release\mosaico-desktop.exe" set "MOSAICO_EXE=%~dp0DesktopApp\src-tauri\target\release\mosaico-desktop.exe"
+for /f "delims=" %%F in ('dir /b /ad /o-d "%~dp0output\manual\Mosaico-T1-*" 2^>nul') do if not defined MOSAICO_EXE set "MOSAICO_EXE=%~dp0output\manual\%%F\Mosaico.exe"
+
+for /f "delims=" %%F in ('dir /b /ad /o-d "%~dp0output\manual\Mosaico-T0-*" 2^>nul') do if not defined MOSAICO_EXE set "MOSAICO_EXE=%~dp0output\manual\%%F\Mosaico.exe"
 
 for /f "delims=" %%F in ('dir /b /ad /o-d "%~dp0output\manual\Mosaico-F1-*" 2^>nul') do if not defined MOSAICO_EXE set "MOSAICO_EXE=%~dp0output\manual\%%F\Mosaico.App.exe"
 

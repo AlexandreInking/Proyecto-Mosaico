@@ -28,7 +28,7 @@ interface VisibleAsset extends ImportedImage { thumbnailUrl: string }
 interface OutputState extends ProcessedImage { previewUrl: string }
 interface ImageJobInput { asset: ImportedImage; recipe: Recipe }
 
-const modules = ['Assets', 'Pipelines', 'Mapas', 'Pixel Art', 'Mundo', 'Jobs', 'Exportar']
+const modules = ['Pixel Art', 'Assets', 'Pipelines', 'Mapas', 'Mundo', 'Jobs', 'Exportar']
 const activeModules = new Set(['Assets', 'Mapas', 'Pixel Art'])
 const AuthoringCanvas = lazy(async () => ({ default: (await import('./AuthoringCanvas.js')).AuthoringCanvas }))
 const recipeStorageKey = 'mosaico-t1-recipe'
@@ -60,7 +60,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
   const [output, setOutput] = useState<OutputState>()
   const [occurrences, setOccurrences] = useState<DiagnosticOccurrence[]>([])
   const [consoleOpen, setConsoleOpen] = useState(true)
-  const [activeModule, setActiveModule] = useState('Assets')
+  const [activeModule, setActiveModule] = useState('Pixel Art')
 
   const selected = assets.find((asset) => asset.record.id === selectedId)
   const diagnostics: Diagnostic[] = useMemo(() => groupDiagnostics(occurrences), [occurrences])

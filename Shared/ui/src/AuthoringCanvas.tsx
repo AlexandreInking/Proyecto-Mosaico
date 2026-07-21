@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import 'pixi.js/unsafe-eval'
 import { createMapDocument, createSpriteDocument, setPixel, setTile } from '@mosaico/domain'
 import {
   createViewport,

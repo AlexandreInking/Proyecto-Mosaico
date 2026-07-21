@@ -1,6 +1,6 @@
 # Plan T2 — Authoring Core dual
 
-**Estado:** Aprobado; Checkpoint C PASS e integrado en Web/Desktop
+**Estado:** Aprobado; Checkpoint C Web PASS, Desktop corregido pendiente de revalidación humana
 **SPEC:** `T2_AUTHORING_CORE_SPEC.md`
 
 ## Arquitectura y dependencias
@@ -196,4 +196,4 @@ Desde este checkpoint, Olas D y E se ejecutan como un bloque vertical mayor. No 
 
 ## Aprobación requerida
 
-SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoints A/B/C PASS. Ola C integrada. Siguiente ejecución: bloque vertical D–E, pendiente de autorización.
+SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoints A/B PASS. Ola C integrada; Web PASS y Desktop pendiente de revalidación humana tras corregir lanzador legacy. Siguiente ejecución: bloque vertical D–E después del gate dual.
