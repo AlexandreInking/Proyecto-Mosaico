@@ -1,6 +1,6 @@
 # SPEC T2 — Authoring Core dual
 
-**Estado:** Aprobado; Checkpoint A PASS, Ola B pendiente de autorización
+**Estado:** Aprobado; Checkpoint A PASS, Ola B en ejecución (T2-04 PASS)
 **Fecha:** 21 de julio de 2026
 **Alcance:** T2 completo + primer slice ejecutable T2P
 **Arquitectura:** ADR-003, ADR-004 y ADR-005
