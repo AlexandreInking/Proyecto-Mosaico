@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export * from './authoring.js'
+
 export const UI_CONTRACT_VERSION = 'mosaico-ui-t1-v1' as const
 
 export const executionTargetSchema = z.enum(['browser', 'desktop', 'cloud'])

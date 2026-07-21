@@ -1,0 +1,25 @@
+{
+  "format": "mosaico-map",
+  "formatVersion": 2,
+  "id": "00000000-0000-4000-8000-000000000001",
+  "revision": 0,
+  "name": "Mapa mínimo",
+  "orientation": "orthogonal",
+  "width": 4,
+  "height": 4,
+  "cellWidth": 16,
+  "cellHeight": 16,
+  "activeLayerId": "00000000-0000-4000-8000-000000000002",
+  "tilesets": [],
+  "layers": [
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "name": "Capa 1",
+      "kind": "tile",
+      "visible": true,
+      "locked": false,
+      "opacity": 1,
+      "cells": []
+    }
+  ]
+}
