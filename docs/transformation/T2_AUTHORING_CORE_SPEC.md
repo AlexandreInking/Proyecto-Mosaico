@@ -1,6 +1,6 @@
 # SPEC T2 — Authoring Core dual
 
-**Estado:** Propuesto para aprobación humana
+**Estado:** Aprobado; Ola A en ejecución
 **Fecha:** 21 de julio de 2026
 **Alcance:** T2 completo + primer slice ejecutable T2P
 **Arquitectura:** ADR-003, ADR-004 y ADR-005
@@ -193,4 +193,4 @@ Estas capacidades conservan prioridad del roadmap; T2 crea contratos y datos que
 
 ## 12. Gate de aprobación
 
-Implementación comienza tras aprobación explícita de esta SPEC y `T2_AUTHORING_CORE_PLAN.md`.
+SPEC, PLAN y ADR-005 aprobados explícitamente por propietario el 21 de julio de 2026. Ola A autorizada.

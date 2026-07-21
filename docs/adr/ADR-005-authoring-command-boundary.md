@@ -1,8 +1,8 @@
 # ADR-005: comandos tipados como frontera de autoría y automatización
 
-**Estado:** Propuesto
+**Estado:** Aceptado
 **Fecha:** 21 de julio de 2026
-**Decisores:** aprobación humana T2 pendiente
+**Decisores:** propietario del proyecto; aprobado el 21 de julio de 2026
 
 ## Contexto
 

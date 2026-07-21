@@ -1,6 +1,6 @@
 # Plan T2 — Authoring Core dual
 
-**Estado:** Propuesto para aprobación humana
+**Estado:** Aprobado; Ola A en ejecución
 **SPEC:** `T2_AUTHORING_CORE_SPEC.md`
 
 ## Arquitectura y dependencias
@@ -186,4 +186,4 @@ PixiJS y adapters dependen del dominio; dominio nunca depende del renderer. Regi
 
 ## Aprobación requerida
 
-Responder `Apruebo SPEC y PLAN T2 Authoring Core` autoriza T2-01 y ejecución incremental hasta Checkpoint A. Cada checkpoint producirá app ejecutable o evidencia concreta y mensaje exacto de validación.
+SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. T2-01…T2-03 y Checkpoint A autorizados.
