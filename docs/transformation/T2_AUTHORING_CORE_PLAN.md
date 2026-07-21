@@ -1,6 +1,6 @@
 # Plan T2 — Authoring Core dual
 
-**Estado:** Aprobado; Ola A en ejecución
+**Estado:** Aprobado; Checkpoint A PASS, Ola B pendiente de autorización
 **SPEC:** `T2_AUTHORING_CORE_SPEC.md`
 
 ## Arquitectura y dependencias
@@ -20,7 +20,7 @@ PixiJS y adapters dependen del dominio; dominio nunca depende del renderer. Regi
 
 ## Ola A — Contratos y dominio
 
-### T2-01: Schemas de autoría v2
+### T2-01: Schemas de autoría v2 — completado
 
 - Aceptación: Zod valida mapa, tileset, layers, TileRefs, sprite y revisión; rechaza IDs duplicados, bounds y presupuestos inválidos.
 - Verificación: fixtures válidos/rotos y `pnpm --filter @mosaico/contracts test`.
@@ -28,7 +28,7 @@ PixiJS y adapters dependen del dominio; dominio nunca depende del renderer. Regi
 - Archivos: `Shared/contracts`, `fixtures/t2`.
 - Tamaño: M.
 
-### T2-02: Dominio ortogonal sparse
+### T2-02: Dominio ortogonal sparse — completado
 
 - Aceptación: create/set/erase/fill/layers/tilesets son puros; huérfanos sobreviven; hash semántico determinista.
 - Verificación: unit/property tests, negativos y límites.
@@ -36,7 +36,7 @@ PixiJS y adapters dependen del dominio; dominio nunca depende del renderer. Regi
 - Archivos: `Shared/domain/src/map`, `Shared/domain/tests`.
 - Tamaño: M.
 
-### T2-03: Pixel document mínimo
+### T2-03: Pixel document mínimo — completado
 
 - Aceptación: RGBA/layers/pixel/fill producen estado válido y hash determinista.
 - Verificación: golden pixels, bounds y alpha tests.
@@ -46,9 +46,13 @@ PixiJS y adapters dependen del dominio; dominio nunca depende del renderer. Regi
 
 ### Checkpoint A
 
-- Todos los tests/typecheck verdes.
-- Corpus prueba `apply → inverse` y round-trip.
-- Sin React/Pixi/Tauri en dominio.
+- [x] Tests, typecheck y builds duales verdes.
+- [x] Documentos versionados y fingerprints deterministas.
+- [x] Estado previo no muta tras pintar, borrar o fill.
+- [x] Sin React/Pixi/Tauri en dominio.
+- [ ] `apply → inverse` y round-trip pertenecen a T2-04/T2-05 en Ola B.
+
+Evidencia: `T2_CHECKPOINT_A.md`.
 
 ## Ola B — Comandos, historial y persistencia
 
