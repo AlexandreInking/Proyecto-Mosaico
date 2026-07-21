@@ -1,3 +1,4 @@
 export * from './map-document.js'
 export * from './sprite-document.js'
 export * from './commands.js'
+export * from './serialization.js'

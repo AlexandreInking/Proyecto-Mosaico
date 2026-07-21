@@ -79,6 +79,9 @@ describe('T2 authoring contracts', () => {
 
     const outside = { ...mapFixture.layers[0], cells: [{ x: 32, y: 0, tilesetId: mapFixture.tilesets[0].id, tileId: 0 }] }
     expect(() => mapDocumentSchema.parse({ ...mapFixture, layers: [outside] })).toThrow()
+
+    const invalidKnownTile = { ...mapFixture.layers[0], cells: [{ x: 0, y: 0, tilesetId: mapFixture.tilesets[0].id, tileId: 16 }] }
+    expect(() => mapDocumentSchema.parse({ ...mapFixture, layers: [invalidKnownTile] })).toThrow()
   })
 
   it('rejects sprite cels that reference unknown frames', () => {

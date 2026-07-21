@@ -1,0 +1,37 @@
+{
+  "format": "mosaico-project",
+  "formatVersion": 1,
+  "id": "77777777-7777-4777-8777-777777777777",
+  "name": "Legacy WPF",
+  "orientation": "orthogonal",
+  "width": 3,
+  "height": 2,
+  "cellWidth": 16,
+  "cellHeight": 16,
+  "activeLayerId": "88888888-8888-4888-8888-888888888888",
+  "tilesets": [{
+    "id": "99999999-9999-4999-8999-999999999999",
+    "name": "Terreno",
+    "assetPath": "assets/99999999-9999-4999-8999-999999999999.png",
+    "imageWidth": 32,
+    "imageHeight": 16,
+    "tileWidth": 16,
+    "tileHeight": 16,
+    "marginX": 0,
+    "marginY": 0,
+    "spacingX": 0,
+    "spacingY": 0,
+    "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  }],
+  "layers": [{
+    "id": "88888888-8888-4888-8888-888888888888",
+    "name": "Suelo",
+    "order": 0,
+    "isVisible": true,
+    "isLocked": false,
+    "cells": [
+      { "x": 0, "y": 0, "tilesetId": "99999999-9999-4999-8999-999999999999", "tileId": 1 },
+      { "x": 2, "y": 1, "tilesetId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "tileId": 7 }
+    ]
+  }]
+}

@@ -1,6 +1,6 @@
 # Plan T2 — Authoring Core dual
 
-**Estado:** Aprobado; Checkpoint A PASS, Ola B en ejecución (T2-04 PASS)
+**Estado:** Aprobado; Checkpoint A PASS, Ola B en ejecución (T2-04/T2-05 PASS)
 **SPEC:** `T2_AUTHORING_CORE_SPEC.md`
 
 ## Arquitectura y dependencias
@@ -190,4 +190,4 @@ Evidencia: `T2_CHECKPOINT_A.md`.
 
 ## Aprobación requerida
 
-SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. T2-01…T2-03, Checkpoint A y Ola B autorizados. T2-04 verificado.
+SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. T2-01…T2-03, Checkpoint A y Ola B autorizados. T2-04/T2-05 verificados.

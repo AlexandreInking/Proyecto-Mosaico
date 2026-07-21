@@ -80,6 +80,7 @@ export const mapDocumentSchema = z.object({
     context.addIssue({ code: 'custom', message: 'Active layer must exist.', path: ['activeLayerId'] })
   }
   let occupiedCells = 0
+  const tileCounts = new Map(document.tilesets.map((tileset) => [tileset.id, tileset.tileCount]))
   for (const [layerIndex, layer] of document.layers.entries()) {
     occupiedCells += layer.cells.length
     for (const [cellIndex, cell] of layer.cells.entries()) {
@@ -90,11 +91,84 @@ export const mapDocumentSchema = z.object({
           path: ['layers', layerIndex, 'cells', cellIndex],
         })
       }
+      const tileCount = tileCounts.get(cell.tilesetId)
+      if (tileCount !== undefined && cell.tileId >= tileCount) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Map cell tile identifier is outside its tileset.',
+          path: ['layers', layerIndex, 'cells', cellIndex, 'tileId'],
+        })
+      }
     }
   }
   if (occupiedCells > 1_000_000) {
     context.addIssue({ code: 'custom', message: 'Occupied cell budget exceeded.', path: ['layers'] })
   }
+})
+
+const legacyMapCellSchema = z.object({
+  x: z.number().int().min(0).max(4095),
+  y: z.number().int().min(0).max(4095),
+  tilesetId: stableIdSchema,
+  tileId: z.number().int().nonnegative().max(999_999),
+}).strict()
+
+const legacyTilesetSchema = z.object({
+  id: stableIdSchema,
+  name: nameSchema,
+  assetPath: z.string().min(1).max(512).regex(/^assets\/[0-9a-f-]+\.png$/i),
+  imageWidth: dimensionSchema,
+  imageHeight: dimensionSchema,
+  tileWidth: dimensionSchema,
+  tileHeight: dimensionSchema,
+  marginX: z.number().int().min(0).max(4095),
+  marginY: z.number().int().min(0).max(4095),
+  spacingX: z.number().int().min(0).max(4095),
+  spacingY: z.number().int().min(0).max(4095),
+  sha256: z.string().length(64).regex(/^[0-9a-f]+$/i),
+}).strict()
+
+const legacyLayerSchema = z.object({
+  id: stableIdSchema,
+  name: nameSchema,
+  order: z.number().int().min(0).max(127),
+  isVisible: z.boolean(),
+  isLocked: z.boolean(),
+  cells: z.array(legacyMapCellSchema).max(1_000_000),
+}).strict()
+
+export const legacyMapManifestSchema = z.object({
+  format: z.literal('mosaico-project'),
+  formatVersion: z.literal(1),
+  id: stableIdSchema,
+  name: nameSchema,
+  orientation: z.literal('orthogonal'),
+  width: dimensionSchema,
+  height: dimensionSchema,
+  cellWidth: dimensionSchema,
+  cellHeight: dimensionSchema,
+  activeLayerId: stableIdSchema,
+  tilesets: z.array(legacyTilesetSchema).max(64),
+  layers: z.array(legacyLayerSchema).min(1).max(128),
+}).strict().superRefine((document, context) => {
+  const identifiers = [...document.tilesets, ...document.layers].map((item) => item.id)
+  if (new Set(identifiers).size !== identifiers.length) context.addIssue({ code: 'custom', message: 'Stable identifiers must be unique.' })
+  if (!document.layers.some((layer) => layer.id === document.activeLayerId)) context.addIssue({ code: 'custom', message: 'Active layer must exist.' })
+  const orders = document.layers.map((layer) => layer.order).sort((left, right) => left - right)
+  if (orders.some((order, index) => order !== index)) context.addIssue({ code: 'custom', message: 'Layer order must be contiguous.' })
+  let occupiedCells = 0
+  for (const [layerIndex, layer] of document.layers.entries()) {
+    occupiedCells += layer.cells.length
+    const coordinates = new Set<string>()
+    for (const [cellIndex, cell] of layer.cells.entries()) {
+      const key = `${cell.x},${cell.y}`
+      if (coordinates.has(key) || cell.x >= document.width || cell.y >= document.height) {
+        context.addIssue({ code: 'custom', message: 'Legacy cell is duplicate or outside bounds.', path: ['layers', layerIndex, 'cells', cellIndex] })
+      }
+      coordinates.add(key)
+    }
+  }
+  if (occupiedCells > 1_000_000) context.addIssue({ code: 'custom', message: 'Occupied cell budget exceeded.' })
 })
 
 export const spriteFrameSchema = z.object({
@@ -166,6 +240,7 @@ export type MapCellContract = z.infer<typeof mapCellSchema>
 export type TilesetContract = z.infer<typeof tilesetSchema>
 export type TileLayerContract = z.infer<typeof tileLayerSchema>
 export type MapDocumentContract = z.infer<typeof mapDocumentSchema>
+export type LegacyMapManifestContract = z.infer<typeof legacyMapManifestSchema>
 export type SpriteFrameContract = z.infer<typeof spriteFrameSchema>
 export type SpriteCelContract = z.infer<typeof spriteCelSchema>
 export type SpriteLayerContract = z.infer<typeof spriteLayerSchema>
