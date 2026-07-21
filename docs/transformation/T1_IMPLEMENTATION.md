@@ -30,9 +30,9 @@
 - Cero warnings/errores de consola del navegador.
 - WebApp y API respondieron HTTP 200; manifiesto incluyó `interpolation=nearest`, DAG, hashes y dimensiones.
 - Binario Tauri empaquetado abrió con UI compartida, modo `Local`, tema correcto y sin superposiciones visibles.
-- Gate completo: 8 pruebas estructurales, 4 contratos, 15 pipeline, 2 UI, 1 API y 1 Rust; builds y auditoría sin vulnerabilidades conocidas.
-- Benchmark Windows x64/Node 24: p50 18.713 ms, p95 21.302 ms.
+- Gate completo: 9 pruebas estructurales, 4 contratos, 15 pipeline, 2 UI, 1 API y 1 Rust; builds y auditoría sin vulnerabilidades conocidas.
+- Benchmark final Windows x64/Node 24: p50 18.436 ms, p95 42.515 ms.
 
-## Pendiente humano
+## Cierre humano
 
-Completar `docs/manual/MG-T1-image-pipeline.md` en Web y Desktop. T1 no se declara cerrado hasta ambos PASS.
+`PASS T1 Web` y `PASS T1 Desktop` confirmados por propietario el 21-07-2026 sobre commit `8e583e2d4487a4c5291dfc6dace38b3c5c47d58b`. Resultado formal: `output/gate/t1-manual-result.json`. T1 cerrado; T2 no inicia sin autorización explícita.

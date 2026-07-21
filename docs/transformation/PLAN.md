@@ -1,6 +1,6 @@
 # Plan de transformación y migración dual
 
-**Estado:** T0 completado; T1 automático PASS, validación humana Web/Desktop pendiente
+**Estado:** T0 y T1 completados; T2 pendiente de autorización
 **Fecha:** 21 de julio de 2026
 **Regla:** desde cada fase implementable existe programa arrancable, fixture y validación manual antes de avanzar.
 
@@ -51,7 +51,7 @@ Aceptación:
 - [x] Archivo corrupto no bloquea UI y produce diagnóstico agrupado.
 - [x] Original conserva hash.
 
-Gate automático ligado a commit aprobado. Cierre T1 permanece bloqueado hasta `PASS T1 Web` y `PASS T1 Desktop` humanos.
+Gate automático y validación humana Web/Desktop `PASS` sobre commit `8e583e2d4487a4c5291dfc6dace38b3c5c47d58b`.
 
 Validación manual: importar fixture, ejecutar receta, cancelar otra, exportar y comparar.
 
