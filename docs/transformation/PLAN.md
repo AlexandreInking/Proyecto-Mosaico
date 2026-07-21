@@ -1,7 +1,7 @@
 # Plan de transformación y migración dual
 
-**Estado:** T0 completado; T1 aprobado y en ejecución
-**Fecha:** 19 de julio de 2026  
+**Estado:** T0 completado; T1 automático PASS, validación humana Web/Desktop pendiente
+**Fecha:** 21 de julio de 2026
 **Regla:** desde cada fase implementable existe programa arrancable, fixture y validación manual antes de avanzar.
 
 ## Estrategia
@@ -46,10 +46,12 @@ Tareas:
 
 Aceptación:
 
-- [ ] Mismo fixture genera metadata y manifiesto normalizados en ambas apps.
-- [ ] Cancelar no crea salida confirmada.
-- [ ] Archivo corrupto no bloquea UI y produce diagnóstico agrupado.
-- [ ] Original conserva hash.
+- [x] Mismo fixture genera metadata y manifiesto normalizados mediante pipeline/UI compartidos por ambas apps.
+- [x] Cancelar no crea salida confirmada.
+- [x] Archivo corrupto no bloquea UI y produce diagnóstico agrupado.
+- [x] Original conserva hash.
+
+Gate automático ligado a commit aprobado. Cierre T1 permanece bloqueado hasta `PASS T1 Web` y `PASS T1 Desktop` humanos.
 
 Validación manual: importar fixture, ejecutar receta, cancelar otra, exportar y comparar.
 
