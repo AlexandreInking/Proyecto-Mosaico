@@ -1,8 +1,8 @@
 # ADR-003: plataforma dual React, Tauri y AdonisJS
 
-**Estado:** Propuesto  
+**Estado:** Aceptado
 **Fecha:** 19 de julio de 2026  
-**Decisores:** aprobación humana pendiente
+**Decisores:** propietario del proyecto; aprobado antes de T0
 
 ## Contexto
 

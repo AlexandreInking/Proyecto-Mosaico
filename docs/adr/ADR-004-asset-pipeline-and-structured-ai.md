@@ -1,8 +1,8 @@
 # ADR-004: pipeline no destructivo e IA estructurada
 
-**Estado:** Propuesto  
+**Estado:** Aceptado
 **Fecha:** 19 de julio de 2026  
-**Decisores:** aprobación humana pendiente
+**Decisores:** propietario del proyecto; aprobado antes de T0
 
 ## Contexto
 
