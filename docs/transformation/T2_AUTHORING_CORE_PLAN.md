@@ -1,6 +1,6 @@
 # Plan T2 — Authoring Core dual
 
-**Estado:** Aprobado; Checkpoint B PASS, Ola C implementada (T2-07/T2-08 PASS técnico)
+**Estado:** Aprobado; Checkpoint C PASS e integrado en Web/Desktop
 **SPEC:** `T2_AUTHORING_CORE_SPEC.md`
 
 ## Arquitectura y dependencias
@@ -108,9 +108,13 @@ Evidencia: `T2_CHECKPOINT_B.md`.
 
 ### Checkpoint C
 
-- p95 frame/picking medidos en fixture y entorno.
-- Resize de ventana no produce overflow ni solapamiento.
-- Canvas desacoplado de paneles React.
+- [x] p95 frame/picking medidos en fixture y entorno.
+- [x] Resize de ventana no produce overflow horizontal ni solapamiento.
+- [x] Canvas desacoplado de paneles React e integrado en ambas aplicaciones.
+
+Evidencia: `T2_CHECKPOINT_C.md`.
+
+Desde este checkpoint, Olas D y E se ejecutan como un bloque vertical mayor. No habrá aprobación por ticket interno: siguiente validación humana ocurre cuando edición mapa y pixel produzca archivos reales en Web y Desktop.
 
 ## Ola D — Flujos de producto
 
@@ -192,4 +196,4 @@ Evidencia: `T2_CHECKPOINT_B.md`.
 
 ## Aprobación requerida
 
-SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoints A/B PASS. Ola C autorizada; T2-07/T2-08 verificados, Checkpoint C pendiente de gate.
+SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoints A/B/C PASS. Ola C integrada. Siguiente ejecución: bloque vertical D–E, pendiente de autorización.

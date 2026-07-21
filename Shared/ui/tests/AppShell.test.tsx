@@ -14,7 +14,7 @@ describe('AppShell', () => {
     expect(html).toContain('data-ui-contract="mosaico-ui-t1-v1"')
   })
 
-  it('exposes real T1 import and marks later modules honestly', () => {
+  it('exposes assets plus real map and pixel modules while marking later modules honestly', () => {
     const html = renderToStaticMarkup(
       <AppShell platform="Desktop" execution="Local" online={false} />,
     )
@@ -22,6 +22,9 @@ describe('AppShell', () => {
     expect(html).toContain('Importar')
     expect(html).toContain('Añadir a cola')
     expect(html).toContain('Sin jobs')
+    expect(html).toContain('>Mapas<')
+    expect(html).toContain('>Pixel Art<')
+    expect(html).not.toContain('disabled="" type="button">Mapas')
     expect(html).toContain('Planificado')
     expect(html).toContain('Sin conexión')
   })

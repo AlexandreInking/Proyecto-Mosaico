@@ -70,6 +70,14 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .notice p { margin-top: 0.35rem; color: var(--muted); line-height: 1.45; }
 .statusbar { display: flex; justify-content: space-between; align-items: center; padding: 0 0.75rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.68rem; }
 
+.authoring-workspace { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: #101518; }
+.authoring-loading { display: grid; place-items: center; color: var(--muted); background: #101518; }
+.authoring-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
+.authoring-toolbar > span, .authoring-help { color: var(--muted); font-size: 0.7rem; }
+.authoring-canvas { min-width: 0; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; }
+.authoring-canvas:active { cursor: grabbing; }
+.authoring-help { padding: 0.45rem 0.75rem; border-top: 1px solid var(--border); background: var(--surface); }
+
 .asset-list { margin-top: 0.75rem; display: grid; gap: 0.35rem; overflow-y: auto; padding-right: 0.2rem; }
 .asset-card { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0.65rem; align-items: center; width: 100%; padding: 0.35rem; text-align: left; }
 .asset-card.selected { border-color: var(--accent); background: #183532; }

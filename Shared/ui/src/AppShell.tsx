@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { UI_CONTRACT_VERSION, type Diagnostic, type Recipe } from '@mosaico/contracts'
 import {
   createImageRecipe,
@@ -16,6 +16,7 @@ import {
   type QueueJobSnapshot,
   type SupportedImageType,
 } from '@mosaico/pipeline'
+import type { AuthoringMode } from './AuthoringCanvas.js'
 
 export interface AppShellProps {
   platform: 'Web' | 'Desktop'
@@ -28,6 +29,8 @@ interface OutputState extends ProcessedImage { previewUrl: string }
 interface ImageJobInput { asset: ImportedImage; recipe: Recipe }
 
 const modules = ['Assets', 'Pipelines', 'Mapas', 'Pixel Art', 'Mundo', 'Jobs', 'Exportar']
+const activeModules = new Set(['Assets', 'Mapas', 'Pixel Art'])
+const AuthoringCanvas = lazy(async () => ({ default: (await import('./AuthoringCanvas.js')).AuthoringCanvas }))
 const recipeStorageKey = 'mosaico-t1-recipe'
 
 function formatBytes(value: number): string {
@@ -57,6 +60,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
   const [output, setOutput] = useState<OutputState>()
   const [occurrences, setOccurrences] = useState<DiagnosticOccurrence[]>([])
   const [consoleOpen, setConsoleOpen] = useState(true)
+  const [activeModule, setActiveModule] = useState('Assets')
 
   const selected = assets.find((asset) => asset.record.id === selectedId)
   const diagnostics: Diagnostic[] = useMemo(() => groupDiagnostics(occurrences), [occurrences])
@@ -153,10 +157,10 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
       </header>
 
       <nav className="module-nav" aria-label="Módulos principales">
-        {modules.map((module) => <button className={module === 'Assets' ? 'active' : ''} disabled={module !== 'Assets'} key={module} type="button">{module}{module !== 'Assets' && <span>Planificado</span>}</button>)}
+        {modules.map((module) => <button className={module === activeModule ? 'active' : ''} disabled={!activeModules.has(module)} key={module} type="button" onClick={() => setActiveModule(module)}>{module}{!activeModules.has(module) && <span>Planificado</span>}</button>)}
       </nav>
 
-      <main className="workspace">
+      {activeModule === 'Assets' ? <main className="workspace">
         <aside className="sidebar" aria-label="Catálogo de assets">
           <div className="panel-heading"><div><p className="eyebrow">Workspace</p><h2>Catálogo</h2></div><button className="primary" type="button" onClick={() => fileInput.current?.click()}>Importar</button></div>
           <input ref={fileInput} className="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void addFiles([...event.target.files ?? []])} />
@@ -193,7 +197,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
           {selected && <dl><div><dt>Tipo</dt><dd>{selected.record.mediaType}</dd></div><div><dt>Tamaño</dt><dd>{formatBytes(selected.record.byteSize)}</dd></div><div><dt>Hash original</dt><dd title={selected.record.sha256}>{selected.record.sha256.slice(0, 16)}…</dd></div></dl>}
           <div className="notice"><strong>Original protegido</strong><p>Resize y conversión crean salida derivada. El hash fuente y receta quedan en manifiesto JSON.</p></div>
         </aside>
-      </main>
+      </main> : <Suspense fallback={<main className="authoring-loading">Cargando Authoring Core…</main>}><AuthoringCanvas mode={activeModule as AuthoringMode} /></Suspense>}
 
       <footer className="statusbar"><span>Persistencia local activa</span><span>{assets.length} assets · {jobs.length} jobs · {diagnostics.filter((item) => item.severity === 'error').length} errores agrupados</span></footer>
     </div>
