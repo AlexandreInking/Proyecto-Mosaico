@@ -189,11 +189,11 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
         </section>
 
         <aside className="inspector" aria-label="Inspector">
-          <p className="eyebrow">Inspector</p><h2>Resize + conversión</h2>
+          <p className="eyebrow">Inspector</p><h2>Resize pixel-perfect + conversión</h2>
           <div className="form-grid"><label>Ancho<input type="number" min="1" max="16384" value={width} onChange={(event) => setWidth(Number(event.target.value))} /></label><label>Alto<input type="number" min="1" max="16384" value={height} onChange={(event) => setHeight(Number(event.target.value))} /></label></div>
           <label className="field">Formato<select value={mediaType} onChange={(event) => setMediaType(event.target.value as SupportedImageType)}><option value="image/png">PNG</option><option value="image/jpeg">JPEG</option><option value="image/webp">WebP</option></select></label>
           <label className="field">Calidad <span>{Math.round(quality * 100)}%</span><input type="range" min="0.1" max="1" step="0.01" value={quality} disabled={mediaType === 'image/png'} onChange={(event) => setQuality(Number(event.target.value))} /></label>
-          <div className="recipe-flow"><span>Original</span><i>→</i><span>Resize</span><i>→</i><span>Convert</span></div>
+          <div className="recipe-flow"><span>Original</span><i>→</i><span>Nearest</span><i>→</i><span>Convert</span></div>
           <div className="job-actions"><button className="primary" type="button" disabled={!selected || jobStatus === 'running'} onClick={() => void runRecipe()}>Ejecutar receta</button>{jobStatus === 'running' && <button type="button" onClick={() => abortController.current?.abort()}>Cancelar</button>}{output && selected && <><a className="button-link" href={output.previewUrl} download={`${safeBaseName(selected.record.name)}-${width}x${height}.${extensionFor(mediaType)}`}>Exportar imagen</a><a className="button-link" href={`data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(output.manifest, null, 2))}`} download={`${safeBaseName(selected.record.name)}-manifest.json`}>Exportar manifiesto</a></>}{selected && <button className="danger" type="button" onClick={() => void removeSelected()}>Eliminar asset</button>}</div>
           <div className="progress-block"><div><span>Job: {jobStatus}</span><span>{Math.round(progress * 100)}%</span></div><progress max="1" value={progress} /></div>
           {selected && <dl><div><dt>Tipo</dt><dd>{selected.record.mediaType}</dd></div><div><dt>Tamaño</dt><dd>{formatBytes(selected.record.byteSize)}</dd></div><div><dt>Hash original</dt><dd title={selected.record.sha256}>{selected.record.sha256.slice(0, 16)}…</dd></div></dl>}

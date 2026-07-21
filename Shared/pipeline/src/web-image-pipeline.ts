@@ -1,6 +1,7 @@
 import type { AssetRecord, DerivedAssetManifest, Recipe } from '@mosaico/contracts'
 import { assetSchema, derivedAssetManifestSchema, recipeSchema } from '@mosaico/contracts'
 import { isSupportedImageType, type SupportedImageType } from './formats.js'
+import { resizeNearestRgba } from './pixel-resize.js'
 
 export interface ImportedImage {
   record: AssetRecord
@@ -50,20 +51,38 @@ function canvasToBlob(canvas: HTMLCanvasElement, mediaType: SupportedImageType, 
 }
 
 async function renderToBlob(source: ImageBitmap, width: number, height: number, mediaType: SupportedImageType, quality: number, smoothing: boolean): Promise<Blob> {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const context = canvas.getContext('2d', { alpha: mediaType !== 'image/jpeg' })
-  if (!context) throw new Error('Canvas 2D no está disponible.')
-  context.imageSmoothingEnabled = smoothing
-  if (mediaType === 'image/jpeg') {
-    context.fillStyle = '#ffffff'
-    context.fillRect(0, 0, width, height)
+  const resizedCanvas = document.createElement('canvas')
+  resizedCanvas.width = width
+  resizedCanvas.height = height
+  const resizedContext = resizedCanvas.getContext('2d')
+  if (!resizedContext) throw new Error('Canvas 2D no está disponible.')
+
+  if (smoothing) {
+    resizedContext.imageSmoothingEnabled = true
+    resizedContext.drawImage(source, 0, 0, width, height)
   } else {
-    context.clearRect(0, 0, width, height)
+    const sourceCanvas = document.createElement('canvas')
+    sourceCanvas.width = source.width
+    sourceCanvas.height = source.height
+    const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true })
+    if (!sourceContext) throw new Error('Canvas 2D no está disponible.')
+    sourceContext.drawImage(source, 0, 0)
+    const sourcePixels = sourceContext.getImageData(0, 0, source.width, source.height)
+    const resizedPixels = resizeNearestRgba(sourcePixels.data, source.width, source.height, width, height)
+    resizedContext.putImageData(new ImageData(resizedPixels, width, height), 0, 0)
   }
-  context.drawImage(source, 0, 0, width, height)
-  return canvasToBlob(canvas, mediaType, quality)
+
+  if (mediaType !== 'image/jpeg') return canvasToBlob(resizedCanvas, mediaType, quality)
+
+  const jpegCanvas = document.createElement('canvas')
+  jpegCanvas.width = width
+  jpegCanvas.height = height
+  const jpegContext = jpegCanvas.getContext('2d', { alpha: false })
+  if (!jpegContext) throw new Error('Canvas 2D no está disponible.')
+  jpegContext.fillStyle = '#ffffff'
+  jpegContext.fillRect(0, 0, width, height)
+  jpegContext.drawImage(resizedCanvas, 0, 0)
+  return canvasToBlob(jpegCanvas, mediaType, quality)
 }
 
 export async function importImage(file: File, now = new Date()): Promise<ImportedImage> {

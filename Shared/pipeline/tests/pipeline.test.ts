@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createImageRecipe, detectImageType, groupDiagnostics, isSupportedImageType } from '../src/index.js'
+import { createImageRecipe, detectImageType, groupDiagnostics, isSupportedImageType, resizeNearestRgba } from '../src/index.js'
 
 describe('T1 image pipeline domain', () => {
   it('creates a deterministic resize and convert recipe', () => {
@@ -31,5 +31,26 @@ describe('T1 image pipeline domain', () => {
       { code: 'IMAGE_DECODE', severity: 'error', groupKey: 'decode', message: 'No se pudo decodificar', assetId: 'b' },
     ])
     expect(grouped).toEqual([{ code: 'IMAGE_DECODE', severity: 'error', groupKey: 'decode', message: 'No se pudo decodificar', count: 2, assetIds: ['a', 'b'] }])
+  })
+
+  it('enlarges pixels as exact color blocks without interpolation', () => {
+    const redThenBlue = new Uint8ClampedArray([
+      255, 0, 0, 255,
+      0, 0, 255, 255,
+    ])
+
+    expect([...resizeNearestRgba(redThenBlue, 2, 1, 4, 2)]).toEqual([
+      255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255, 255,
+      255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255, 255,
+    ])
+  })
+
+  it('reduces pixels by deterministic nearest-neighbor sampling', () => {
+    const fourPixels = new Uint8ClampedArray([
+      1, 0, 0, 255, 2, 0, 0, 255,
+      3, 0, 0, 255, 4, 0, 0, 255,
+    ])
+
+    expect([...resizeNearestRgba(fourPixels, 2, 2, 1, 1)]).toEqual([1, 0, 0, 255])
   })
 })

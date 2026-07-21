@@ -45,3 +45,4 @@ export function groupDiagnostics(occurrences: readonly DiagnosticOccurrence[]): 
 export * from './web-image-pipeline.js'
 export * from './indexed-db-store.js'
 export * from './formats.js'
+export * from './pixel-resize.js'
