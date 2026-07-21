@@ -14,8 +14,8 @@ export function createImageRecipe(width: number, height: number, mediaType: Supp
     id: 'image-resize-convert',
     version: 1,
     steps: [
-      { id: 'resize', operation: 'resize', parameters: { width, height, interpolation: 'nearest' } },
-      { id: 'convert', operation: 'convert', parameters: { mediaType, quality } },
+      { id: 'resize', operation: 'resize', dependsOn: [], parameters: { width, height, interpolation: 'nearest' } },
+      { id: 'convert', operation: 'convert', dependsOn: ['resize'], parameters: { mediaType, quality } },
     ],
   }
 }
@@ -46,3 +46,4 @@ export * from './web-image-pipeline.js'
 export * from './indexed-db-store.js'
 export * from './formats.js'
 export * from './pixel-resize.js'
+export * from './recipe-graph.js'

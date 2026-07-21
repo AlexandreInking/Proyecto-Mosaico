@@ -25,6 +25,7 @@ export const assetSchema = z.object({
 export const resizeStepSchema = z.object({
   id: z.string().min(1),
   operation: z.literal('resize'),
+  dependsOn: z.array(z.string().min(1)).default([]),
   parameters: z.object({
     width: z.number().int().positive().max(16384),
     height: z.number().int().positive().max(16384),
@@ -35,6 +36,7 @@ export const resizeStepSchema = z.object({
 export const convertStepSchema = z.object({
   id: z.string().min(1),
   operation: z.literal('convert'),
+  dependsOn: z.array(z.string().min(1)).default([]),
   parameters: z.object({
     mediaType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
     quality: z.number().min(0).max(1).default(0.92),
@@ -82,6 +84,7 @@ export const derivedAssetManifestSchema = z.object({
 export type PlatformCapabilities = z.infer<typeof capabilitiesSchema>
 export type AssetRecord = z.infer<typeof assetSchema>
 export type Recipe = z.infer<typeof recipeSchema>
+export type RecipeStep = z.infer<typeof recipeStepSchema>
 export type PipelineJob = z.infer<typeof jobSchema>
 export type Diagnostic = z.infer<typeof diagnosticSchema>
 export type DerivedAssetManifest = z.infer<typeof derivedAssetManifestSchema>

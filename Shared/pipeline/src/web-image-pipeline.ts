@@ -2,6 +2,7 @@ import type { AssetRecord, DerivedAssetManifest, Recipe } from '@mosaico/contrac
 import { assetSchema, derivedAssetManifestSchema, recipeSchema } from '@mosaico/contracts'
 import { isSupportedImageType, type SupportedImageType } from './formats.js'
 import { resizeNearestRgba } from './pixel-resize.js'
+import { orderRecipeSteps } from './recipe-graph.js'
 
 export interface ImportedImage {
   record: AssetRecord
@@ -116,8 +117,9 @@ export async function importImage(file: File, now = new Date()): Promise<Importe
 
 export async function processImage(source: ImportedImage, recipeInput: Recipe, options: ProcessOptions = {}): Promise<ProcessedImage> {
   const recipe = recipeSchema.parse(recipeInput)
-  const resize = recipe.steps.find((step) => step.operation === 'resize')
-  const convert = recipe.steps.find((step) => step.operation === 'convert')
+  const orderedSteps = orderRecipeSteps(recipe)
+  const resize = orderedSteps.find((step) => step.operation === 'resize')
+  const convert = orderedSteps.find((step) => step.operation === 'convert')
   if (!resize || resize.operation !== 'resize' || !convert || convert.operation !== 'convert') throw new Error('La receta necesita resize y convert.')
   if (resize.parameters.width * resize.parameters.height > MAX_PIXELS) throw new Error('La salida supera el presupuesto T1 de 67 megapíxeles.')
 

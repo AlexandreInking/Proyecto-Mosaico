@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createImageRecipe, detectImageType, groupDiagnostics, isSupportedImageType, resizeNearestRgba } from '../src/index.js'
+import { createImageRecipe, detectImageType, groupDiagnostics, isSupportedImageType, orderRecipeSteps, resizeNearestRgba } from '../src/index.js'
 
 describe('T1 image pipeline domain', () => {
   it('creates a deterministic resize and convert recipe', () => {
@@ -7,8 +7,8 @@ describe('T1 image pipeline domain', () => {
       id: 'image-resize-convert',
       version: 1,
       steps: [
-        { id: 'resize', operation: 'resize', parameters: { width: 32, height: 24, interpolation: 'nearest' } },
-        { id: 'convert', operation: 'convert', parameters: { mediaType: 'image/webp', quality: 0.8 } },
+        { id: 'resize', operation: 'resize', dependsOn: [], parameters: { width: 32, height: 24, interpolation: 'nearest' } },
+        { id: 'convert', operation: 'convert', dependsOn: ['resize'], parameters: { mediaType: 'image/webp', quality: 0.8 } },
       ],
     })
   })
@@ -52,5 +52,26 @@ describe('T1 image pipeline domain', () => {
     ])
 
     expect([...resizeNearestRgba(fourPixels, 2, 2, 1, 1)]).toEqual([1, 0, 0, 255])
+  })
+
+  it('orders recipe steps by dependencies instead of array position', () => {
+    const recipe = createImageRecipe(32, 32, 'image/png')
+    recipe.steps.reverse()
+
+    expect(orderRecipeSteps(recipe).map((step) => step.id)).toEqual(['resize', 'convert'])
+  })
+
+  it('rejects recipe dependency cycles before execution', () => {
+    const recipe = createImageRecipe(32, 32, 'image/png')
+    recipe.steps[0]!.dependsOn = ['convert']
+
+    expect(() => orderRecipeSteps(recipe)).toThrow('ciclo')
+  })
+
+  it('rejects dependencies that do not exist', () => {
+    const recipe = createImageRecipe(32, 32, 'image/png')
+    recipe.steps[1]!.dependsOn = ['missing']
+
+    expect(() => orderRecipeSteps(recipe)).toThrow('missing')
   })
 })
