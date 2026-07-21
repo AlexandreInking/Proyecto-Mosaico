@@ -21,6 +21,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $pnpm.Source build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+node scripts/t1-benchmark.mjs
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $pnpm.Source audit --audit-level high
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
