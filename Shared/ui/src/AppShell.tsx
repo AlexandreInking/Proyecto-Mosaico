@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { UI_CONTRACT_VERSION, type Diagnostic } from '@mosaico/contracts'
+import { UI_CONTRACT_VERSION, type Diagnostic, type Recipe } from '@mosaico/contracts'
 import {
   createImageRecipe,
   deleteImage,
@@ -7,11 +7,13 @@ import {
   groupDiagnostics,
   importImage,
   loadImages,
+  PipelineJobQueue,
   processImage,
   saveImage,
   type DiagnosticOccurrence,
   type ImportedImage,
   type ProcessedImage,
+  type QueueJobSnapshot,
   type SupportedImageType,
 } from '@mosaico/pipeline'
 
@@ -23,6 +25,7 @@ export interface AppShellProps {
 
 interface VisibleAsset extends ImportedImage { thumbnailUrl: string }
 interface OutputState extends ProcessedImage { previewUrl: string }
+interface ImageJobInput { asset: ImportedImage; recipe: Recipe }
 
 const modules = ['Assets', 'Pipelines', 'Mapas', 'Pixel Art', 'Mundo', 'Jobs', 'Exportar']
 const recipeStorageKey = 'mosaico-t1-recipe'
@@ -39,7 +42,10 @@ function safeBaseName(name: string): string {
 
 export function AppShell({ platform, execution, online }: AppShellProps) {
   const fileInput = useRef<HTMLInputElement>(null)
-  const abortController = useRef<AbortController | null>(null)
+  const queueRef = useRef<PipelineJobQueue<ImageJobInput, ProcessedImage> | null>(null)
+  if (!queueRef.current) {
+    queueRef.current = new PipelineJobQueue((input, context) => processImage(input.asset, input.recipe, context))
+  }
   const [assets, setAssets] = useState<VisibleAsset[]>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [search, setSearch] = useState('')
@@ -47,8 +53,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
   const [height, setHeight] = useState(32)
   const [mediaType, setMediaType] = useState<SupportedImageType>('image/png')
   const [quality, setQuality] = useState(0.92)
-  const [jobStatus, setJobStatus] = useState<'idle' | 'running' | 'succeeded' | 'cancelled' | 'failed'>('idle')
-  const [progress, setProgress] = useState(0)
+  const [jobs, setJobs] = useState<readonly QueueJobSnapshot<ProcessedImage>[]>([])
   const [output, setOutput] = useState<OutputState>()
   const [occurrences, setOccurrences] = useState<DiagnosticOccurrence[]>([])
   const [consoleOpen, setConsoleOpen] = useState(true)
@@ -84,10 +89,9 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
     localStorage.setItem(recipeStorageKey, JSON.stringify({ width, height, mediaType, quality }))
   }, [width, height, mediaType, quality])
 
+  useEffect(() => queueRef.current?.subscribe(setJobs), [])
+
   async function addFiles(files: readonly File[]): Promise<void> {
-    setJobStatus('running')
-    setProgress(0)
-    let completed = 0
     for (const file of files) {
       try {
         const image = await importImage(file)
@@ -108,10 +112,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
           message: error instanceof Error ? error.message : 'Error desconocido al importar imagen.',
         }])
       }
-      completed += 1
-      setProgress(files.length ? completed / files.length : 1)
     }
-    setJobStatus('succeeded')
   }
 
   async function removeSelected(): Promise<void> {
@@ -125,29 +126,22 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
     setOutput(undefined)
   }
 
-  async function runRecipe(): Promise<void> {
+  function enqueueRecipe(): void {
     if (!selected) return
     if (output) URL.revokeObjectURL(output.previewUrl)
     setOutput(undefined)
-    const controller = new AbortController()
-    abortController.current = controller
-    setJobStatus('running')
-    setProgress(0)
-    try {
-      const recipe = createImageRecipe(width, height, mediaType, quality)
-      const result = await processImage(selected, recipe, { signal: controller.signal, onProgress: setProgress })
-      setOutput({ ...result, previewUrl: URL.createObjectURL(result.blob) })
-      setJobStatus('succeeded')
-    } catch (error: unknown) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        setJobStatus('cancelled')
-      } else {
-        setJobStatus('failed')
-        setOccurrences((items) => [...items, { code: 'RECIPE_RUN', severity: 'error', groupKey: 'recipe', message: error instanceof Error ? error.message : 'La receta falló.', assetId: selected.record.id }])
+    const assetId = selected.record.id
+    const handle = queueRef.current?.enqueue({ asset: selected, recipe: createImageRecipe(width, height, mediaType, quality) })
+    void handle?.completed.then((job) => {
+      if (job.status === 'succeeded' && job.output) {
+        setOutput((previous) => {
+          if (previous) URL.revokeObjectURL(previous.previewUrl)
+          return { ...job.output!, previewUrl: URL.createObjectURL(job.output!.blob) }
+        })
+      } else if (job.status === 'failed') {
+        setOccurrences((items) => [...items, { code: 'RECIPE_RUN', severity: 'error', groupKey: 'recipe', message: job.error ?? 'La receta falló.', assetId }])
       }
-    } finally {
-      abortController.current = null
-    }
+    })
   }
 
   return (
@@ -194,14 +188,14 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
           <label className="field">Formato<select value={mediaType} onChange={(event) => setMediaType(event.target.value as SupportedImageType)}><option value="image/png">PNG</option><option value="image/jpeg">JPEG</option><option value="image/webp">WebP</option></select></label>
           <label className="field">Calidad <span>{Math.round(quality * 100)}%</span><input type="range" min="0.1" max="1" step="0.01" value={quality} disabled={mediaType === 'image/png'} onChange={(event) => setQuality(Number(event.target.value))} /></label>
           <div className="recipe-flow"><span>Original</span><i>→</i><span>Nearest</span><i>→</i><span>Convert</span></div>
-          <div className="job-actions"><button className="primary" type="button" disabled={!selected || jobStatus === 'running'} onClick={() => void runRecipe()}>Ejecutar receta</button>{jobStatus === 'running' && <button type="button" onClick={() => abortController.current?.abort()}>Cancelar</button>}{output && selected && <><a className="button-link" href={output.previewUrl} download={`${safeBaseName(selected.record.name)}-${width}x${height}.${extensionFor(mediaType)}`}>Exportar imagen</a><a className="button-link" href={`data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(output.manifest, null, 2))}`} download={`${safeBaseName(selected.record.name)}-manifest.json`}>Exportar manifiesto</a></>}{selected && <button className="danger" type="button" onClick={() => void removeSelected()}>Eliminar asset</button>}</div>
-          <div className="progress-block"><div><span>Job: {jobStatus}</span><span>{Math.round(progress * 100)}%</span></div><progress max="1" value={progress} /></div>
+          <div className="job-actions"><button className="primary" type="button" disabled={!selected} onClick={enqueueRecipe}>Añadir a cola</button>{output && selected && <><a className="button-link" href={output.previewUrl} download={`${safeBaseName(selected.record.name)}-${width}x${height}.${extensionFor(mediaType)}`}>Exportar imagen</a><a className="button-link" href={`data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(output.manifest, null, 2))}`} download={`${safeBaseName(selected.record.name)}-manifest.json`}>Exportar manifiesto</a></>}{selected && <button className="danger" type="button" onClick={() => void removeSelected()}>Eliminar asset</button>}</div>
+          <section className="job-queue" aria-label="Cola de jobs"><div className="queue-heading"><span>Cola</span><strong>{jobs.length}</strong></div>{jobs.map((job) => <div className={`queue-row ${job.status}`} key={job.id}><span><code>{job.id}</code>{job.status}</span><progress max="1" value={job.progress} />{(job.status === 'queued' || job.status === 'running') && <button type="button" onClick={() => queueRef.current?.cancel(job.id)}>Cancelar</button>}</div>)}{jobs.length === 0 && <p>Sin jobs.</p>}</section>
           {selected && <dl><div><dt>Tipo</dt><dd>{selected.record.mediaType}</dd></div><div><dt>Tamaño</dt><dd>{formatBytes(selected.record.byteSize)}</dd></div><div><dt>Hash original</dt><dd title={selected.record.sha256}>{selected.record.sha256.slice(0, 16)}…</dd></div></dl>}
           <div className="notice"><strong>Original protegido</strong><p>Resize y conversión crean salida derivada. El hash fuente y receta quedan en manifiesto JSON.</p></div>
         </aside>
       </main>
 
-      <footer className="statusbar"><span>Persistencia local activa</span><span>{assets.length} assets · {jobStatus === 'idle' ? 0 : 1} jobs · {diagnostics.filter((item) => item.severity === 'error').length} errores agrupados</span></footer>
+      <footer className="statusbar"><span>Persistencia local activa</span><span>{assets.length} assets · {jobs.length} jobs · {diagnostics.filter((item) => item.severity === 'error').length} errores agrupados</span></footer>
     </div>
   )
 }

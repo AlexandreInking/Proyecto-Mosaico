@@ -20,6 +20,8 @@ describe('AppShell', () => {
     )
 
     expect(html).toContain('Importar')
+    expect(html).toContain('Añadir a cola')
+    expect(html).toContain('Sin jobs')
     expect(html).toContain('Planificado')
     expect(html).toContain('Sin conexión')
   })
