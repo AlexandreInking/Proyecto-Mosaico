@@ -1,6 +1,6 @@
 # Plan de transformación y migración dual
 
-**Estado:** T0 y T1 completados; T2 Checkpoint B PASS, Ola C pendiente de autorización
+**Estado:** T0 y T1 completados; T2 Ola C en ejecución (T2-07 PASS)
 **Fecha:** 21 de julio de 2026
 **Regla:** desde cada fase implementable existe programa arrancable, fixture y validación manual antes de avanzar.
 
