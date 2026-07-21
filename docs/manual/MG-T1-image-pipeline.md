@@ -29,4 +29,11 @@ Validar mismo corte T1 en WebApp y DesktopApp antes de avanzar a editor de mapas
 - `FAIL T1 <Web|Desktop> paso N`: adjunta captura y resultado esperado.
 - `BLOCKED T1 <Web|Desktop> paso N`: pega mensaje exacto.
 
+Tras revisar ambas superficies, registra el veredicto ligado al paquete evaluado:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/record-t1-manual.ps1 `
+  -WebStatus PASS -DesktopStatus PASS -Operator "nombre" -Notes "MG-T1 completo"
+```
+
 No validar todavía herramientas Pixel Art, mapas, IA, atlas ni audio: aparecen planificadas y pertenecen a fases posteriores.

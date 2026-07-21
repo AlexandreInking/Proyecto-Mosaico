@@ -32,3 +32,14 @@ test('T1 manual gate covers both surfaces and pixel-perfect resize', () => {
   assert.match(walkthrough, /pixel-art/)
   assert.match(walkthrough, /Cancelar/)
 })
+
+test('T1 gate fingerprints artifacts and records both human verdicts', () => {
+  const gate = readFileSync('scripts/t1-gate.ps1', 'utf8')
+  const recorder = readFileSync('scripts/record-t1-manual.ps1', 'utf8')
+
+  assert.match(gate, /mosaico-t1-gate-v2/)
+  assert.match(gate, /Get-FileHash/)
+  assert.match(recorder, /WebStatus/)
+  assert.match(recorder, /DesktopStatus/)
+  assert.match(recorder, /Commit actual no coincide/)
+})

@@ -39,13 +39,18 @@ try {
 
 $commit = (git rev-parse HEAD).Trim()
 $shortCommit = (git rev-parse --short=12 HEAD).Trim()
+$gateDirectory = Join-Path $repoRoot 'output\gate'
+New-Item -ItemType Directory -Force -Path $gateDirectory | Out-Null
 $packageDirectory = Join-Path $repoRoot "output\manual\Mosaico-T1-$shortCommit"
 New-Item -ItemType Directory -Force -Path $packageDirectory | Out-Null
 
 $builtExecutable = Join-Path $repoRoot 'DesktopApp\src-tauri\target\release\mosaico-desktop.exe'
 $executable = Join-Path $packageDirectory 'Mosaico.exe'
 Copy-Item -LiteralPath $builtExecutable -Destination $executable -Force
-Copy-Item -LiteralPath (Join-Path $repoRoot 'docs\manual\MG-T1-image-pipeline.md') -Destination $packageDirectory -Force
+$walkthroughSource = Join-Path $repoRoot 'docs\manual\MG-T1-image-pipeline.md'
+$walkthroughCopy = Join-Path $packageDirectory 'MG-T1-image-pipeline.md'
+Copy-Item -LiteralPath $walkthroughSource -Destination $walkthroughCopy -Force
+$benchmarkPath = Join-Path $gateDirectory 't1-benchmark.json'
 
 $desktopLaunchStatus = 'SKIPPED'
 if (-not $NoLaunch) {
@@ -53,16 +58,30 @@ if (-not $NoLaunch) {
     $desktopLaunchStatus = 'STARTED'
 }
 
-$gateDirectory = Join-Path $repoRoot 'output\gate'
-New-Item -ItemType Directory -Force -Path $gateDirectory | Out-Null
 $result = [ordered]@{
-    schema = 'mosaico-t1-gate-v1'
+    schema = 'mosaico-t1-gate-v2'
     commit = $commit
     recordedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     automaticStatus = 'PASS'
     manualStatus = 'PENDING_HUMAN'
     desktopLaunchStatus = $desktopLaunchStatus
-    executable = $executable
+    artifacts = [ordered]@{
+        executable = [ordered]@{
+            path = $executable
+            length = (Get-Item -LiteralPath $executable).Length
+            sha256 = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash
+        }
+        walkthrough = [ordered]@{
+            path = $walkthroughCopy
+            length = (Get-Item -LiteralPath $walkthroughCopy).Length
+            sha256 = (Get-FileHash -LiteralPath $walkthroughCopy -Algorithm SHA256).Hash
+        }
+        benchmark = [ordered]@{
+            path = $benchmarkPath
+            length = (Get-Item -LiteralPath $benchmarkPath).Length
+            sha256 = (Get-FileHash -LiteralPath $benchmarkPath -Algorithm SHA256).Hash
+        }
+    }
     walkthrough = 'docs/manual/MG-T1-image-pipeline.md'
 }
 $result | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $gateDirectory 't1-gate-result.json') -Encoding UTF8
