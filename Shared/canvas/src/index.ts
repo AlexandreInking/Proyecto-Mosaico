@@ -1,3 +1,5 @@
 export * from './viewport.js'
 export * from './map/map-viewport.js'
 export * from './map/pixi-orthogonal-viewport.js'
+export * from './sprite/pixel-viewport.js'
+export * from './sprite/pixi-pixel-viewport.js'
