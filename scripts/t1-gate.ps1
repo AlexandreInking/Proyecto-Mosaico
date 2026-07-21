@@ -29,7 +29,30 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo test --manifest-path DesktopApp/src-tauri/Cargo.toml
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+Push-Location (Join-Path $repoRoot 'DesktopApp')
+try {
+    & '.\app\node_modules\.bin\tauri.cmd' build --config 'src-tauri\tauri.conf.json'
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+} finally {
+    Pop-Location
+}
+
 $commit = (git rev-parse HEAD).Trim()
+$shortCommit = (git rev-parse --short=12 HEAD).Trim()
+$packageDirectory = Join-Path $repoRoot "output\manual\Mosaico-T1-$shortCommit"
+New-Item -ItemType Directory -Force -Path $packageDirectory | Out-Null
+
+$builtExecutable = Join-Path $repoRoot 'DesktopApp\src-tauri\target\release\mosaico-desktop.exe'
+$executable = Join-Path $packageDirectory 'Mosaico.exe'
+Copy-Item -LiteralPath $builtExecutable -Destination $executable -Force
+Copy-Item -LiteralPath (Join-Path $repoRoot 'docs\manual\MG-T1-image-pipeline.md') -Destination $packageDirectory -Force
+
+$desktopLaunchStatus = 'SKIPPED'
+if (-not $NoLaunch) {
+    Start-Process -FilePath $executable
+    $desktopLaunchStatus = 'STARTED'
+}
+
 $gateDirectory = Join-Path $repoRoot 'output\gate'
 New-Item -ItemType Directory -Force -Path $gateDirectory | Out-Null
 $result = [ordered]@{
@@ -38,6 +61,8 @@ $result = [ordered]@{
     recordedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     automaticStatus = 'PASS'
     manualStatus = 'PENDING_HUMAN'
+    desktopLaunchStatus = $desktopLaunchStatus
+    executable = $executable
     walkthrough = 'docs/manual/MG-T1-image-pipeline.md'
 }
 $result | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $gateDirectory 't1-gate-result.json') -Encoding UTF8
@@ -46,5 +71,5 @@ if (-not $NoLaunch) {
     Start-Process -FilePath (Join-Path $repoRoot 'Mosaico-Web.cmd')
 }
 
-Write-Host 'Gate T1 automatico PASS.'
+Write-Host "Gate T1 automatico PASS. Ejecutable: $executable"
 Write-Host 'Completa MG-T1 y reporta PASS T1 o el paso que falla.'

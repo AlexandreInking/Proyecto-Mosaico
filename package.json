@@ -14,7 +14,7 @@
     "dev:web": "pnpm --filter @mosaico/web-client dev",
     "dev:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-desktop-dev.ps1",
     "dev:api": "pnpm --filter @mosaico/web-server dev",
-    "test": "node --test tests/t0/*.test.mjs && pnpm -r --if-present test",
+    "test": "node --test tests/t0/*.test.mjs tests/t1/*.test.mjs && pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "benchmark:t1": "node scripts/t1-benchmark.mjs",
     "gate:t1": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/t1-gate.ps1"
