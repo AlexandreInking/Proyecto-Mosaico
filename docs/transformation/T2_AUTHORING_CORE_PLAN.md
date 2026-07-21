@@ -1,6 +1,6 @@
 # Plan T2 — Authoring Core dual
 
-**Estado:** Aprobado; Checkpoint A PASS, Ola B implementada (T2-04…T2-06 PASS técnico)
+**Estado:** Aprobado; Checkpoint B PASS, Ola C pendiente de autorización
 **SPEC:** `T2_AUTHORING_CORE_SPEC.md`
 
 ## Arquitectura y dependencias
@@ -82,9 +82,11 @@ Evidencia: `T2_CHECKPOINT_A.md`.
 
 ### Checkpoint B
 
-- Guardar/reabrir conserva hash semántico.
-- Recovery elige última revisión válida.
-- Primer programa puede crear documentos aunque canvas aún sea básico.
+- [x] Guardar/reabrir conserva hash semántico.
+- [x] Recovery elige última revisión válida.
+- [x] Primer programa puede crear documentos aunque canvas aún sea básico.
+
+Evidencia: `T2_CHECKPOINT_B.md`.
 
 ## Ola C — Canvas compartido
 
@@ -190,4 +192,4 @@ Evidencia: `T2_CHECKPOINT_A.md`.
 
 ## Aprobación requerida
 
-SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. T2-01…T2-03, Checkpoint A y Ola B autorizados. T2-04…T2-06 verificados; Checkpoint B pendiente de gate integral.
+SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoints A/B PASS. Ola C pendiente de autorización.
