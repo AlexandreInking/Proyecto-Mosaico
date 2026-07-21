@@ -51,27 +51,55 @@ function coordinateFromKey(key: string): Point {
   return { x: Number(key.slice(0, separator)), y: Number(key.slice(separator + 1)) }
 }
 
+const SPATIAL_CHUNK_SIZE = 32
+interface IndexedTileCell extends Point { readonly tile: TileReference }
+type SpatialIndex = ReadonlyMap<string, readonly IndexedTileCell[]>
+const spatialIndexes = new WeakMap<ReadonlyMap<string, TileReference>, SpatialIndex>()
+
+function spatialIndex(cells: ReadonlyMap<string, TileReference>): SpatialIndex {
+  const cached = spatialIndexes.get(cells)
+  if (cached) return cached
+  const mutable = new Map<string, IndexedTileCell[]>()
+  for (const [key, tile] of cells) {
+    const coordinate = coordinateFromKey(key)
+    const chunkKey = `${Math.floor(coordinate.x / SPATIAL_CHUNK_SIZE)},${Math.floor(coordinate.y / SPATIAL_CHUNK_SIZE)}`
+    const chunk = mutable.get(chunkKey) ?? []
+    chunk.push({ ...coordinate, tile })
+    mutable.set(chunkKey, chunk)
+  }
+  spatialIndexes.set(cells, mutable)
+  return mutable
+}
+
 export function visibleMapCells(document: MapDocument, viewport: ViewportState): readonly VisibleMapCell[] {
   const range = visibleCellRange(viewport, document)
   if (range.startX >= range.endX || range.startY >= range.endY) return []
   const result: VisibleMapCell[] = []
   for (const layer of document.layers) {
     if (!layer.visible || layer.opacity <= 0) continue
-    for (const [key, tile] of layer.cells) {
-      const coordinate = coordinateFromKey(key)
-      if (coordinate.x < range.startX || coordinate.x >= range.endX
-        || coordinate.y < range.startY || coordinate.y >= range.endY) continue
-      const screen = worldToScreen(viewport, { x: coordinate.x * document.cellWidth, y: coordinate.y * document.cellHeight })
-      result.push({
-        layerId: layer.id,
-        opacity: layer.opacity,
-        ...coordinate,
-        ...tile,
-        screenX: screen.x,
-        screenY: screen.y,
-        screenWidth: document.cellWidth * viewport.zoom,
-        screenHeight: document.cellHeight * viewport.zoom,
-      })
+    const index = spatialIndex(layer.cells)
+    const startChunkX = Math.floor(range.startX / SPATIAL_CHUNK_SIZE)
+    const startChunkY = Math.floor(range.startY / SPATIAL_CHUNK_SIZE)
+    const endChunkX = Math.floor((range.endX - 1) / SPATIAL_CHUNK_SIZE)
+    const endChunkY = Math.floor((range.endY - 1) / SPATIAL_CHUNK_SIZE)
+    for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY += 1) {
+      for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX += 1) {
+        for (const cell of index.get(`${chunkX},${chunkY}`) ?? []) {
+          if (cell.x < range.startX || cell.x >= range.endX || cell.y < range.startY || cell.y >= range.endY) continue
+          const screen = worldToScreen(viewport, { x: cell.x * document.cellWidth, y: cell.y * document.cellHeight })
+          result.push({
+            layerId: layer.id,
+            opacity: layer.opacity,
+            x: cell.x,
+            y: cell.y,
+            ...cell.tile,
+            screenX: screen.x,
+            screenY: screen.y,
+            screenWidth: document.cellWidth * viewport.zoom,
+            screenHeight: document.cellHeight * viewport.zoom,
+          })
+        }
+      }
     }
   }
   return result

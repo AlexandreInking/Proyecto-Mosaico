@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mosaico Canvas Lab</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, "Segoe UI", sans-serif; background: #101518; color: #e7ecef; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 320px; min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+      header, footer { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: .75rem 1rem; background: #181e22; border-color: #344047; }
+      header { border-bottom: 1px solid #344047; } footer { border-top: 1px solid #344047; color: #9cabb3; font-size: .75rem; }
+      h1, h2, p { margin: 0; } h1 { font-size: 1rem; } h2 { font-size: .85rem; }
+      header p, section p { color: #9cabb3; font-size: .72rem; }
+      main { min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #344047; }
+      section { min-width: 0; min-height: 28rem; display: grid; grid-template-rows: auto 1fr; background: #13191c; }
+      .panel-head { display: flex; justify-content: space-between; align-items: center; padding: .65rem .8rem; background: #20282d; border-bottom: 1px solid #344047; }
+      .canvas-host { min-width: 0; min-height: 0; overflow: hidden; cursor: crosshair; touch-action: none; }
+      .canvas-host.dragging { cursor: grabbing; }
+      .badge { border: 1px solid #356c68; color: #8ee4dc; padding: .2rem .4rem; font-size: .68rem; }
+      @media (max-width: 760px) { main { grid-template-columns: 1fr; } section { min-height: 24rem; } }
+    </style>
+  </head>
+  <body>
+    <header><div><p>Mosaico · T2 Ola C</p><h1>Canvas Lab compartido</h1></div><span class="badge">PixiJS · Canvas · HiDPI</span></header>
+    <main>
+      <section><div class="panel-head"><div><h2>Mapa ortogonal</h2><p>Rueda: zoom · arrastre: pan</p></div><span id="map-status">—</span></div><div id="map-host" class="canvas-host"></div></section>
+      <section><div class="panel-head"><div><h2>Pixel Core</h2><p>Nearest · grid · bounds estrictos</p></div><span id="pixel-status">—</span></div><div id="pixel-host" class="canvas-host"></div></section>
+    </main>
+    <footer><span>Solo tiles/píxeles visibles llegan al renderer.</span><span id="runtime-status">Inicializando…</span></footer>
+    <script>
+      const reportFailure = (value) => {
+        const message = value instanceof Error ? value.message : String(value);
+        document.querySelector('#runtime-status').textContent = `FAIL · ${message}`;
+        document.body.dataset.ready = 'error';
+        document.title = 'FAIL · Mosaico Canvas Lab';
+      };
+      window.addEventListener('error', (event) => reportFailure(event.error ?? event.message));
+      window.addEventListener('unhandledrejection', (event) => reportFailure(event.reason));
+    </script>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

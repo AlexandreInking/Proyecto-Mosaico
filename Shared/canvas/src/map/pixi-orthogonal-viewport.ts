@@ -1,5 +1,5 @@
 import type { MapDocument, TileReference } from '@mosaico/domain'
-import { Application, Container, Graphics, Sprite, type Texture } from 'pixi.js'
+import { CanvasRenderer, Container, Graphics, Sprite, type Texture } from 'pixi.js'
 import type { ViewportState } from '../viewport.js'
 import { visibleMapCells } from './map-viewport.js'
 
@@ -13,42 +13,44 @@ export interface OrthogonalPixiViewportOptions {
 }
 
 export class OrthogonalPixiViewport {
-  readonly #app: Application
+  readonly #renderer: CanvasRenderer
+  readonly #stage = new Container()
   readonly #content = new Container()
   readonly #grid = new Graphics()
   readonly #clip = new Graphics()
   readonly #resolveTexture: TileTextureResolver
 
-  private constructor(app: Application, resolveTexture: TileTextureResolver) {
-    this.#app = app
+  private constructor(renderer: CanvasRenderer, resolveTexture: TileTextureResolver) {
+    this.#renderer = renderer
     this.#resolveTexture = resolveTexture
     this.#content.mask = this.#clip
-    this.#app.stage.addChild(this.#clip, this.#content, this.#grid)
+    this.#stage.addChild(this.#clip, this.#content, this.#grid)
   }
 
   static async create(options: OrthogonalPixiViewportOptions): Promise<OrthogonalPixiViewport> {
-    const app = new Application()
-    await app.init({
-      resizeTo: options.host,
+    const renderer = new CanvasRenderer()
+    await renderer.init({
+      width: Math.max(1, options.host.clientWidth),
+      height: Math.max(1, options.host.clientHeight),
       resolution: options.resolution ?? globalThis.devicePixelRatio ?? 1,
       autoDensity: true,
       antialias: false,
       background: options.background ?? 0x11171a,
-      preference: 'webgl',
+      manageImports: false,
     })
-    app.canvas.style.display = 'block'
-    app.canvas.style.width = '100%'
-    app.canvas.style.height = '100%'
-    app.canvas.style.imageRendering = 'pixelated'
-    app.canvas.setAttribute('aria-label', 'Canvas de mapa ortogonal')
-    options.host.replaceChildren(app.canvas)
-    return new OrthogonalPixiViewport(app, options.resolveTexture)
+    renderer.canvas.style.display = 'block'
+    renderer.canvas.style.width = '100%'
+    renderer.canvas.style.height = '100%'
+    renderer.canvas.style.imageRendering = 'pixelated'
+    renderer.canvas.setAttribute('aria-label', 'Canvas de mapa ortogonal')
+    options.host.replaceChildren(renderer.canvas)
+    return new OrthogonalPixiViewport(renderer, options.resolveTexture)
   }
 
-  get canvas(): HTMLCanvasElement { return this.#app.canvas }
+  get canvas(): HTMLCanvasElement { return this.#renderer.canvas }
 
   render(document: MapDocument, viewport: ViewportState, options: { readonly showGrid?: boolean } = {}): number {
-    this.#app.renderer.resize(viewport.width, viewport.height)
+    this.#renderer.resize(viewport.width, viewport.height)
     this.#clip.clear().rect(0, 0, viewport.width, viewport.height).fill(0xffffff)
     for (const child of this.#content.removeChildren()) child.destroy()
 
@@ -65,7 +67,7 @@ export class OrthogonalPixiViewport {
       this.#content.addChild(sprite)
     }
     this.#drawGrid(document, viewport, options.showGrid ?? true)
-    this.#app.renderer.render({ container: this.#app.stage })
+    this.#renderer.render({ container: this.#stage })
     return this.#content.children.length
   }
 
@@ -89,5 +91,8 @@ export class OrthogonalPixiViewport {
     this.#grid.stroke({ color: 0x415058, width: 1, alpha: 0.6, pixelLine: true })
   }
 
-  destroy(): void { this.#app.destroy(true, { children: true }) }
+  destroy(): void {
+    this.#stage.destroy({ children: true })
+    this.#renderer.destroy({ removeView: true })
+  }
 }

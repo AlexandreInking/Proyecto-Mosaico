@@ -137,12 +137,21 @@ importers:
 
   Shared/ui:
     dependencies:
+      '@mosaico/canvas':
+        specifier: workspace:*
+        version: link:../canvas
       '@mosaico/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@mosaico/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@mosaico/pipeline':
         specifier: workspace:*
         version: link:../pipeline
+      pixi.js:
+        specifier: 8.19.0
+        version: 8.19.0
     devDependencies:
       '@types/node':
         specifier: ^24.10.0

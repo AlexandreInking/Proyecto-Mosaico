@@ -1,10 +1,11 @@
 import type { SpriteDocument } from '@mosaico/domain'
-import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js'
+import { CanvasRenderer, Container, Graphics, Sprite, Texture } from 'pixi.js'
 import type { ViewportState } from '../viewport.js'
 import { composeSpriteFrame, shouldShowPixelGrid, visiblePixelRange } from './pixel-viewport.js'
 
 export class PixiPixelViewport {
-  readonly #app: Application
+  readonly #renderer: CanvasRenderer
+  readonly #stage = new Container()
   readonly #content = new Container()
   readonly #grid = new Graphics()
   readonly #clip = new Graphics()
@@ -13,31 +14,39 @@ export class PixiPixelViewport {
   #texture?: Texture
   #sprite?: Sprite
 
-  private constructor(app: Application) {
-    this.#app = app
+  private constructor(renderer: CanvasRenderer) {
+    this.#renderer = renderer
     const context = this.#buffer.getContext('2d')
     if (!context) throw new Error('PIXEL_CANVAS_CONTEXT_UNAVAILABLE')
     this.#context = context
     this.#content.mask = this.#clip
-    this.#app.stage.addChild(this.#clip, this.#content, this.#grid)
+    this.#stage.addChild(this.#clip, this.#content, this.#grid)
   }
 
   static async create(host: HTMLElement, resolution = globalThis.devicePixelRatio ?? 1): Promise<PixiPixelViewport> {
-    const app = new Application()
-    await app.init({ resizeTo: host, resolution, autoDensity: true, antialias: false, background: 0x11171a, preference: 'webgl' })
-    app.canvas.style.display = 'block'
-    app.canvas.style.width = '100%'
-    app.canvas.style.height = '100%'
-    app.canvas.style.imageRendering = 'pixelated'
-    app.canvas.setAttribute('aria-label', 'Canvas de pixel art')
-    host.replaceChildren(app.canvas)
-    return new PixiPixelViewport(app)
+    const renderer = new CanvasRenderer()
+    await renderer.init({
+      width: Math.max(1, host.clientWidth),
+      height: Math.max(1, host.clientHeight),
+      resolution,
+      autoDensity: true,
+      antialias: false,
+      background: 0x11171a,
+      manageImports: false,
+    })
+    renderer.canvas.style.display = 'block'
+    renderer.canvas.style.width = '100%'
+    renderer.canvas.style.height = '100%'
+    renderer.canvas.style.imageRendering = 'pixelated'
+    renderer.canvas.setAttribute('aria-label', 'Canvas de pixel art')
+    host.replaceChildren(renderer.canvas)
+    return new PixiPixelViewport(renderer)
   }
 
-  get canvas(): HTMLCanvasElement { return this.#app.canvas }
+  get canvas(): HTMLCanvasElement { return this.#renderer.canvas }
 
   render(document: SpriteDocument, viewport: ViewportState): void {
-    this.#app.renderer.resize(viewport.width, viewport.height)
+    this.#renderer.resize(viewport.width, viewport.height)
     this.#clip.clear().rect(0, 0, viewport.width, viewport.height).fill(0xffffff)
     this.#updateTexture(document)
     if (!this.#sprite) throw new Error('PIXEL_TEXTURE_UNAVAILABLE')
@@ -45,7 +54,7 @@ export class PixiPixelViewport {
     this.#sprite.width = document.width * viewport.zoom
     this.#sprite.height = document.height * viewport.zoom
     this.#drawGrid(document, viewport)
-    this.#app.renderer.render({ container: this.#app.stage })
+    this.#renderer.render({ container: this.#stage })
   }
 
   #updateTexture(document: SpriteDocument): void {
@@ -85,6 +94,7 @@ export class PixiPixelViewport {
 
   destroy(): void {
     this.#texture?.destroy(true)
-    this.#app.destroy(true, { children: true })
+    this.#stage.destroy({ children: true })
+    this.#renderer.destroy({ removeView: true })
   }
 }
