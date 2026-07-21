@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createImageRecipe, detectImageType, groupDiagnostics, isSupportedImageType, orderRecipeSteps, resizeNearestRgba } from '../src/index.js'
+import { createImageRecipe, detectImageType, groupDiagnostics, isSupportedImageType, orderRecipeSteps, resizeNearestRgba, resizeNearestRgbaAsync } from '../src/index.js'
 
 describe('T1 image pipeline domain', () => {
   it('creates a deterministic resize and convert recipe', () => {
@@ -73,5 +73,33 @@ describe('T1 image pipeline domain', () => {
     recipe.steps[1]!.dependsOn = ['missing']
 
     expect(() => orderRecipeSteps(recipe)).toThrow('missing')
+  })
+
+  it('reports batched pixel-perfect resize progress', async () => {
+    const progress: number[] = []
+    const source = new Uint8ClampedArray([10, 20, 30, 255])
+
+    const output = await resizeNearestRgbaAsync(source, 1, 1, 2, 2, {
+      rowsPerBatch: 1,
+      onProgress: (value) => progress.push(value),
+    })
+
+    expect([...output]).toEqual([
+      10, 20, 30, 255, 10, 20, 30, 255,
+      10, 20, 30, 255, 10, 20, 30, 255,
+    ])
+    expect(progress).toEqual([0.5, 1])
+  })
+
+  it('cancels pixel-perfect resize before publishing a result', async () => {
+    const controller = new AbortController()
+    const source = new Uint8ClampedArray(256 * 256 * 4)
+    const pending = resizeNearestRgbaAsync(source, 256, 256, 512, 512, {
+      rowsPerBatch: 1,
+      signal: controller.signal,
+    })
+    controller.abort()
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

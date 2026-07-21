@@ -1,7 +1,7 @@
 import type { AssetRecord, DerivedAssetManifest, Recipe } from '@mosaico/contracts'
 import { assetSchema, derivedAssetManifestSchema, recipeSchema } from '@mosaico/contracts'
 import { isSupportedImageType, type SupportedImageType } from './formats.js'
-import { resizeNearestRgba } from './pixel-resize.js'
+import { resizeNearestRgbaAsync } from './pixel-resize.js'
 import { orderRecipeSteps } from './recipe-graph.js'
 
 export interface ImportedImage {
@@ -51,7 +51,7 @@ function canvasToBlob(canvas: HTMLCanvasElement, mediaType: SupportedImageType, 
   })
 }
 
-async function renderToBlob(source: ImageBitmap, width: number, height: number, mediaType: SupportedImageType, quality: number, smoothing: boolean): Promise<Blob> {
+async function renderToBlob(source: ImageBitmap, width: number, height: number, mediaType: SupportedImageType, quality: number, smoothing: boolean, options: ProcessOptions = {}): Promise<Blob> {
   const resizedCanvas = document.createElement('canvas')
   resizedCanvas.width = width
   resizedCanvas.height = height
@@ -61,6 +61,7 @@ async function renderToBlob(source: ImageBitmap, width: number, height: number, 
   if (smoothing) {
     resizedContext.imageSmoothingEnabled = true
     resizedContext.drawImage(source, 0, 0, width, height)
+    options.onProgress?.(1)
   } else {
     const sourceCanvas = document.createElement('canvas')
     sourceCanvas.width = source.width
@@ -69,7 +70,7 @@ async function renderToBlob(source: ImageBitmap, width: number, height: number, 
     if (!sourceContext) throw new Error('Canvas 2D no está disponible.')
     sourceContext.drawImage(source, 0, 0)
     const sourcePixels = sourceContext.getImageData(0, 0, source.width, source.height)
-    const resizedPixels = resizeNearestRgba(sourcePixels.data, source.width, source.height, width, height)
+    const resizedPixels = await resizeNearestRgbaAsync(sourcePixels.data, source.width, source.height, width, height, options)
     resizedContext.putImageData(new ImageData(resizedPixels, width, height), 0, 0)
   }
 
@@ -129,7 +130,10 @@ export async function processImage(source: ImportedImage, recipeInput: Recipe, o
   try {
     assertNotCancelled(options.signal)
     options.onProgress?.(0.35)
-    const blob = await renderToBlob(bitmap, resize.parameters.width, resize.parameters.height, convert.parameters.mediaType, convert.parameters.quality, resize.parameters.interpolation === 'smooth')
+    const blob = await renderToBlob(bitmap, resize.parameters.width, resize.parameters.height, convert.parameters.mediaType, convert.parameters.quality, resize.parameters.interpolation === 'smooth', {
+      signal: options.signal,
+      onProgress: (value) => options.onProgress?.(0.35 + value * 0.4),
+    })
     assertNotCancelled(options.signal)
     options.onProgress?.(0.8)
     const outputSha256 = await sha256(blob)
