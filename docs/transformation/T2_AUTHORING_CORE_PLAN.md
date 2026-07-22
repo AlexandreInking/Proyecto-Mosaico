@@ -206,3 +206,12 @@ SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoin
 - Capas raster: crear, eliminar, seleccionar, ocultar y bloquear.
 - Autosave local serializado, compartido por WebApp y DesktopApp mediante `@mosaico/ui`.
 - Próximo bloque tangible: selección/mover, transformaciones, paletas, frames/timeline y exportación PNG; después, paridad de herramientas sobre mapas/tilesets.
+
+## Entrega tangible D2 — UX profesional de authoring
+
+- Layout inspirado en editores profesionales: rail vertical de herramientas, barra contextual, viewport central e inspector derecho.
+- Viewport de aplicación fijo; desaparece scroll global. Solo paneles internos pueden desbordar.
+- Iconografía Lucide React 1.25.0, licencia ISC, empaquetada y tree-shakeable; no requiere red durante uso.
+- Clic medio mueve canvas con cualquier herramienta activa.
+- `Shift` ajusta líneas al múltiplo de 22.5° más cercano; rectángulos y elipses conservan proporción 1:1.
+- Línea, rectángulo y elipse muestran preview transitorio sin ensuciar historial ni autosave antes de soltar.

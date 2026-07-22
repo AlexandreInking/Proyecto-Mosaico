@@ -16,6 +16,7 @@
     "@mosaico/contracts": "workspace:*",
     "@mosaico/domain": "workspace:*",
     "@mosaico/pipeline": "workspace:*",
+    "lucide-react": "^1.25.0",
     "pixi.js": "8.19.0"
   },
   "scripts": {

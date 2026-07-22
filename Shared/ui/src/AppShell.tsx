@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { ImageOff, ImagePlus } from 'lucide-react'
 import { UI_CONTRACT_VERSION, type Diagnostic, type Recipe } from '@mosaico/contracts'
 import {
   createImageRecipe,
@@ -168,7 +169,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
           <input id="asset-search" type="search" placeholder="Nombre, tipo o hash" value={search} onChange={(event) => setSearch(event.target.value)} />
           <div className="asset-list">
             {filteredAssets.map((asset) => <button className={`asset-card ${selectedId === asset.record.id ? 'selected' : ''}`} key={asset.record.id} type="button" onClick={() => setSelectedId(asset.record.id)}><img src={asset.thumbnailUrl} alt="" /><span><strong>{asset.record.name}</strong><small>{asset.record.width}×{asset.record.height} · {formatBytes(asset.record.byteSize)}</small></span></button>)}
-            {!filteredAssets.length && <div className="empty-compact"><span>◇</span><p>Sin assets importados</p></div>}
+            {!filteredAssets.length && <div className="empty-compact"><ImageOff aria-hidden="true" /><p>Sin assets importados</p></div>}
           </div>
         </aside>
 
@@ -178,7 +179,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
             <figure><div className="preview-checker"><img src={selected.thumbnailUrl} alt={`Original ${selected.record.name}`} /></div><figcaption>Original · {selected.record.width}×{selected.record.height}<strong>SHA {selected.record.sha256.slice(0, 12)}…</strong></figcaption></figure>
             <div className="flow-arrow" aria-hidden="true">→</div>
             <figure><div className="preview-checker">{output ? <img src={output.previewUrl} alt="Resultado procesado" /> : <span>Vista previa pendiente</span>}</div><figcaption>Salida · {width}×{height}<strong>{output ? `SHA ${output.manifest.outputSha256.slice(0, 12)}…` : 'Ejecuta receta'}</strong></figcaption></figure>
-          </div> : <button className="dropzone" type="button" onClick={() => fileInput.current?.click()}><span className="drop-icon">＋</span><strong>Importa o arrastra imágenes</strong><span>PNG, JPEG o WebP · originales inmutables</span></button>}
+          </div> : <button className="dropzone" type="button" onClick={() => fileInput.current?.click()}><ImagePlus className="drop-icon" aria-hidden="true" /><strong>Importa o arrastra imágenes</strong><span>PNG, JPEG o WebP · originales inmutables</span></button>}
 
           <section className="console-panel" aria-label="Consola de diagnósticos">
             <button className="console-heading" type="button" onClick={() => setConsoleOpen((value) => !value)}><span>Consola</span><span>{diagnostics.length} grupos · {diagnostics.reduce((sum, item) => sum + item.count, 0)} eventos {consoleOpen ? '⌄' : '›'}</span></button>

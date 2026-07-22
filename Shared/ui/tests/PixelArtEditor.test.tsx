@@ -9,8 +9,11 @@ describe('PixelArtEditor', () => {
     for (const label of ['Lápiz', 'Borrador', 'Relleno', 'Línea', 'Rectángulo', 'Elipse', 'Mano', 'Deshacer', 'Rehacer']) {
       expect(html).toContain(`aria-label="${label}"`)
     }
-    expect(html).toContain('Nuevo lienzo')
+    expect(html).toContain('Crear lienzo')
     expect(html).toContain('Capas')
     expect(html).toContain('Capa 1')
+    expect(html).toContain('pixel-tool-rail')
+    expect(html).toContain('lucide')
+    expect(html).not.toMatch(/[✎⌫▨✋🔒◇◉○＋−]/u)
   })
 })
