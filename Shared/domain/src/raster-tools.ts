@@ -19,6 +19,21 @@ export function linePixels(start: GridCoordinate, end: GridCoordinate): GridCoor
   }
 }
 
+export function snapLineEnd(start: GridCoordinate, end: GridCoordinate, angleStepDegrees = 22.5): GridCoordinate {
+  const dx = end.x - start.x; const dy = end.y - start.y
+  if (dx === 0 && dy === 0) return end
+  const step = angleStepDegrees * Math.PI / 180
+  const angle = Math.round(Math.atan2(dy, dx) / step) * step
+  const dominant = Math.max(Math.abs(dx), Math.abs(dy))
+  const scale = dominant / Math.max(Math.abs(Math.cos(angle)), Math.abs(Math.sin(angle)))
+  return { x: start.x + Math.round(Math.cos(angle) * scale), y: start.y + Math.round(Math.sin(angle) * scale) }
+}
+
+export function constrainSquareEnd(start: GridCoordinate, end: GridCoordinate): GridCoordinate {
+  const size = Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y))
+  return { x: start.x + Math.sign(end.x - start.x || 1) * size, y: start.y + Math.sign(end.y - start.y || 1) * size }
+}
+
 export function rectanglePixels(start: GridCoordinate, end: GridCoordinate, filled: boolean): GridCoordinate[] {
   const left = Math.min(start.x, end.x); const right = Math.max(start.x, end.x)
   const top = Math.min(start.y, end.y); const bottom = Math.max(start.y, end.y)
