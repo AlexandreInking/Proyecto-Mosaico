@@ -18,6 +18,7 @@ describe('PixelArtEditor', () => {
       expect(html).toContain(`aria-label="${label}"`)
     }
     expect(html).toContain('pixel-tool-rail')
+    expect(html).toContain('0: ajustar')
     expect(html).toContain('lucide')
     expect(html).not.toMatch(/[✎⌫▨✋🔒◇◉○＋−]/u)
   })

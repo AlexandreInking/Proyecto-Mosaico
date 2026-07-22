@@ -96,10 +96,14 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .selection-actions button, .panel-title > button { width: 1.8rem; height: 1.8rem; border-radius: 0.2rem; }
 .selection-actions svg, .panel-title > button svg { width: 0.9rem; height: 0.9rem; }
 .pixel-body { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-columns: 3rem minmax(20rem, 1fr) 16rem; }
-.pixel-tool-rail { z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.45rem 0; border-right: 1px solid #293239; background: #181e22; }
+.pixel-tool-rail { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.45rem 0; border-right: 1px solid #293239; background: #181e22; }
 .pixel-tool-rail button { width: 2.25rem; height: 2.25rem; border-radius: 0.25rem; }
 .pixel-tool-rail button.active { background: #245d58; color: #e8fffc; box-shadow: inset 2px 0 #69ddd2; }
 .pixel-tool-rail svg { width: 1.1rem; height: 1.1rem; stroke-width: 1.7; }
+.tool-flyout { position: absolute; left: 2.7rem; display: flex; gap: 0.15rem; padding: 0.2rem; border: 1px solid #3b484e; background: #20272b; box-shadow: 0 0.35rem 1rem #0008; }
+.selection-flyout { top: 13.8rem; }
+.shape-flyout { top: 7rem; }
+.tool-flyout button { width: 2rem; height: 2rem; }
 .pixel-inspector { min-width: 0; overflow-y: auto; border-left: 1px solid #293239; background: #181e22; }
 .pixel-inspector section { padding: 0.75rem; border-bottom: 1px solid #293239; }
 .panel-title { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }

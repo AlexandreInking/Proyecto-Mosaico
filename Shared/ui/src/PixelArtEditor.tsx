@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   addSpriteLayer, constrainSquareEnd, createSpriteDocument, deserializeSpriteDocument, ellipsePixels, fillPixels, linePixels, rectanglePixels,
-  addSpriteFrame, removeSpriteFrame, removeSpriteLayer, selectSpriteFrame, selectSpriteLayer, setPixels, updateSpriteFrame, updateSpriteLayer,
+  addSpriteFrame, getPixel, removeSpriteFrame, removeSpriteLayer, selectSpriteFrame, selectSpriteLayer, setPixels, updateSpriteFrame, updateSpriteLayer,
   serializeSpriteDocument, snapLineEnd,
   flipSpriteRegion, moveSpriteRegion, type GridCoordinate, type RgbaColor, type SpriteDocument, type SpriteRegion,
 } from '@mosaico/domain'
+import { combineSelection, ellipseMask, invertSelection, magicMask, polygonMask, rectangleMask, selectionBounds, type SelectionMask, type SelectionMode } from './selection-model.js'
 import { composeSpriteFrame, createViewport, panViewport, pickSpritePixel, PixiPixelViewport, resizeViewport, zoomViewportAt, type Point, type ViewportState } from '@mosaico/canvas'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BoxSelect, Circle, Copy, Download, Eraser, Eye, EyeOff, FilePlus2, FlipHorizontal2, FlipVertical2, Grid3X3, Hand, Lock, PaintBucket, Pause, Pencil, Play, Plus, Redo2, Slash, Square, Trash2, Undo2, Unlock, type LucideIcon } from 'lucide-react'
 
@@ -36,11 +37,6 @@ function paint(document: SpriteDocument, points: readonly GridCoordinate[], colo
   return inside.length ? setPixels(document, document.activeLayerId, document.activeFrameId, inside, color) : document
 }
 
-function regionBetween(start: GridCoordinate, end: GridCoordinate): SpriteRegion {
-  const x = Math.min(start.x, end.x); const y = Math.min(start.y, end.y)
-  return { x, y, width: Math.abs(end.x - start.x) + 1, height: Math.abs(end.y - start.y) + 1 }
-}
-
 function withOnionSkin(document: SpriteDocument): SpriteDocument {
   const index = document.frames.findIndex((frame) => frame.id === document.activeFrameId)
   if (index < 1) return document
@@ -64,6 +60,9 @@ export function PixelArtEditor() {
   const [color, setColor] = useState('#4bc3b7'); const colorRef = useRef(color)
   const [filled, setFilled] = useState(false); const filledRef = useRef(filled)
   const [selection, setSelection] = useState<SpriteRegion>(); const [palette, setPalette] = useState(['#4bc3b7', '#ffffff', '#111111', '#e85d68', '#e8bb6b', '#76a8df'])
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('rectangle'); const selectionModeRef = useRef<SelectionMode>('rectangle')
+  const selectionMaskRef = useRef<SelectionMask | undefined>(undefined); const selectionBaseRef = useRef<SelectionMask | undefined>(undefined); const lassoRef = useRef<GridCoordinate[]>([]); const selectionOperationRef = useRef<'replace' | 'add' | 'subtract'>('replace')
+  const [flyout, setFlyout] = useState<'selection' | 'shape'>()
   const [playing, setPlaying] = useState(false); const [playbackFrameId, setPlaybackFrameId] = useState<string>(); const playbackFrameRef = useRef<string | undefined>(undefined)
   const [onion, setOnion] = useState(false); const onionRef = useRef(false)
   const [, refreshViewport] = useState(0)
@@ -95,6 +94,7 @@ export function PixelArtEditor() {
   }
 
   useEffect(() => { toolRef.current = tool }, [tool])
+  useEffect(() => { selectionModeRef.current = selectionMode }, [selectionMode])
   useEffect(() => { colorRef.current = color }, [color])
   useEffect(() => { filledRef.current = filled }, [filled])
   useEffect(() => { onionRef.current = onion; render() }, [onion])
@@ -116,22 +116,28 @@ export function PixelArtEditor() {
   useEffect(() => {
     const host = hostRef.current; if (!host) return
     let disposed = false
-    const point = (event: PointerEvent | WheelEvent): Point => { const box = host.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top } }
+    const point = (event: MouseEvent | PointerEvent | WheelEvent): Point => { const box = host.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top } }
     const pixel = (event: PointerEvent) => pickSpritePixel(viewportRef.current, point(event), documentRef.current)
     const safely = (action: () => void) => { try { action() } catch (error) { setStatus(error instanceof Error && error.message === 'SPRITE_LAYER_LOCKED' ? 'Capa bloqueada' : 'No se pudo aplicar la herramienta') } }
     const applyStroke = (from: GridCoordinate, to: GridCoordinate) => safely(() => show(paint(documentRef.current, linePixels(from, to), toolRef.current === 'eraser' ? transparent : rgba(colorRef.current))))
     const constrained = (start: GridCoordinate, end: GridCoordinate, shift: boolean) => !shift ? end : toolRef.current === 'line' ? snapLineEnd(start, end) : constrainSquareEnd(start, end)
     const shapePoints = (start: GridCoordinate, end: GridCoordinate) => toolRef.current === 'line' ? linePixels(start, end)
       : toolRef.current === 'rectangle' ? rectanglePixels(start, end, filledRef.current) : ellipsePixels(start, end, filledRef.current)
+    const applySelection = (next: SelectionMask) => { const combined = combineSelection(selectionBaseRef.current, next, selectionOperationRef.current); selectionMaskRef.current = combined; setSelection(selectionBounds(combined)) }
     const down = (event: PointerEvent) => {
       const screen = point(event); const picked = pixel(event)
       if (event.button === 1 || toolRef.current === 'pan') {
         event.preventDefault(); host.setPointerCapture(event.pointerId)
         const fallback = picked ?? { x: 0, y: 0 }; gesture.current = { start: fallback, last: fallback, before: documentRef.current, screen, panning: true }; return
       }
-      if (event.button !== 0 || !picked) return
+      if (event.button !== 0) return
+      if (!picked) { selectionMaskRef.current = undefined; setSelection(undefined); return }
       host.setPointerCapture(event.pointerId); gesture.current = { start: picked, last: picked, before: documentRef.current, screen, panning: false }
-      if (toolRef.current === 'select') setSelection(regionBetween(picked, picked))
+      if (toolRef.current === 'select') {
+        selectionBaseRef.current = selectionMaskRef.current; selectionOperationRef.current = event.altKey ? 'subtract' : event.shiftKey ? 'add' : 'replace'; lassoRef.current = [picked]
+        if (selectionModeRef.current === 'magic') { const current = documentRef.current; applySelection(magicMask(picked, current.width, current.height, (point) => JSON.stringify(getPixel(current, current.activeLayerId, current.activeFrameId, point)))) }
+        else applySelection(selectionModeRef.current === 'ellipse' ? ellipseMask(picked, picked, documentRef.current.width, documentRef.current.height) : rectangleMask(picked, picked, documentRef.current.width, documentRef.current.height))
+      }
       if (toolRef.current === 'fill') safely(() => commit(fillPixels(documentRef.current, documentRef.current.activeLayerId, documentRef.current.activeFrameId, picked, rgba(colorRef.current))))
       else if (toolRef.current === 'pencil' || toolRef.current === 'eraser') applyStroke(picked, picked)
     }
@@ -141,7 +147,7 @@ export function PixelArtEditor() {
       const picked = pixel(event); if (picked) setStatus(`${picked.x}, ${picked.y} · ${documentRef.current.width}×${documentRef.current.height}`)
       if (!active || !picked || (picked.x === active.last.x && picked.y === active.last.y)) return
       if (toolRef.current === 'pencil' || toolRef.current === 'eraser') applyStroke(active.last, picked)
-      else if (toolRef.current === 'select') setSelection(regionBetween(active.start, picked))
+      else if (toolRef.current === 'select' && selectionModeRef.current !== 'magic') { lassoRef.current.push(picked); applySelection(selectionModeRef.current === 'ellipse' ? ellipseMask(active.start, picked, documentRef.current.width, documentRef.current.height) : selectionModeRef.current === 'lasso' ? polygonMask(lassoRef.current, documentRef.current.width, documentRef.current.height) : rectangleMask(active.start, picked, documentRef.current.width, documentRef.current.height)) }
       else if (toolRef.current === 'line' || toolRef.current === 'rectangle' || toolRef.current === 'ellipse') safely(() => { previewRef.current = paint(active.before, shapePoints(active.start, constrained(active.start, picked, event.shiftKey)), rgba(colorRef.current)); render() })
       active.last = picked
     }
@@ -155,10 +161,11 @@ export function PixelArtEditor() {
     }
     const wheel = (event: WheelEvent) => { event.preventDefault(); viewportRef.current = zoomViewportAt(viewportRef.current, point(event), Math.exp(-event.deltaY * 0.0015)); render(); refreshViewport((value) => value + 1) }
     const auxiliary = (event: MouseEvent) => { if (event.button === 1) event.preventDefault() }
+    const context = (event: MouseEvent) => { const picked = pickSpritePixel(viewportRef.current, point(event), documentRef.current); if (picked && selectionMaskRef.current?.pixels.has(picked.y * documentRef.current.width + picked.x)) { event.preventDefault(); const inverted = invertSelection(selectionMaskRef.current); selectionMaskRef.current = inverted; setSelection(selectionBounds(inverted)); setStatus('Selección invertida') } }
     const observer = new ResizeObserver(render); observer.observe(host)
     void PixiPixelViewport.create(host).then((renderer) => { if (disposed) renderer.destroy(); else { rendererRef.current = renderer; render() } })
-    host.addEventListener('pointerdown', down); host.addEventListener('pointermove', move); host.addEventListener('pointerup', up); host.addEventListener('wheel', wheel, { passive: false }); host.addEventListener('auxclick', auxiliary)
-    return () => { disposed = true; observer.disconnect(); host.removeEventListener('pointerdown', down); host.removeEventListener('pointermove', move); host.removeEventListener('pointerup', up); host.removeEventListener('wheel', wheel); host.removeEventListener('auxclick', auxiliary); rendererRef.current?.destroy(); rendererRef.current = undefined }
+    host.addEventListener('pointerdown', down); host.addEventListener('pointermove', move); host.addEventListener('pointerup', up); host.addEventListener('wheel', wheel, { passive: false }); host.addEventListener('auxclick', auxiliary); host.addEventListener('contextmenu', context)
+    return () => { disposed = true; observer.disconnect(); host.removeEventListener('pointerdown', down); host.removeEventListener('pointermove', move); host.removeEventListener('pointerup', up); host.removeEventListener('wheel', wheel); host.removeEventListener('auxclick', auxiliary); host.removeEventListener('contextmenu', context); rendererRef.current?.destroy(); rendererRef.current = undefined }
   }, [])
 
   useEffect(() => {
@@ -214,7 +221,7 @@ export function PixelArtEditor() {
       <div className="history-tools"><button aria-label="Deshacer" title="Deshacer (Ctrl+Z)" onClick={undo}><Undo2 /></button><button aria-label="Rehacer" title="Rehacer (Ctrl+Y)" onClick={redo}><Redo2 /></button></div>
     </header>
     <section className="pixel-body">
-      <aside className="pixel-tool-rail" aria-label="Herramientas">{tools.map(([id, label, Icon]) => { const shortcut = Object.entries(hotkeys).find(([, value]) => value === id)?.[0]?.toUpperCase(); return <button key={id} aria-label={label} title={`${label}${shortcut ? ` (${shortcut})` : ''}`} className={tool === id ? 'active' : ''} onClick={() => setTool(id)}><Icon /></button> })}</aside>
+      <aside className="pixel-tool-rail" aria-label="Herramientas">{tools.map(([id, label, Icon]) => { const shortcut = Object.entries(hotkeys).find(([, value]) => value === id)?.[0]?.toUpperCase(); return <button key={id} aria-label={label} title={`${label}${shortcut ? ` (${shortcut})` : ''}`} className={tool === id ? 'active' : ''} onClick={() => { setTool(id); setFlyout(undefined) }} onContextMenu={(event) => { if (id === 'select' || id === 'line' || id === 'rectangle' || id === 'ellipse') { event.preventDefault(); setFlyout(id === 'select' ? 'selection' : 'shape') } }}><Icon /></button> })}{flyout === 'selection' && <div className="tool-flyout selection-flyout">{([['rectangle', BoxSelect], ['ellipse', Circle], ['lasso', Slash], ['magic', Grid3X3]] as const).map(([mode, Icon]) => <button key={mode} aria-label={`Selección ${mode}`} className={selectionMode === mode ? 'active' : ''} onClick={() => { setSelectionMode(mode); setTool('select'); setFlyout(undefined) }}><Icon /></button>)}</div>}{flyout === 'shape' && <div className="tool-flyout shape-flyout">{([['line', Slash], ['rectangle', Square], ['ellipse', Circle]] as const).map(([mode, Icon]) => <button key={mode} aria-label={`Forma ${mode}`} onClick={() => { setTool(mode); setFlyout(undefined) }}><Icon /></button>)}</div>}</aside>
       <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />{selectionStyle && <div className="selection-overlay" style={selectionStyle} />}</div>
       <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar PNG" title="Exportar PNG" onClick={exportPng}><Download /></button></div><div className="size-fields"><label>Ancho<input type="number" min="1" max="512" value={size.width} onChange={(event) => setSize({ ...size, width: Number(event.target.value) })} /></label><label>Alto<input type="number" min="1" max="512" value={size.height} onChange={(event) => setSize({ ...size, height: Number(event.target.value) })} /></label></div><button className="panel-action" onClick={newCanvas}><FilePlus2 />Crear lienzo</button><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Paleta</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}<button aria-label="Guardar color en paleta" onClick={() => setPalette([color, ...palette.filter((item) => item !== color)].slice(0, 8))}><Plus /></button></div></section><section className="layer-panel"><div className="panel-title"><div><p className="eyebrow">Inspector</p><h2>Capas <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button aria-label="Añadir capa" title="Añadir capa" onClick={addLayer}><Plus /></button><button aria-label="Eliminar capa" title="Eliminar capa" onClick={removeLayer}><Trash2 /></button></div></div><div className="layer-list">{[...document.layers].reverse().map((layer) => <div key={layer.id} className={`layer-row ${layer.id === document.activeLayerId ? 'selected' : ''}`}><button className="layer-select" onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><span className="layer-thumb"><Grid3X3 /></span><strong>{layer.name}</strong></button><button aria-label={`${layer.visible ? 'Ocultar' : 'Mostrar'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button aria-label={`${layer.locked ? 'Desbloquear' : 'Bloquear'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></section></aside>
     </section>
