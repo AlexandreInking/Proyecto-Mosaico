@@ -6,6 +6,8 @@ import {
   fillPixels,
   getPixel,
   removeSpriteLayer,
+  flipSpriteRegion,
+  moveSpriteRegion,
   selectSpriteLayer,
   updateSpriteLayer,
   setPixel,
@@ -104,5 +106,21 @@ describe('pixel sprite domain', () => {
     expect(painted.revision).toBe(1)
     expect(getPixel(painted, layerId, frameId, { x: 0, y: 0 })).toEqual(red)
     expect(getPixel(painted, layerId, frameId, { x: 3, y: 2 })).toEqual(red)
+  })
+
+  it('moves a selected region without mutating pixels outside it', () => {
+    const source = setPixels(createDocument(), layerId, frameId, [{ x: 0, y: 0 }, { x: 1, y: 0 }], red)
+    const moved = moveSpriteRegion(source, layerId, frameId, { x: 0, y: 0, width: 2, height: 1 }, 1, 1)
+    expect(getPixel(moved, layerId, frameId, { x: 0, y: 0 })).toEqual(transparent)
+    expect(getPixel(moved, layerId, frameId, { x: 1, y: 1 })).toEqual(red)
+    expect(getPixel(moved, layerId, frameId, { x: 2, y: 1 })).toEqual(red)
+  })
+
+  it('flips a selected region horizontally and vertically', () => {
+    const source = setPixel(createDocument(), layerId, frameId, { x: 0, y: 0 }, red)
+    const horizontal = flipSpriteRegion(source, layerId, frameId, { x: 0, y: 0, width: 3, height: 2 }, 'horizontal')
+    const vertical = flipSpriteRegion(source, layerId, frameId, { x: 0, y: 0, width: 3, height: 2 }, 'vertical')
+    expect(getPixel(horizontal, layerId, frameId, { x: 2, y: 0 })).toEqual(red)
+    expect(getPixel(vertical, layerId, frameId, { x: 0, y: 1 })).toEqual(red)
   })
 })

@@ -69,6 +69,8 @@ export interface SpriteDocument {
   readonly palette: readonly string[]
 }
 
+export interface SpriteRegion { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
+
 export interface CreateSpriteDocumentInput {
   readonly id: string
   readonly name: string
@@ -221,6 +223,41 @@ export function setPixels(
     writeColor(pixels, offset, color); changed = true
   }
   return changed ? replaceCel(document, layer, frameId, new PixelBuffer(pixels)) : document
+}
+
+function requireRegion(document: SpriteDocument, region: SpriteRegion): void {
+  if (![region.x, region.y, region.width, region.height].every(Number.isInteger) || region.width < 1 || region.height < 1
+    || region.x < 0 || region.y < 0 || region.x + region.width > document.width || region.y + region.height > document.height) {
+    throw new RangeError('SPRITE_REGION_OUT_OF_BOUNDS')
+  }
+}
+
+export function moveSpriteRegion(document: SpriteDocument, layerId: string, frameId: string, region: SpriteRegion, dx: number, dy: number): SpriteDocument {
+  requireRegion(document, region)
+  if (!Number.isInteger(dx) || !Number.isInteger(dy)) throw new RangeError('SPRITE_OFFSET_INVALID')
+  if (dx === 0 && dy === 0) return document
+  const layer = requireEditableLayer(document, layerId); const cel = requireCel(layer, frameId)
+  const pixels = cel.pixels.mutableCopy(); const captured: RgbaColor[] = []
+  for (let y = 0; y < region.height; y += 1) for (let x = 0; x < region.width; x += 1) {
+    captured.push(readColor(pixels, pixelOffset(document, { x: region.x + x, y: region.y + y })))
+    writeColor(pixels, pixelOffset(document, { x: region.x + x, y: region.y + y }), transparent)
+  }
+  for (let y = 0; y < region.height; y += 1) for (let x = 0; x < region.width; x += 1) {
+    const target = { x: region.x + x + dx, y: region.y + y + dy }
+    if (target.x >= 0 && target.y >= 0 && target.x < document.width && target.y < document.height) writeColor(pixels, pixelOffset(document, target), captured[y * region.width + x]!)
+  }
+  return replaceCel(document, layer, frameId, new PixelBuffer(pixels))
+}
+
+export function flipSpriteRegion(document: SpriteDocument, layerId: string, frameId: string, region: SpriteRegion, axis: 'horizontal' | 'vertical'): SpriteDocument {
+  requireRegion(document, region)
+  const layer = requireEditableLayer(document, layerId); const cel = requireCel(layer, frameId); const pixels = cel.pixels.mutableCopy()
+  const source = cel.pixels.mutableCopy()
+  for (let y = 0; y < region.height; y += 1) for (let x = 0; x < region.width; x += 1) {
+    const from = { x: region.x + (axis === 'horizontal' ? region.width - 1 - x : x), y: region.y + (axis === 'vertical' ? region.height - 1 - y : y) }
+    writeColor(pixels, pixelOffset(document, { x: region.x + x, y: region.y + y }), readColor(source, pixelOffset(document, from)))
+  }
+  return replaceCel(document, layer, frameId, new PixelBuffer(pixels))
 }
 
 export function erasePixel(
