@@ -9,3 +9,6 @@ allowBuilds:
   esbuild: true
 
 confirmModulesPurge: false
+
+overrides:
+  unicorn-magic: 0.4.0
