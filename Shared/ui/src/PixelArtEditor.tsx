@@ -15,6 +15,7 @@ const tools: readonly [Tool, string, LucideIcon][] = [
 ]
 const transparent: RgbaColor = { r: 0, g: 0, b: 0, a: 0 }
 const storageKey = 'mosaico-pixel-document-v1'
+const hotkeys: Readonly<Record<string, Tool>> = { p: 'pencil', e: 'eraser', g: 'fill', l: 'line', r: 'rectangle', o: 'ellipse', m: 'select', h: 'pan' }
 
 function blank(width = 32, height = 32): SpriteDocument {
   return createSpriteDocument({ id: crypto.randomUUID(), name: 'Sprite sin título', width, height, layerId: crypto.randomUUID(), frameId: crypto.randomUUID() })
@@ -85,6 +86,12 @@ export function PixelArtEditor() {
     const source = previewRef.current ?? documentRef.current
     const frame = playbackFrameRef.current ? { ...source, activeFrameId: playbackFrameRef.current } : source
     renderer.render(onionRef.current && !playbackFrameRef.current ? withOnionSkin(frame) : frame, viewportRef.current)
+  }
+  const fitCanvas = () => {
+    const host = hostRef.current; if (!host) return
+    const zoom = Math.max(1, Math.min(host.clientWidth / documentRef.current.width, host.clientHeight / documentRef.current.height) * 0.85)
+    viewportRef.current = { ...viewportRef.current, width: host.clientWidth, height: host.clientHeight, zoom, offsetX: (host.clientWidth - documentRef.current.width * zoom) / 2, offsetY: (host.clientHeight - documentRef.current.height * zoom) / 2 }
+    render(); refreshViewport((value) => value + 1); setStatus('Lienzo centrado')
   }
 
   useEffect(() => { toolRef.current = tool }, [tool])
@@ -158,6 +165,9 @@ export function PixelArtEditor() {
     const keydown = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); return }
       if (event.ctrlKey && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); return }
+      if (!(event.target instanceof HTMLInputElement) && event.code === 'Digit0') { event.preventDefault(); fitCanvas(); return }
+      const selectedTool = hotkeys[event.key.toLowerCase()]
+      if (!(event.target instanceof HTMLInputElement) && selectedTool) { event.preventDefault(); setTool(selectedTool); return }
       if ((event.key !== 'PageUp' && event.key !== 'PageDown') || event.target instanceof HTMLInputElement) return
       event.preventDefault(); const current = documentRef.current; const index = current.frames.findIndex((frame) => frame.id === current.activeFrameId)
       const next = Math.max(0, Math.min(current.frames.length - 1, index + (event.key === 'PageUp' ? -1 : 1)))
@@ -204,11 +214,11 @@ export function PixelArtEditor() {
       <div className="history-tools"><button aria-label="Deshacer" title="Deshacer (Ctrl+Z)" onClick={undo}><Undo2 /></button><button aria-label="Rehacer" title="Rehacer (Ctrl+Y)" onClick={redo}><Redo2 /></button></div>
     </header>
     <section className="pixel-body">
-      <aside className="pixel-tool-rail" aria-label="Herramientas">{tools.map(([id, label, Icon]) => <button key={id} aria-label={label} title={label} className={tool === id ? 'active' : ''} onClick={() => setTool(id)}><Icon /></button>)}</aside>
+      <aside className="pixel-tool-rail" aria-label="Herramientas">{tools.map(([id, label, Icon]) => { const shortcut = Object.entries(hotkeys).find(([, value]) => value === id)?.[0]?.toUpperCase(); return <button key={id} aria-label={label} title={`${label}${shortcut ? ` (${shortcut})` : ''}`} className={tool === id ? 'active' : ''} onClick={() => setTool(id)}><Icon /></button> })}</aside>
       <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />{selectionStyle && <div className="selection-overlay" style={selectionStyle} />}</div>
       <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar PNG" title="Exportar PNG" onClick={exportPng}><Download /></button></div><div className="size-fields"><label>Ancho<input type="number" min="1" max="512" value={size.width} onChange={(event) => setSize({ ...size, width: Number(event.target.value) })} /></label><label>Alto<input type="number" min="1" max="512" value={size.height} onChange={(event) => setSize({ ...size, height: Number(event.target.value) })} /></label></div><button className="panel-action" onClick={newCanvas}><FilePlus2 />Crear lienzo</button><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Paleta</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}<button aria-label="Guardar color en paleta" onClick={() => setPalette([color, ...palette.filter((item) => item !== color)].slice(0, 8))}><Plus /></button></div></section><section className="layer-panel"><div className="panel-title"><div><p className="eyebrow">Inspector</p><h2>Capas <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button aria-label="Añadir capa" title="Añadir capa" onClick={addLayer}><Plus /></button><button aria-label="Eliminar capa" title="Eliminar capa" onClick={removeLayer}><Trash2 /></button></div></div><div className="layer-list">{[...document.layers].reverse().map((layer) => <div key={layer.id} className={`layer-row ${layer.id === document.activeLayerId ? 'selected' : ''}`}><button className="layer-select" onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><span className="layer-thumb"><Grid3X3 /></span><strong>{layer.name}</strong></button><button aria-label={`${layer.visible ? 'Ocultar' : 'Mostrar'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button aria-label={`${layer.locked ? 'Desbloquear' : 'Bloquear'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></section></aside>
     </section>
     <section className="pixel-timeline"><div className="timeline-controls"><strong>Timeline</strong><button aria-label={playing ? 'Pausar animación' : 'Reproducir animación'} title={playing ? 'Pausar' : 'Reproducir'} onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button aria-label="Añadir frame" title="Añadir frame" onClick={() => addFrame(false)}><Plus /></button><button aria-label="Duplicar frame" title="Duplicar frame" onClick={() => addFrame(true)}><Copy /></button><button aria-label="Eliminar frame" title="Eliminar frame" onClick={removeFrame}><Trash2 /></button><button aria-label="Onion skin" title="Onion skin" className={onion ? 'active' : ''} onClick={() => setOnion(!onion)}><Eye /></button><button aria-label="Exportar sprite sheet" title="Exportar sprite sheet" onClick={exportSheet}><Download /></button><label>Duración <input aria-label="Duración del frame" type="number" min="10" max="60000" step="10" value={activeFrame.durationMs} onChange={(event) => { const durationMs = Number(event.target.value); if (Number.isInteger(durationMs) && durationMs >= 10 && durationMs <= 60_000) commit(updateSpriteFrame(documentRef.current, document.activeFrameId, { durationMs })) }} /> ms</label></div><div className="timeline-frames">{document.frames.map((frame, index) => <button key={frame.id} className={(playbackFrameId ?? document.activeFrameId) === frame.id ? 'active' : ''} aria-label={`Seleccionar frame ${index + 1}`} onClick={() => chooseFrame(frame.id)}><span>{index + 1}</span><small>{frame.durationMs} ms</small></button>)}</div></section>
-    <footer className="authoring-help"><span>{status}</span><span>Rueda: zoom · clic medio: mover · PageUp/Down: frames · Ctrl+Z/Y: historial</span></footer>
+    <footer className="authoring-help"><span>{status}</span><span>0: ajustar · P/E/G/L/R/O/M/H: herramientas · PageUp/Down: frames</span></footer>
   </main>
 }
