@@ -1,6 +1,6 @@
 # Evidencia T2 — Checkpoint C
 
-**Estado:** Web PASS; Desktop corregido y pendiente de revalidación humana
+**Estado:** PASS humano Web/Desktop
 **Fecha:** 21 de julio de 2026
 
 ## Resultado visible
@@ -53,4 +53,4 @@ Chrome sobre `http://127.0.0.1:5173`:
 
 El `FAIL C Desktop` del propietario fue válido: `Mosaico.cmd` abría primero un artefacto manual T0, aunque DesktopApp ya consumía `AppShell`. Se corrigió orden del lanzador, se reconstruyó Tauri y se resolvió incompatibilidad CSP de Pixi mediante su módulo estático `pixi.js/unsafe-eval`.
 
-Validación técnica local: binario Tauri actual, `Pixel Art` activo al abrir, canvas visible, `Assets` y `Mapas` disponibles, sin error CSP. Checkpoint Desktop permanece abierto hasta nuevo `PASS C Desktop` humano.
+Validación técnica local: binario Tauri actual, `Pixel Art` activo al abrir, canvas visible, `Assets` y `Mapas` disponibles, sin error CSP. Propietario confirmó `PASS C Desktop` el 21 de julio de 2026.

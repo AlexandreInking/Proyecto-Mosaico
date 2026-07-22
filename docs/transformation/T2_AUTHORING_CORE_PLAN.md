@@ -1,6 +1,6 @@
 # Plan T2 — Authoring Core dual
 
-**Estado:** Aprobado; Checkpoint C Web PASS, Desktop corregido pendiente de revalidación humana
+**Estado:** Aprobado; Checkpoint C PASS Web/Desktop; bloque tangible Pixel Art iniciado
 **SPEC:** `T2_AUTHORING_CORE_SPEC.md`
 
 ## Arquitectura y dependencias
@@ -196,4 +196,13 @@ Desde este checkpoint, Olas D y E se ejecutan como un bloque vertical mayor. No 
 
 ## Aprobación requerida
 
-SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoints A/B PASS. Ola C integrada; Web PASS y Desktop pendiente de revalidación humana tras corregir lanzador legacy. Siguiente ejecución: bloque vertical D–E después del gate dual.
+SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoints A/B/C PASS humano dual. Desarrollo continúa sin gates humanos invisibles: próxima validación exige herramientas manipulables y cambio visible.
+
+## Entrega tangible D1 — Pixel Art editable
+
+- Lienzo vacío configurable 1–512 px, sin contenido demo.
+- Lápiz, borrador, relleno, línea, rectángulo y elipse; formas con/sin relleno.
+- Selector de color, zoom, pan dedicado, historial undo/redo.
+- Capas raster: crear, eliminar, seleccionar, ocultar y bloquear.
+- Autosave local serializado, compartido por WebApp y DesktopApp mediante `@mosaico/ui`.
+- Próximo bloque tangible: selección/mover, transformaciones, paletas, frames/timeline y exportación PNG; después, paridad de herramientas sobre mapas/tilesets.

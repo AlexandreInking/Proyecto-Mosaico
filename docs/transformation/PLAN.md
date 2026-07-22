@@ -1,6 +1,6 @@
 # Plan de transformación y migración dual
 
-**Estado:** T0 y T1 completados; T2 Checkpoint C Web PASS, Desktop corregido pendiente de revalidación humana
+**Estado:** T0 y T1 completados; T2 Checkpoint C PASS Web/Desktop; authoring tangible en desarrollo
 **Fecha:** 21 de julio de 2026
 **Regla:** desde cada fase implementable existe programa arrancable, fixture y validación manual antes de avanzar.
 

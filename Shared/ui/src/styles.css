@@ -78,6 +78,46 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .authoring-canvas:active { cursor: grabbing; }
 .authoring-help { padding: 0.45rem 0.75rem; border-top: 1px solid var(--border); background: var(--surface); }
 
+.pixel-editor { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: #101518; }
+.pixel-commandbar { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0.65rem; border-bottom: 1px solid var(--border); background: var(--surface-raised); overflow-x: auto; }
+.tool-group, .history-tools, .layer-actions { display: flex; gap: 0.25rem; }
+.tool-group button { display: grid; place-items: center; min-width: 3.7rem; padding: 0.3rem; border-color: transparent; background: transparent; color: var(--muted); font-size: 0.62rem; }
+.tool-group button span { font-size: 1rem; line-height: 1; }
+.tool-group button.active { border-color: var(--accent); background: #183532; color: #f7fbfc; }
+.color-control, .fill-control { display: flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.68rem; white-space: nowrap; }
+.color-control input { width: 2.25rem; height: 2rem; padding: 0.15rem; }
+.fill-control input { width: auto; accent-color: var(--accent); }
+.history-tools { margin-left: auto; }
+.history-tools button { padding: 0.45rem 0.55rem; font-size: 0.68rem; white-space: nowrap; }
+.pixel-body { min-height: 0; display: grid; grid-template-columns: 13rem minmax(20rem, 1fr) 15rem; }
+.pixel-new-panel, .layer-panel { min-width: 0; padding: 0.75rem; background: var(--surface); overflow-y: auto; }
+.pixel-new-panel { border-right: 1px solid var(--border); }
+.layer-panel { border-left: 1px solid var(--border); }
+.size-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
+.size-fields label { color: var(--muted); font-size: 0.68rem; }
+.size-fields input { margin-top: 0.3rem; }
+.pixel-new-panel > button { width: 100%; margin-top: 0.5rem; padding: 0.5rem; }
+.pixel-new-panel dl { margin-top: 1rem; font-size: 0.68rem; }
+.pixel-new-panel dl div { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
+.pixel-new-panel dt, .layer-tip { color: var(--muted); }
+.pixel-new-panel dd { margin: 0; text-align: right; }
+.pixel-body .authoring-canvas { background: repeating-conic-gradient(#252d31 0 25%, #151b1e 0 50%) 50% / 1rem 1rem; cursor: crosshair; }
+.pixel-body .tool-pan { cursor: grab; }
+.pixel-body .tool-pan:active { cursor: grabbing; }
+.layer-heading { display: flex; justify-content: space-between; align-items: center; }
+.layer-heading > span { color: var(--muted); font-size: 0.72rem; }
+.layer-actions { margin: 0.75rem 0; }
+.layer-actions button { width: 2rem; height: 2rem; }
+.layer-list { display: grid; gap: 0.35rem; }
+.layer-row { display: grid; grid-template-columns: minmax(0, 1fr) 2rem 2rem; border: 1px solid var(--border); background: var(--surface-raised); }
+.layer-row.selected { border-color: var(--accent); background: #183532; }
+.layer-row > button { border: 0; background: transparent; }
+.layer-select { display: grid; grid-template-columns: 2rem minmax(0, 1fr); align-items: center; gap: 0.35rem; min-width: 0; padding: 0.4rem; text-align: left; }
+.layer-select strong { overflow: hidden; text-overflow: ellipsis; font-size: 0.72rem; }
+.layer-thumb { display: grid; place-items: center; width: 2rem; height: 2rem; background: repeating-conic-gradient(#465158 0 25%, #2b3338 0 50%) 50% / 0.5rem 0.5rem; }
+.layer-tip { margin-top: 0.75rem; font-size: 0.65rem; line-height: 1.45; }
+.pixel-editor .authoring-help { display: flex; justify-content: space-between; gap: 1rem; }
+
 .asset-list { margin-top: 0.75rem; display: grid; gap: 0.35rem; overflow-y: auto; padding-right: 0.2rem; }
 .asset-card { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0.65rem; align-items: center; width: 100%; padding: 0.35rem; text-align: left; }
 .asset-card.selected { border-color: var(--accent); background: #183532; }

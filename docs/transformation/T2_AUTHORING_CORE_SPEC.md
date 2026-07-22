@@ -1,6 +1,6 @@
 # SPEC T2 — Authoring Core dual
 
-**Estado:** Aprobado; Checkpoint C Web PASS, Desktop corregido pendiente de revalidación humana
+**Estado:** Aprobado; Checkpoint C PASS Web/Desktop; authoring tangible en desarrollo
 **Fecha:** 21 de julio de 2026
 **Alcance:** T2 completo + primer slice ejecutable T2P
 **Arquitectura:** ADR-003, ADR-004 y ADR-005

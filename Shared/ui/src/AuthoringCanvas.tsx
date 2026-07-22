@@ -13,6 +13,7 @@ import {
   type Point,
 } from '@mosaico/canvas'
 import { Texture } from 'pixi.js'
+import { PixelArtEditor } from './PixelArtEditor.js'
 
 export type AuthoringMode = 'Mapas' | 'Pixel Art'
 
@@ -60,7 +61,7 @@ function demoSprite() {
   return sprite
 }
 
-export function AuthoringCanvas({ mode }: { readonly mode: AuthoringMode }) {
+function CanvasPreview({ mode }: { readonly mode: AuthoringMode }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState('Inicializando canvas…')
 
@@ -129,4 +130,8 @@ export function AuthoringCanvas({ mode }: { readonly mode: AuthoringMode }) {
     <div ref={hostRef} className="authoring-canvas" aria-label={`Canvas ${mode}`} />
     <div className="authoring-help">Rueda: zoom al cursor · arrastre: pan · picking limitado al documento</div>
   </main>
+}
+
+export function AuthoringCanvas({ mode }: { readonly mode: AuthoringMode }) {
+  return mode === 'Pixel Art' ? <PixelArtEditor /> : <CanvasPreview mode={mode} />
 }
