@@ -224,3 +224,12 @@ SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoin
 - Paleta rápida editable desde selector de color.
 - Exportación PNG RGBA a resolución nativa, sin interpolación.
 - Próximo bloque tangible: frames/timeline, duración y reproducción de animaciones.
+
+## Entrega tangible D4 — Animación por frames
+
+- Timeline compartida por Web y Desktop, integrada dentro del editor.
+- Crear frames vacíos y duplicar el frame activo con todos sus cels por capa.
+- Seleccionar y eliminar frames sin permitir documentos inválidos sin frames.
+- Duración independiente entre 10 ms y 60 s por frame.
+- Reproducción cíclica respetando la duración de cada frame sin contaminar historial ni persistencia.
+- Próximo bloque tangible: onion skin, navegación por teclado y exportación de sprite sheets/GIF.

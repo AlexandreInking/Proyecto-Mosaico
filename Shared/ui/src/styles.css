@@ -79,7 +79,7 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .authoring-canvas:active { cursor: grabbing; }
 .authoring-help { padding: 0.45rem 0.75rem; border-top: 1px solid var(--border); background: var(--surface); }
 
-.pixel-editor { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: 2.5rem minmax(0, 1fr) 1.65rem; background: #0d1114; }
+.pixel-editor { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: 2.5rem minmax(0, 1fr) 6rem 1.65rem; background: #0d1114; }
 .pixel-optionsbar { min-width: 0; display: flex; align-items: center; gap: 0.65rem; padding: 0 0.75rem; border-bottom: 1px solid #293239; background: #1a2024; }
 .pixel-optionsbar strong { min-width: 4.5rem; font-size: 0.72rem; }
 .option-divider { width: 1px; height: 1.25rem; background: var(--border); }
@@ -121,6 +121,19 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .pixel-body .authoring-canvas { position: absolute; inset: 0; overflow: hidden; background: #0d1215; cursor: crosshair; }
 .selection-overlay { position: absolute; border: 1px dashed #fff; outline: 1px dashed #111; pointer-events: none; animation: selection-march 0.6s steps(2) infinite; }
 @keyframes selection-march { to { filter: invert(1); } }
+.pixel-timeline { min-width: 0; overflow: hidden; display: grid; grid-template-columns: 13rem minmax(0, 1fr); border-top: 1px solid var(--border); background: #151b1f; }
+.timeline-controls { display: flex; align-content: flex-start; align-items: center; flex-wrap: wrap; gap: 0.25rem; padding: 0.45rem 0.6rem; border-right: 1px solid var(--border); }
+.timeline-controls strong { width: 100%; color: #dce4e7; font-size: 0.7rem; }
+.timeline-controls button { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border: 0; border-radius: 0.2rem; background: transparent; color: #a8b4ba; }
+.timeline-controls button:hover { background: #2a3338; color: #fff; }
+.timeline-controls svg { width: 0.9rem; height: 0.9rem; }
+.timeline-controls label { display: flex; align-items: center; gap: 0.25rem; color: var(--muted); font-size: 0.62rem; }
+.timeline-controls input { width: 3.5rem; padding: 0.25rem; }
+.timeline-frames { min-width: 0; overflow-x: auto; display: flex; align-items: stretch; gap: 0.3rem; padding: 0.45rem; }
+.timeline-frames button { flex: 0 0 4.5rem; display: grid; place-items: center; border: 1px solid #354047; border-radius: 0.2rem; background: #11171a; color: #9caaaf; }
+.timeline-frames button.active { border-color: var(--accent); background: #17312f; color: #fff; }
+.timeline-frames span { font-size: 1rem; font-weight: 700; }
+.timeline-frames small { font-size: 0.58rem; }
 .pixel-body .tool-pan { cursor: grab; }
 .pixel-body .tool-pan:active { cursor: grabbing; }
 .layer-actions button { width: 1.75rem; height: 1.75rem; border-radius: 0.2rem; }
