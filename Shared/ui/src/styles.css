@@ -84,15 +84,17 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .pixel-optionsbar strong { min-width: 4.5rem; font-size: 0.72rem; }
 .option-divider { width: 1px; height: 1.25rem; background: var(--border); }
 .option-hint { overflow: hidden; color: #718087; font-size: 0.65rem; text-overflow: ellipsis; white-space: nowrap; }
-.history-tools, .layer-actions { display: flex; gap: 0.2rem; }
+.history-tools, .layer-actions, .selection-actions { display: flex; gap: 0.2rem; }
 .color-control, .fill-control { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); font-size: 0.67rem; white-space: nowrap; }
 .color-control input { width: 1.75rem; height: 1.55rem; border: 0; background: transparent; padding: 0.1rem; }
 .fill-control input { width: auto; accent-color: var(--accent); }
 .history-tools { margin-left: auto; }
-.history-tools button, .layer-actions button, .pixel-tool-rail button { display: grid; place-items: center; border: 0; background: transparent; color: #a8b4ba; }
+.history-tools button, .layer-actions button, .selection-actions button, .pixel-tool-rail button, .panel-title > button { display: grid; place-items: center; border: 0; background: transparent; color: #a8b4ba; }
 .history-tools button { width: 2rem; height: 2rem; border-radius: 0.2rem; }
-.history-tools button:hover, .layer-actions button:hover, .pixel-tool-rail button:hover { background: #2a3338; color: #fff; }
+.history-tools button:hover, .layer-actions button:hover, .selection-actions button:hover, .pixel-tool-rail button:hover, .panel-title > button:hover { background: #2a3338; color: #fff; }
 .history-tools svg, .layer-actions svg { width: 1rem; height: 1rem; }
+.selection-actions button, .panel-title > button { width: 1.8rem; height: 1.8rem; border-radius: 0.2rem; }
+.selection-actions svg, .panel-title > button svg { width: 0.9rem; height: 0.9rem; }
 .pixel-body { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-columns: 3rem minmax(20rem, 1fr) 16rem; }
 .pixel-tool-rail { z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.45rem 0; border-right: 1px solid #293239; background: #181e22; }
 .pixel-tool-rail button { width: 2.25rem; height: 2.25rem; border-radius: 0.25rem; }
@@ -110,7 +112,15 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .panel-action:hover { background: #2f756e; }
 .panel-action svg { width: 0.9rem; height: 0.9rem; }
 .document-meta { margin-top: 0.55rem; overflow: hidden; color: #718087; font-size: 0.62rem; text-overflow: ellipsis; white-space: nowrap; }
-.pixel-body .authoring-canvas { min-width: 0; min-height: 0; overflow: hidden; background: #0d1215; cursor: crosshair; }
+.palette-title { margin-top: 0.75rem; color: var(--muted); font-size: 0.68rem; font-weight: 500; }
+.pixel-palette { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.2rem; margin-top: 0.35rem; }
+.pixel-palette button { aspect-ratio: 1; min-width: 0; border: 1px solid #49555b; border-radius: 0.15rem; padding: 0; }
+.pixel-palette button:last-child { display: grid; place-items: center; background: #252d31; }
+.pixel-palette svg { width: 0.75rem; height: 0.75rem; }
+.canvas-shell { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.pixel-body .authoring-canvas { position: absolute; inset: 0; overflow: hidden; background: #0d1215; cursor: crosshair; }
+.selection-overlay { position: absolute; border: 1px dashed #fff; outline: 1px dashed #111; pointer-events: none; animation: selection-march 0.6s steps(2) infinite; }
+@keyframes selection-march { to { filter: invert(1); } }
 .pixel-body .tool-pan { cursor: grab; }
 .pixel-body .tool-pan:active { cursor: grabbing; }
 .layer-actions button { width: 1.75rem; height: 1.75rem; border-radius: 0.2rem; }

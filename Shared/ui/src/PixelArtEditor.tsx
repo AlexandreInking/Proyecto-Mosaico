@@ -3,15 +3,15 @@ import {
   addSpriteLayer, constrainSquareEnd, createSpriteDocument, deserializeSpriteDocument, ellipsePixels, fillPixels, linePixels, rectanglePixels,
   removeSpriteLayer, selectSpriteLayer, setPixels, updateSpriteLayer,
   serializeSpriteDocument, snapLineEnd,
-  type GridCoordinate, type RgbaColor, type SpriteDocument,
+  flipSpriteRegion, moveSpriteRegion, type GridCoordinate, type RgbaColor, type SpriteDocument, type SpriteRegion,
 } from '@mosaico/domain'
-import { createViewport, panViewport, pickSpritePixel, PixiPixelViewport, resizeViewport, zoomViewportAt, type Point, type ViewportState } from '@mosaico/canvas'
-import { Circle, Eraser, Eye, EyeOff, FilePlus2, Grid3X3, Hand, Lock, PaintBucket, Pencil, Plus, Redo2, Slash, Square, Trash2, Undo2, Unlock, type LucideIcon } from 'lucide-react'
+import { composeSpriteFrame, createViewport, panViewport, pickSpritePixel, PixiPixelViewport, resizeViewport, zoomViewportAt, type Point, type ViewportState } from '@mosaico/canvas'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BoxSelect, Circle, Download, Eraser, Eye, EyeOff, FilePlus2, FlipHorizontal2, FlipVertical2, Grid3X3, Hand, Lock, PaintBucket, Pencil, Plus, Redo2, Slash, Square, Trash2, Undo2, Unlock, type LucideIcon } from 'lucide-react'
 
-type Tool = 'pencil' | 'eraser' | 'fill' | 'line' | 'rectangle' | 'ellipse' | 'pan'
+type Tool = 'pencil' | 'eraser' | 'fill' | 'line' | 'rectangle' | 'ellipse' | 'select' | 'pan'
 const tools: readonly [Tool, string, LucideIcon][] = [
   ['pencil', 'Lápiz', Pencil], ['eraser', 'Borrador', Eraser], ['fill', 'Relleno', PaintBucket],
-  ['line', 'Línea', Slash], ['rectangle', 'Rectángulo', Square], ['ellipse', 'Elipse', Circle], ['pan', 'Mano', Hand],
+  ['line', 'Línea', Slash], ['rectangle', 'Rectángulo', Square], ['ellipse', 'Elipse', Circle], ['select', 'Selección', BoxSelect], ['pan', 'Mano', Hand],
 ]
 const transparent: RgbaColor = { r: 0, g: 0, b: 0, a: 0 }
 const storageKey = 'mosaico-pixel-document-v1'
@@ -35,6 +35,11 @@ function paint(document: SpriteDocument, points: readonly GridCoordinate[], colo
   return inside.length ? setPixels(document, document.activeLayerId, document.activeFrameId, inside, color) : document
 }
 
+function regionBetween(start: GridCoordinate, end: GridCoordinate): SpriteRegion {
+  const x = Math.min(start.x, end.x); const y = Math.min(start.y, end.y)
+  return { x, y, width: Math.abs(end.x - start.x) + 1, height: Math.abs(end.y - start.y) + 1 }
+}
+
 export function PixelArtEditor() {
   const hostRef = useRef<HTMLDivElement>(null); const rendererRef = useRef<PixiPixelViewport | undefined>(undefined)
   const viewportRef = useRef<ViewportState>(createViewport({ width: 1, height: 1, zoom: 16, offsetX: 48, offsetY: 48 }))
@@ -42,6 +47,8 @@ export function PixelArtEditor() {
   const [tool, setTool] = useState<Tool>('pencil'); const toolRef = useRef(tool)
   const [color, setColor] = useState('#4bc3b7'); const colorRef = useRef(color)
   const [filled, setFilled] = useState(false); const filledRef = useRef(filled)
+  const [selection, setSelection] = useState<SpriteRegion>(); const [palette, setPalette] = useState(['#4bc3b7', '#ffffff', '#111111', '#e85d68', '#e8bb6b', '#76a8df'])
+  const [, refreshViewport] = useState(0)
   const [status, setStatus] = useState('Listo para dibujar'); const [size, setSize] = useState({ width: 32, height: 32 })
   const undoRef = useRef<SpriteDocument[]>([]); const redoRef = useRef<SpriteDocument[]>([])
   const previewRef = useRef<SpriteDocument | undefined>(undefined)
@@ -85,15 +92,17 @@ export function PixelArtEditor() {
       }
       if (event.button !== 0 || !picked) return
       host.setPointerCapture(event.pointerId); gesture.current = { start: picked, last: picked, before: documentRef.current, screen, panning: false }
+      if (toolRef.current === 'select') setSelection(regionBetween(picked, picked))
       if (toolRef.current === 'fill') safely(() => commit(fillPixels(documentRef.current, documentRef.current.activeLayerId, documentRef.current.activeFrameId, picked, rgba(colorRef.current))))
       else if (toolRef.current === 'pencil' || toolRef.current === 'eraser') applyStroke(picked, picked)
     }
     const move = (event: PointerEvent) => {
       const active = gesture.current; const currentScreen = point(event)
-      if (active?.panning) { viewportRef.current = panViewport(viewportRef.current, currentScreen.x - active.screen.x, currentScreen.y - active.screen.y); active.screen = currentScreen; render(); return }
+      if (active?.panning) { viewportRef.current = panViewport(viewportRef.current, currentScreen.x - active.screen.x, currentScreen.y - active.screen.y); active.screen = currentScreen; render(); refreshViewport((value) => value + 1); return }
       const picked = pixel(event); if (picked) setStatus(`${picked.x}, ${picked.y} · ${documentRef.current.width}×${documentRef.current.height}`)
       if (!active || !picked || (picked.x === active.last.x && picked.y === active.last.y)) return
       if (toolRef.current === 'pencil' || toolRef.current === 'eraser') applyStroke(active.last, picked)
+      else if (toolRef.current === 'select') setSelection(regionBetween(active.start, picked))
       else if (toolRef.current === 'line' || toolRef.current === 'rectangle' || toolRef.current === 'ellipse') safely(() => { previewRef.current = paint(active.before, shapePoints(active.start, constrained(active.start, picked, event.shiftKey)), rgba(colorRef.current)); render() })
       active.last = picked
     }
@@ -105,7 +114,7 @@ export function PixelArtEditor() {
       if ((activeTool === 'pencil' || activeTool === 'eraser') && documentRef.current !== active.before) { undoRef.current.push(active.before); redoRef.current = [] }
       gesture.current = undefined; if (host.hasPointerCapture(event.pointerId)) host.releasePointerCapture(event.pointerId)
     }
-    const wheel = (event: WheelEvent) => { event.preventDefault(); viewportRef.current = zoomViewportAt(viewportRef.current, point(event), Math.exp(-event.deltaY * 0.0015)); render() }
+    const wheel = (event: WheelEvent) => { event.preventDefault(); viewportRef.current = zoomViewportAt(viewportRef.current, point(event), Math.exp(-event.deltaY * 0.0015)); render(); refreshViewport((value) => value + 1) }
     const auxiliary = (event: MouseEvent) => { if (event.button === 1) event.preventDefault() }
     const observer = new ResizeObserver(render); observer.observe(host)
     void PixiPixelViewport.create(host).then((renderer) => { if (disposed) renderer.destroy(); else { rendererRef.current = renderer; render() } })
@@ -120,7 +129,20 @@ export function PixelArtEditor() {
 
   const addLayer = () => commit(addSpriteLayer(documentRef.current, { id: crypto.randomUUID(), name: `Capa ${documentRef.current.layers.length + 1}` }))
   const removeLayer = () => { try { commit(removeSpriteLayer(documentRef.current, documentRef.current.activeLayerId)) } catch { setStatus('El documento necesita al menos una capa') } }
-  const newCanvas = () => { const next = blank(Math.max(1, Math.min(512, size.width)), Math.max(1, Math.min(512, size.height))); undoRef.current = []; redoRef.current = []; show(next); setStatus('Nuevo lienzo creado') }
+  const newCanvas = () => { const next = blank(Math.max(1, Math.min(512, size.width)), Math.max(1, Math.min(512, size.height))); undoRef.current = []; redoRef.current = []; setSelection(undefined); show(next); setStatus('Nuevo lienzo creado') }
+  const moveSelection = (dx: number, dy: number) => {
+    if (!selection) return
+    const safeX = Math.max(-selection.x, Math.min(dx, document.width - selection.x - selection.width)); const safeY = Math.max(-selection.y, Math.min(dy, document.height - selection.y - selection.height))
+    if (!safeX && !safeY) return
+    commit(moveSpriteRegion(documentRef.current, document.activeLayerId, document.activeFrameId, selection, safeX, safeY)); setSelection({ ...selection, x: selection.x + safeX, y: selection.y + safeY })
+  }
+  const flipSelection = (axis: 'horizontal' | 'vertical') => { if (selection) commit(flipSpriteRegion(documentRef.current, document.activeLayerId, document.activeFrameId, selection, axis)) }
+  const exportPng = () => {
+    const canvas = window.document.createElement('canvas'); canvas.width = document.width; canvas.height = document.height
+    canvas.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(composeSpriteFrame(document, document.activeFrameId)), document.width, document.height), 0, 0)
+    canvas.toBlob((blob) => { if (!blob) return; const url = URL.createObjectURL(blob); const link = window.document.createElement('a'); link.href = url; link.download = `${document.name.replace(/[^a-z0-9_-]+/gi, '-')}.png`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0); setStatus('PNG exportado pixel-perfect') }, 'image/png')
+  }
+  const selectionStyle = selection ? { left: viewportRef.current.offsetX + selection.x * viewportRef.current.zoom, top: viewportRef.current.offsetY + selection.y * viewportRef.current.zoom, width: selection.width * viewportRef.current.zoom, height: selection.height * viewportRef.current.zoom } : undefined
 
   return <main className="pixel-editor">
     <header className="pixel-optionsbar">
@@ -128,12 +150,13 @@ export function PixelArtEditor() {
       <label className="color-control">Color<input aria-label="Color principal" type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label>
       <label className="fill-control"><input type="checkbox" checked={filled} onChange={(event) => setFilled(event.target.checked)} /> Relleno de formas</label>
       <span className="option-hint">Shift: restringir ángulo/proporción · Clic medio: mover lienzo</span>
+      {tool === 'select' && <div className="selection-actions"><button aria-label="Mover izquierda" onClick={() => moveSelection(-1, 0)}><ArrowLeft /></button><button aria-label="Mover arriba" onClick={() => moveSelection(0, -1)}><ArrowUp /></button><button aria-label="Mover abajo" onClick={() => moveSelection(0, 1)}><ArrowDown /></button><button aria-label="Mover derecha" onClick={() => moveSelection(1, 0)}><ArrowRight /></button><button aria-label="Voltear horizontal" onClick={() => flipSelection('horizontal')}><FlipHorizontal2 /></button><button aria-label="Voltear vertical" onClick={() => flipSelection('vertical')}><FlipVertical2 /></button></div>}
       <div className="history-tools"><button aria-label="Deshacer" title="Deshacer (Ctrl+Z)" onClick={undo}><Undo2 /></button><button aria-label="Rehacer" title="Rehacer (Ctrl+Y)" onClick={redo}><Redo2 /></button></div>
     </header>
     <section className="pixel-body">
       <aside className="pixel-tool-rail" aria-label="Herramientas">{tools.map(([id, label, Icon]) => <button key={id} aria-label={label} title={label} className={tool === id ? 'active' : ''} onClick={() => setTool(id)}><Icon /></button>)}</aside>
-      <div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />
-      <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><FilePlus2 /></div><div className="size-fields"><label>Ancho<input type="number" min="1" max="512" value={size.width} onChange={(event) => setSize({ ...size, width: Number(event.target.value) })} /></label><label>Alto<input type="number" min="1" max="512" value={size.height} onChange={(event) => setSize({ ...size, height: Number(event.target.value) })} /></label></div><button className="panel-action" onClick={newCanvas}><FilePlus2 />Crear lienzo</button><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p></section><section className="layer-panel"><div className="panel-title"><div><p className="eyebrow">Inspector</p><h2>Capas <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button aria-label="Añadir capa" title="Añadir capa" onClick={addLayer}><Plus /></button><button aria-label="Eliminar capa" title="Eliminar capa" onClick={removeLayer}><Trash2 /></button></div></div><div className="layer-list">{[...document.layers].reverse().map((layer) => <div key={layer.id} className={`layer-row ${layer.id === document.activeLayerId ? 'selected' : ''}`}><button className="layer-select" onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><span className="layer-thumb"><Grid3X3 /></span><strong>{layer.name}</strong></button><button aria-label={`${layer.visible ? 'Ocultar' : 'Mostrar'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button aria-label={`${layer.locked ? 'Desbloquear' : 'Bloquear'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></section></aside>
+      <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />{selectionStyle && <div className="selection-overlay" style={selectionStyle} />}</div>
+      <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar PNG" title="Exportar PNG" onClick={exportPng}><Download /></button></div><div className="size-fields"><label>Ancho<input type="number" min="1" max="512" value={size.width} onChange={(event) => setSize({ ...size, width: Number(event.target.value) })} /></label><label>Alto<input type="number" min="1" max="512" value={size.height} onChange={(event) => setSize({ ...size, height: Number(event.target.value) })} /></label></div><button className="panel-action" onClick={newCanvas}><FilePlus2 />Crear lienzo</button><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Paleta</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}<button aria-label="Guardar color en paleta" onClick={() => setPalette([color, ...palette.filter((item) => item !== color)].slice(0, 8))}><Plus /></button></div></section><section className="layer-panel"><div className="panel-title"><div><p className="eyebrow">Inspector</p><h2>Capas <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button aria-label="Añadir capa" title="Añadir capa" onClick={addLayer}><Plus /></button><button aria-label="Eliminar capa" title="Eliminar capa" onClick={removeLayer}><Trash2 /></button></div></div><div className="layer-list">{[...document.layers].reverse().map((layer) => <div key={layer.id} className={`layer-row ${layer.id === document.activeLayerId ? 'selected' : ''}`}><button className="layer-select" onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><span className="layer-thumb"><Grid3X3 /></span><strong>{layer.name}</strong></button><button aria-label={`${layer.visible ? 'Ocultar' : 'Mostrar'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button aria-label={`${layer.locked ? 'Desbloquear' : 'Bloquear'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></section></aside>
     </section>
     <footer className="authoring-help"><span>{status}</span><span>Rueda: zoom · clic medio: mover · Ctrl+Z/Y: historial</span></footer>
   </main>

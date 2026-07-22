@@ -215,3 +215,12 @@ SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoin
 - Clic medio mueve canvas con cualquier herramienta activa.
 - `Shift` ajusta líneas al múltiplo de 22.5° más cercano; rectángulos y elipses conservan proporción 1:1.
 - Línea, rectángulo y elipse muestran preview transitorio sin ensuciar historial ni autosave antes de soltar.
+
+## Entrega tangible D3 — Selección y salida utilizable
+
+- Selección rectangular visible sobre canvas.
+- Movimiento pixel-perfect por pasos, limitado a bounds del documento.
+- Volteo horizontal y vertical del contenido seleccionado con undo/redo.
+- Paleta rápida editable desde selector de color.
+- Exportación PNG RGBA a resolución nativa, sin interpolación.
+- Próximo bloque tangible: frames/timeline, duración y reproducción de animaciones.
