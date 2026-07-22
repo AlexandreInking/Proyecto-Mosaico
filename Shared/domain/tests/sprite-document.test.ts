@@ -6,6 +6,8 @@ import {
   fillPixels,
   getPixel,
   removeSpriteLayer,
+  selectSpriteLayer,
+  updateSpriteLayer,
   setPixel,
   spriteSemanticFingerprint,
   type RgbaColor,
@@ -77,6 +79,16 @@ describe('pixel sprite domain', () => {
     expect(removed.layers).toHaveLength(1)
     expect(removed.activeLayerId).toBe(secondId)
     expect(() => removeSpriteLayer(removed, secondId)).toThrow('SPRITE_REQUIRES_LAYER')
+  })
+
+  it('selects layers and updates visibility, lock, opacity and name', () => {
+    const secondId = '00000000-0000-4000-8000-000000000013'
+    const withSecond = addSpriteLayer(createDocument(), { id: secondId, name: 'Luz' })
+    const selected = selectSpriteLayer(withSecond, layerId)
+    const updated = updateSpriteLayer(selected, layerId, { name: 'Fondo', visible: false, locked: true, opacity: 0.5 })
+
+    expect(updated.activeLayerId).toBe(layerId)
+    expect(updated.layers[0]).toMatchObject({ name: 'Fondo', visible: false, locked: true, opacity: 0.5 })
   })
 
   it('produces a deterministic semantic fingerprint for equal pixels', () => {

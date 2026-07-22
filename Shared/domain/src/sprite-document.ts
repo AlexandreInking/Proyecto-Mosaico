@@ -279,6 +279,25 @@ export function removeSpriteLayer(document: SpriteDocument, layerId: string): Sp
   }
 }
 
+export function selectSpriteLayer(document: SpriteDocument, layerId: string): SpriteDocument {
+  requireLayer(document, layerId)
+  return document.activeLayerId === layerId ? document : { ...document, revision: document.revision + 1, activeLayerId: layerId }
+}
+
+export function updateSpriteLayer(
+  document: SpriteDocument,
+  layerId: string,
+  patch: Partial<Pick<SpriteLayer, 'name' | 'visible' | 'locked' | 'opacity'>>,
+): SpriteDocument {
+  const layer = requireLayer(document, layerId)
+  const name = patch.name === undefined ? layer.name : patch.name.trim()
+  const opacity = patch.opacity ?? layer.opacity
+  if (!name) throw new Error('SPRITE_REQUIRED_FIELD')
+  if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new RangeError('SPRITE_OPACITY_INVALID')
+  const updated = { ...layer, ...patch, name, opacity }
+  return { ...document, revision: document.revision + 1, layers: document.layers.map((item) => item.id === layerId ? updated : item) }
+}
+
 function updateHash(hash: bigint, value: number): bigint {
   return BigInt.asUintN(64, (hash ^ BigInt(value)) * 0x100000001b3n)
 }
