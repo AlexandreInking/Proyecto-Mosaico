@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   addSpriteLayer,
+  addSpriteFrame,
   createSpriteDocument,
   erasePixel,
   fillPixels,
   getPixel,
   removeSpriteLayer,
+  removeSpriteFrame,
   flipSpriteRegion,
   moveSpriteRegion,
   selectSpriteLayer,
+  selectSpriteFrame,
+  updateSpriteFrame,
   updateSpriteLayer,
   setPixel,
   setPixels,
@@ -122,5 +126,31 @@ describe('pixel sprite domain', () => {
     const vertical = flipSpriteRegion(source, layerId, frameId, { x: 0, y: 0, width: 3, height: 2 }, 'vertical')
     expect(getPixel(horizontal, layerId, frameId, { x: 2, y: 0 })).toEqual(red)
     expect(getPixel(vertical, layerId, frameId, { x: 0, y: 1 })).toEqual(red)
+  })
+
+  it('adds blank and duplicated frames across every layer', () => {
+    const secondFrameId = '00000000-0000-4000-8000-000000000014'
+    const painted = setPixel(createDocument(), layerId, frameId, { x: 1, y: 1 }, red)
+    const blank = addSpriteFrame(painted, { id: secondFrameId, duplicateFromFrameId: undefined })
+    expect(blank.activeFrameId).toBe(secondFrameId)
+    expect(getPixel(blank, layerId, secondFrameId, { x: 1, y: 1 })).toEqual(transparent)
+
+    const thirdFrameId = '00000000-0000-4000-8000-000000000015'
+    const duplicate = addSpriteFrame(blank, { id: thirdFrameId, duplicateFromFrameId: frameId })
+    expect(getPixel(duplicate, layerId, thirdFrameId, { x: 1, y: 1 })).toEqual(red)
+  })
+
+  it('selects frames, updates duration and preserves one frame on deletion', () => {
+    const secondFrameId = '00000000-0000-4000-8000-000000000014'
+    const added = addSpriteFrame(createDocument(), { id: secondFrameId })
+    const selected = selectSpriteFrame(added, frameId)
+    const timed = updateSpriteFrame(selected, frameId, { durationMs: 240 })
+    const removed = removeSpriteFrame(timed, frameId)
+
+    expect(timed.frames[0]?.durationMs).toBe(240)
+    expect(removed.frames.map((frame) => frame.id)).toEqual([secondFrameId])
+    expect(removed.activeFrameId).toBe(secondFrameId)
+    expect(() => removeSpriteFrame(removed, secondFrameId)).toThrow('SPRITE_REQUIRES_FRAME')
+    expect(() => updateSpriteFrame(removed, secondFrameId, { durationMs: 0 })).toThrow('SPRITE_FRAME_DURATION_INVALID')
   })
 })

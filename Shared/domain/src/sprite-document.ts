@@ -102,6 +102,12 @@ function requireLayer(document: SpriteDocument, layerId: string): SpriteLayer {
   return layer
 }
 
+function requireFrame(document: SpriteDocument, frameId: string): SpriteFrame {
+  const frame = document.frames.find((candidate) => candidate.id === frameId)
+  if (!frame) throw new Error('SPRITE_FRAME_NOT_FOUND')
+  return frame
+}
+
 function requireEditableLayer(document: SpriteDocument, layerId: string): SpriteLayer {
   const layer = requireLayer(document, layerId)
   if (layer.locked) throw new Error('SPRITE_LAYER_LOCKED')
@@ -301,6 +307,40 @@ export function fillPixels(
     if (coordinate.y + 1 < document.height) queue.push({ x: coordinate.x, y: coordinate.y + 1 })
   }
   return replaceCel(document, layer, frameId, new PixelBuffer(pixels))
+}
+
+export function addSpriteFrame(document: SpriteDocument, input: { readonly id: string; readonly duplicateFromFrameId?: string }): SpriteDocument {
+  if (!input.id) throw new Error('SPRITE_REQUIRED_FIELD')
+  if (document.frames.some((frame) => frame.id === input.id) || document.layers.some((layer) => layer.id === input.id)) throw new Error('SPRITE_DUPLICATE_ID')
+  const source = input.duplicateFromFrameId ? requireFrame(document, input.duplicateFromFrameId) : undefined
+  const byteLength = document.width * document.height * 4
+  const layers = document.layers.map((layer) => {
+    const cels = new Map(layer.cels)
+    const sourcePixels = source ? requireCel(layer, source.id).pixels.mutableCopy() : byteLength
+    cels.set(input.id, { frameId: input.id, pixels: new PixelBuffer(sourcePixels) })
+    return { ...layer, cels }
+  })
+  const frame: SpriteFrame = { id: input.id, durationMs: source?.durationMs ?? 100 }
+  return { ...document, revision: document.revision + 1, activeFrameId: frame.id, frames: [...document.frames, frame], layers }
+}
+
+export function removeSpriteFrame(document: SpriteDocument, frameId: string): SpriteDocument {
+  requireFrame(document, frameId)
+  if (document.frames.length === 1) throw new Error('SPRITE_REQUIRES_FRAME')
+  const frames = document.frames.filter((frame) => frame.id !== frameId)
+  const layers = document.layers.map((layer) => { const cels = new Map(layer.cels); cels.delete(frameId); return { ...layer, cels } })
+  return { ...document, revision: document.revision + 1, activeFrameId: document.activeFrameId === frameId ? frames[0]!.id : document.activeFrameId, frames, layers }
+}
+
+export function selectSpriteFrame(document: SpriteDocument, frameId: string): SpriteDocument {
+  requireFrame(document, frameId)
+  return document.activeFrameId === frameId ? document : { ...document, revision: document.revision + 1, activeFrameId: frameId }
+}
+
+export function updateSpriteFrame(document: SpriteDocument, frameId: string, patch: { readonly durationMs: number }): SpriteDocument {
+  requireFrame(document, frameId)
+  if (!Number.isInteger(patch.durationMs) || patch.durationMs < 10 || patch.durationMs > 60_000) throw new RangeError('SPRITE_FRAME_DURATION_INVALID')
+  return { ...document, revision: document.revision + 1, frames: document.frames.map((frame) => frame.id === frameId ? { ...frame, durationMs: patch.durationMs } : frame) }
 }
 
 export function addSpriteLayer(document: SpriteDocument, input: { readonly id: string; readonly name: string }): SpriteDocument {
