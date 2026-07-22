@@ -126,6 +126,7 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .timeline-controls strong { width: 100%; color: #dce4e7; font-size: 0.7rem; }
 .timeline-controls button { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border: 0; border-radius: 0.2rem; background: transparent; color: #a8b4ba; }
 .timeline-controls button:hover { background: #2a3338; color: #fff; }
+.timeline-controls button.active { background: #245f59; color: #fff; }
 .timeline-controls svg { width: 0.9rem; height: 0.9rem; }
 .timeline-controls label { display: flex; align-items: center; gap: 0.25rem; color: var(--muted); font-size: 0.62rem; }
 .timeline-controls input { width: 3.5rem; padding: 0.25rem; }

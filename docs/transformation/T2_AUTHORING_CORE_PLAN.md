@@ -233,3 +233,10 @@ SPEC, PLAN y ADR-005 aprobados por propietario el 21 de julio de 2026. Checkpoin
 - Duración independiente entre 10 ms y 60 s por frame.
 - Reproducción cíclica respetando la duración de cada frame sin contaminar historial ni persistencia.
 - Próximo bloque tangible: onion skin, navegación por teclado y exportación de sprite sheets/GIF.
+
+## Entrega tangible D5 — Flujo de animación
+
+- Onion skin del frame anterior con opacidad reducida.
+- `PageUp` y `PageDown` navegan frames sin interferir con inputs.
+- Exportación PNG horizontal de sprite sheet a resolución nativa.
+- GIF diferido hasta validar sprite sheets; evita sumar encoder y complejidad prematura.

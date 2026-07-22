@@ -14,7 +14,7 @@ describe('PixelArtEditor', () => {
     expect(html).toContain('Capa 1')
     expect(html).toContain('Paleta')
     expect(html).toContain('Timeline')
-    for (const label of ['Reproducir animación', 'Añadir frame', 'Duplicar frame', 'Eliminar frame', 'Duración del frame']) {
+    for (const label of ['Reproducir animación', 'Añadir frame', 'Duplicar frame', 'Eliminar frame', 'Duración del frame', 'Onion skin', 'Exportar sprite sheet']) {
       expect(html).toContain(`aria-label="${label}"`)
     }
     expect(html).toContain('pixel-tool-rail')

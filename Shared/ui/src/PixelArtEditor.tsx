@@ -40,6 +40,21 @@ function regionBetween(start: GridCoordinate, end: GridCoordinate): SpriteRegion
   return { x, y, width: Math.abs(end.x - start.x) + 1, height: Math.abs(end.y - start.y) + 1 }
 }
 
+function withOnionSkin(document: SpriteDocument): SpriteDocument {
+  const index = document.frames.findIndex((frame) => frame.id === document.activeFrameId)
+  if (index < 1) return document
+  const previousId = document.frames[index - 1]!.id
+  const previous = document.layers.flatMap((layer) => {
+    const cel = layer.cels.get(previousId)
+    return cel ? [{ ...layer, id: `onion-${layer.id}`, opacity: layer.opacity * 0.25, cels: new Map([[document.activeFrameId, { ...cel, frameId: document.activeFrameId }]]) }] : []
+  })
+  return { ...document, layers: [...previous, ...document.layers] }
+}
+
+function downloadCanvas(canvas: HTMLCanvasElement, name: string): void {
+  canvas.toBlob((blob) => { if (!blob) return; const url = URL.createObjectURL(blob); const link = window.document.createElement('a'); link.href = url; link.download = name; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0) }, 'image/png')
+}
+
 export function PixelArtEditor() {
   const hostRef = useRef<HTMLDivElement>(null); const rendererRef = useRef<PixiPixelViewport | undefined>(undefined)
   const viewportRef = useRef<ViewportState>(createViewport({ width: 1, height: 1, zoom: 16, offsetX: 48, offsetY: 48 }))
@@ -49,6 +64,7 @@ export function PixelArtEditor() {
   const [filled, setFilled] = useState(false); const filledRef = useRef(filled)
   const [selection, setSelection] = useState<SpriteRegion>(); const [palette, setPalette] = useState(['#4bc3b7', '#ffffff', '#111111', '#e85d68', '#e8bb6b', '#76a8df'])
   const [playing, setPlaying] = useState(false); const [playbackFrameId, setPlaybackFrameId] = useState<string>(); const playbackFrameRef = useRef<string | undefined>(undefined)
+  const [onion, setOnion] = useState(false); const onionRef = useRef(false)
   const [, refreshViewport] = useState(0)
   const [status, setStatus] = useState('Listo para dibujar'); const [size, setSize] = useState({ width: 32, height: 32 })
   const undoRef = useRef<SpriteDocument[]>([]); const redoRef = useRef<SpriteDocument[]>([])
@@ -67,12 +83,14 @@ export function PixelArtEditor() {
     if (!host || !renderer) return
     viewportRef.current = resizeViewport(viewportRef.current, Math.max(1, host.clientWidth), Math.max(1, host.clientHeight))
     const source = previewRef.current ?? documentRef.current
-    renderer.render(playbackFrameRef.current ? { ...source, activeFrameId: playbackFrameRef.current } : source, viewportRef.current)
+    const frame = playbackFrameRef.current ? { ...source, activeFrameId: playbackFrameRef.current } : source
+    renderer.render(onionRef.current && !playbackFrameRef.current ? withOnionSkin(frame) : frame, viewportRef.current)
   }
 
   useEffect(() => { toolRef.current = tool }, [tool])
   useEffect(() => { colorRef.current = color }, [color])
   useEffect(() => { filledRef.current = filled }, [filled])
+  useEffect(() => { onionRef.current = onion; render() }, [onion])
   useEffect(() => { try { localStorage.setItem(storageKey, serializeSpriteDocument(document)) } catch { setStatus('No se pudo guardar localmente') } }, [document])
   useEffect(render, [document])
   useEffect(() => {
@@ -137,7 +155,14 @@ export function PixelArtEditor() {
   }, [])
 
   useEffect(() => {
-    const keydown = (event: KeyboardEvent) => { if (event.ctrlKey && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo() } else if (event.ctrlKey && event.key.toLowerCase() === 'y') { event.preventDefault(); redo() } }
+    const keydown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); return }
+      if (event.ctrlKey && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); return }
+      if ((event.key !== 'PageUp' && event.key !== 'PageDown') || event.target instanceof HTMLInputElement) return
+      event.preventDefault(); const current = documentRef.current; const index = current.frames.findIndex((frame) => frame.id === current.activeFrameId)
+      const next = Math.max(0, Math.min(current.frames.length - 1, index + (event.key === 'PageUp' ? -1 : 1)))
+      setPlaying(false); setSelection(undefined); show(selectSpriteFrame(current, current.frames[next]!.id))
+    }
     window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown)
   }, [])
 
@@ -158,7 +183,14 @@ export function PixelArtEditor() {
   const exportPng = () => {
     const canvas = window.document.createElement('canvas'); canvas.width = document.width; canvas.height = document.height
     canvas.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(composeSpriteFrame(document, document.activeFrameId)), document.width, document.height), 0, 0)
-    canvas.toBlob((blob) => { if (!blob) return; const url = URL.createObjectURL(blob); const link = window.document.createElement('a'); link.href = url; link.download = `${document.name.replace(/[^a-z0-9_-]+/gi, '-')}.png`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0); setStatus('PNG exportado pixel-perfect') }, 'image/png')
+    downloadCanvas(canvas, `${document.name.replace(/[^a-z0-9_-]+/gi, '-')}.png`); setStatus('PNG exportado pixel-perfect')
+  }
+  const exportSheet = () => {
+    const width = document.width * document.frames.length
+    if (width > 16_384 || width * document.height > 67_108_864) { setStatus('Sprite sheet excede límite seguro del navegador'); return }
+    const canvas = window.document.createElement('canvas'); canvas.width = width; canvas.height = document.height; const context = canvas.getContext('2d'); if (!context) return
+    document.frames.forEach((frame, index) => context.putImageData(new ImageData(new Uint8ClampedArray(composeSpriteFrame(document, frame.id)), document.width, document.height), index * document.width, 0))
+    downloadCanvas(canvas, `${document.name.replace(/[^a-z0-9_-]+/gi, '-')}-sheet.png`); setStatus('Sprite sheet exportado')
   }
   const selectionStyle = selection ? { left: viewportRef.current.offsetX + selection.x * viewportRef.current.zoom, top: viewportRef.current.offsetY + selection.y * viewportRef.current.zoom, width: selection.width * viewportRef.current.zoom, height: selection.height * viewportRef.current.zoom } : undefined
 
@@ -176,7 +208,7 @@ export function PixelArtEditor() {
       <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />{selectionStyle && <div className="selection-overlay" style={selectionStyle} />}</div>
       <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar PNG" title="Exportar PNG" onClick={exportPng}><Download /></button></div><div className="size-fields"><label>Ancho<input type="number" min="1" max="512" value={size.width} onChange={(event) => setSize({ ...size, width: Number(event.target.value) })} /></label><label>Alto<input type="number" min="1" max="512" value={size.height} onChange={(event) => setSize({ ...size, height: Number(event.target.value) })} /></label></div><button className="panel-action" onClick={newCanvas}><FilePlus2 />Crear lienzo</button><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Paleta</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}<button aria-label="Guardar color en paleta" onClick={() => setPalette([color, ...palette.filter((item) => item !== color)].slice(0, 8))}><Plus /></button></div></section><section className="layer-panel"><div className="panel-title"><div><p className="eyebrow">Inspector</p><h2>Capas <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button aria-label="Añadir capa" title="Añadir capa" onClick={addLayer}><Plus /></button><button aria-label="Eliminar capa" title="Eliminar capa" onClick={removeLayer}><Trash2 /></button></div></div><div className="layer-list">{[...document.layers].reverse().map((layer) => <div key={layer.id} className={`layer-row ${layer.id === document.activeLayerId ? 'selected' : ''}`}><button className="layer-select" onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><span className="layer-thumb"><Grid3X3 /></span><strong>{layer.name}</strong></button><button aria-label={`${layer.visible ? 'Ocultar' : 'Mostrar'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button aria-label={`${layer.locked ? 'Desbloquear' : 'Bloquear'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></section></aside>
     </section>
-    <section className="pixel-timeline"><div className="timeline-controls"><strong>Timeline</strong><button aria-label={playing ? 'Pausar animación' : 'Reproducir animación'} title={playing ? 'Pausar' : 'Reproducir'} onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button aria-label="Añadir frame" title="Añadir frame" onClick={() => addFrame(false)}><Plus /></button><button aria-label="Duplicar frame" title="Duplicar frame" onClick={() => addFrame(true)}><Copy /></button><button aria-label="Eliminar frame" title="Eliminar frame" onClick={removeFrame}><Trash2 /></button><label>Duración <input aria-label="Duración del frame" type="number" min="10" max="60000" step="10" value={activeFrame.durationMs} onChange={(event) => { const durationMs = Number(event.target.value); if (Number.isInteger(durationMs) && durationMs >= 10 && durationMs <= 60_000) commit(updateSpriteFrame(documentRef.current, document.activeFrameId, { durationMs })) }} /> ms</label></div><div className="timeline-frames">{document.frames.map((frame, index) => <button key={frame.id} className={(playbackFrameId ?? document.activeFrameId) === frame.id ? 'active' : ''} aria-label={`Seleccionar frame ${index + 1}`} onClick={() => chooseFrame(frame.id)}><span>{index + 1}</span><small>{frame.durationMs} ms</small></button>)}</div></section>
-    <footer className="authoring-help"><span>{status}</span><span>Rueda: zoom · clic medio: mover · Ctrl+Z/Y: historial</span></footer>
+    <section className="pixel-timeline"><div className="timeline-controls"><strong>Timeline</strong><button aria-label={playing ? 'Pausar animación' : 'Reproducir animación'} title={playing ? 'Pausar' : 'Reproducir'} onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button aria-label="Añadir frame" title="Añadir frame" onClick={() => addFrame(false)}><Plus /></button><button aria-label="Duplicar frame" title="Duplicar frame" onClick={() => addFrame(true)}><Copy /></button><button aria-label="Eliminar frame" title="Eliminar frame" onClick={removeFrame}><Trash2 /></button><button aria-label="Onion skin" title="Onion skin" className={onion ? 'active' : ''} onClick={() => setOnion(!onion)}><Eye /></button><button aria-label="Exportar sprite sheet" title="Exportar sprite sheet" onClick={exportSheet}><Download /></button><label>Duración <input aria-label="Duración del frame" type="number" min="10" max="60000" step="10" value={activeFrame.durationMs} onChange={(event) => { const durationMs = Number(event.target.value); if (Number.isInteger(durationMs) && durationMs >= 10 && durationMs <= 60_000) commit(updateSpriteFrame(documentRef.current, document.activeFrameId, { durationMs })) }} /> ms</label></div><div className="timeline-frames">{document.frames.map((frame, index) => <button key={frame.id} className={(playbackFrameId ?? document.activeFrameId) === frame.id ? 'active' : ''} aria-label={`Seleccionar frame ${index + 1}`} onClick={() => chooseFrame(frame.id)}><span>{index + 1}</span><small>{frame.durationMs} ms</small></button>)}</div></section>
+    <footer className="authoring-help"><span>{status}</span><span>Rueda: zoom · clic medio: mover · PageUp/Down: frames · Ctrl+Z/Y: historial</span></footer>
   </main>
 }
