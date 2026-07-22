@@ -9,6 +9,7 @@ import {
   selectSpriteLayer,
   updateSpriteLayer,
   setPixel,
+  setPixels,
   spriteSemanticFingerprint,
   type RgbaColor,
   type SpriteDocument,
@@ -96,5 +97,12 @@ describe('pixel sprite domain', () => {
     const second = setPixel(setPixel(createDocument(), layerId, frameId, { x: 0, y: 0 }, blue), layerId, frameId, { x: 1, y: 0 }, red)
 
     expect(spriteSemanticFingerprint(first)).toBe(spriteSemanticFingerprint(second))
+  })
+
+  it('writes a raster batch in one immutable revision', () => {
+    const painted = setPixels(createDocument(), layerId, frameId, [{ x: 0, y: 0 }, { x: 3, y: 2 }], red)
+    expect(painted.revision).toBe(1)
+    expect(getPixel(painted, layerId, frameId, { x: 0, y: 0 })).toEqual(red)
+    expect(getPixel(painted, layerId, frameId, { x: 3, y: 2 })).toEqual(red)
   })
 })

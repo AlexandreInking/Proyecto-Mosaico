@@ -202,6 +202,27 @@ export function setPixel(
   return replaceCel(document, layer, frameId, pixels)
 }
 
+export function setPixels(
+  document: SpriteDocument,
+  layerId: string,
+  frameId: string,
+  coordinates: readonly GridCoordinate[],
+  color: RgbaColor,
+): SpriteDocument {
+  assertColor(color)
+  const layer = requireEditableLayer(document, layerId)
+  const cel = requireCel(layer, frameId)
+  const pixels = cel.pixels.mutableCopy()
+  let changed = false
+  for (const coordinate of coordinates) {
+    assertCoordinate(document, coordinate)
+    const offset = pixelOffset(document, coordinate)
+    if (colorsEqual(readColor(pixels, offset), color)) continue
+    writeColor(pixels, offset, color); changed = true
+  }
+  return changed ? replaceCel(document, layer, frameId, new PixelBuffer(pixels)) : document
+}
+
 export function erasePixel(
   document: SpriteDocument,
   layerId: string,
