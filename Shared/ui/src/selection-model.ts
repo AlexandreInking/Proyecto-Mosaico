@@ -1,6 +1,6 @@
 export type SelectionMode = 'rectangle' | 'ellipse' | 'lasso' | 'magic'
 export interface PixelPoint { readonly x: number; readonly y: number }
-export interface SelectionMask { readonly width: number; readonly height: number; readonly pixels: ReadonlySet<number> }
+export interface SelectionMask { readonly width: number; readonly height: number; readonly pixels: ReadonlySet<number>; readonly offsetX?: number; readonly offsetY?: number }
 
 const key = (point: PixelPoint, width: number) => point.y * width + point.x
 const inside = (point: PixelPoint, width: number, height: number) => point.x >= 0 && point.y >= 0 && point.x < width && point.y < height
@@ -38,7 +38,7 @@ export function magicMask(origin: PixelPoint, width: number, height: number, col
 
 export function combineSelection(current: SelectionMask | undefined, next: SelectionMask, operation: 'replace' | 'add' | 'subtract'): SelectionMask {
   if (!current || operation === 'replace') return next
-  const pixels = new Set(current.pixels); for (const index of next.pixels) operation === 'add' ? pixels.add(index) : pixels.delete(index)
+  const pixels = new Set(materialize(current)); for (const index of materialize(next)) operation === 'add' ? pixels.add(index) : pixels.delete(index)
   return { ...next, pixels }
 }
 
@@ -48,16 +48,41 @@ export function invertSelection(mask: SelectionMask): SelectionMask {
 }
 
 export function translateSelection(mask: SelectionMask, dx: number, dy: number): SelectionMask {
-  const pixels = new Set<number>()
-  for (const index of mask.pixels) {
-    const x = index % mask.width + dx; const y = Math.floor(index / mask.width) + dy
-    if (x >= 0 && y >= 0 && x < mask.width && y < mask.height) pixels.add(y * mask.width + x)
-  }
-  return { ...mask, pixels }
+  return { ...mask, offsetX: (mask.offsetX ?? 0) + dx, offsetY: (mask.offsetY ?? 0) + dy }
 }
 
 export function selectionBounds(mask: SelectionMask): { x: number; y: number; width: number; height: number } | undefined {
   if (!mask.pixels.size) return undefined
-  const xs = [...mask.pixels].map((index) => index % mask.width); const ys = [...mask.pixels].map((index) => Math.floor(index / mask.width)); const x = Math.min(...xs); const y = Math.min(...ys)
+  const xs = [...mask.pixels].map((index) => index % mask.width + (mask.offsetX ?? 0)); const ys = [...mask.pixels].map((index) => Math.floor(index / mask.width) + (mask.offsetY ?? 0)); const x = Math.min(...xs); const y = Math.min(...ys)
   return { x, y, width: Math.max(...xs) - x + 1, height: Math.max(...ys) - y + 1 }
+}
+
+export function selectionContains(mask: SelectionMask, point: PixelPoint): boolean {
+  const x = point.x - (mask.offsetX ?? 0); const y = point.y - (mask.offsetY ?? 0)
+  return Number.isInteger(x) && Number.isInteger(y) && mask.pixels.has(y * mask.width + x)
+}
+
+function materialize(mask: SelectionMask): Set<number> {
+  const pixels = new Set<number>()
+  for (const index of mask.pixels) {
+    const x = index % mask.width + (mask.offsetX ?? 0); const y = Math.floor(index / mask.width) + (mask.offsetY ?? 0)
+    if (inside({ x, y }, mask.width, mask.height)) pixels.add(y * mask.width + x)
+  }
+  return pixels
+}
+
+export const selectionIndexes = (mask: SelectionMask): readonly number[] => [...materialize(mask)]
+
+export function selectionOutlinePath(mask: SelectionMask): string {
+  const selected = mask.pixels; const ox = mask.offsetX ?? 0; const oy = mask.offsetY ?? 0
+  const has = (x: number, y: number) => selected.has(y * mask.width + x)
+  const edges: string[] = []
+  for (const index of selected) {
+    const x = index % mask.width; const y = Math.floor(index / mask.width); const px = x + ox; const py = y + oy
+    if (!has(x, y - 1)) edges.push(`M${px} ${py}h1`)
+    if (!has(x + 1, y)) edges.push(`M${px + 1} ${py}v1`)
+    if (!has(x, y + 1)) edges.push(`M${px + 1} ${py + 1}h-1`)
+    if (!has(x - 1, y)) edges.push(`M${px} ${py + 1}v-1`)
+  }
+  return edges.join('')
 }

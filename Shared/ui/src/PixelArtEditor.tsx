@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   addSpriteLayer, constrainSquareEnd, createSpriteDocument, deserializeSpriteDocument, ellipsePixels, fillPixels, linePixels, rectanglePixels,
   addSpriteFrame, getPixel, removeSpriteFrame, removeSpriteLayer, selectSpriteFrame, selectSpriteLayer, setPixels, updateSpriteFrame, updateSpriteLayer,
   serializeSpriteDocument, snapLineEnd,
   moveSpritePixels, type GridCoordinate, type RgbaColor, type SpriteDocument,
 } from '@mosaico/domain'
-import { combineSelection, ellipseMask, invertSelection, magicMask, polygonMask, rectangleMask, selectionBounds, translateSelection, type SelectionMask, type SelectionMode } from './selection-model.js'
-import { composeSpriteFrame, createViewport, panViewport, pickSpritePixel, PixiPixelViewport, resizeViewport, zoomViewportAt, type Point, type ViewportState } from '@mosaico/canvas'
-import { BoxSelect, Circle, CircleDashed, Copy, Download, Eraser, Eye, EyeOff, FilePlus2, Grid3X3, Hand, LassoSelect, Lock, PaintBucket, Pause, Pencil, Play, Plus, Redo2, Slash, Square, Trash2, Undo2, Unlock, WandSparkles, type LucideIcon } from 'lucide-react'
+import { combineSelection, ellipseMask, invertSelection, magicMask, polygonMask, rectangleMask, selectionContains, selectionIndexes, selectionOutlinePath, translateSelection, type SelectionMask, type SelectionMode } from './selection-model.js'
+import { composeSpriteFrame, createViewport, panViewport, pickSpritePixel, PixiPixelViewport, resizeViewport, screenToWorld, zoomViewportAt, type Point, type ViewportState } from '@mosaico/canvas'
+import { onionSkinDocument, usedPalette } from './pixel-editor-model.js'
+import { downloadBlob, exportFrame, exportGif, importImage } from './pixel-media.js'
+import { BoxSelect, Circle, CircleDashed, Copy, Download, Eraser, Eye, EyeOff, Grid3X3, Hand, LassoSelect, Lock, PaintBucket, Pause, Pencil, Play, Plus, Redo2, Slash, Square, Trash2, Undo2, Unlock, WandSparkles, X, type LucideIcon } from 'lucide-react'
 
 type Tool = 'pencil' | 'eraser' | 'fill' | 'line' | 'rectangle' | 'ellipse' | 'select' | 'pan'
 const plainTools: readonly [Tool, string, LucideIcon][] = [
@@ -36,7 +38,7 @@ function rgba(hex: string): RgbaColor {
 }
 
 function paint(document: SpriteDocument, points: readonly GridCoordinate[], color: RgbaColor, mask?: SelectionMask): SpriteDocument {
-  const inside = points.filter((point) => point.x >= 0 && point.y >= 0 && point.x < document.width && point.y < document.height && (!mask || mask.pixels.has(point.y * document.width + point.x)))
+  const inside = points.filter((point) => point.x >= 0 && point.y >= 0 && point.x < document.width && point.y < document.height && (!mask || selectionContains(mask, point)))
   return inside.length ? setPixels(document, document.activeLayerId, document.activeFrameId, inside, color) : document
 }
 
@@ -48,17 +50,6 @@ function keepMask(before: SpriteDocument, after: SpriteDocument, mask?: Selectio
   return next
 }
 
-function withOnionSkin(document: SpriteDocument): SpriteDocument {
-  const index = document.frames.findIndex((frame) => frame.id === document.activeFrameId)
-  if (index < 1) return document
-  const previousId = document.frames[index - 1]!.id
-  const previous = document.layers.flatMap((layer) => {
-    const cel = layer.cels.get(previousId)
-    return cel ? [{ ...layer, id: `onion-${layer.id}`, opacity: layer.opacity * 0.25, cels: new Map([[document.activeFrameId, { ...cel, frameId: document.activeFrameId }]]) }] : []
-  })
-  return { ...document, layers: [...previous, ...document.layers] }
-}
-
 function downloadCanvas(canvas: HTMLCanvasElement, name: string): void {
   canvas.toBlob((blob) => { if (!blob) return; const url = URL.createObjectURL(blob); const link = window.document.createElement('a'); link.href = url; link.download = name; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0) }, 'image/png')
 }
@@ -67,15 +58,17 @@ export function PixelArtEditor() {
   const hostRef = useRef<HTMLDivElement>(null); const rendererRef = useRef<PixiPixelViewport | undefined>(undefined)
   const viewportRef = useRef<ViewportState>(createViewport({ width: 1, height: 1, zoom: 16, offsetX: 48, offsetY: 48 }))
   const [document, setDocument] = useState(initialDocument); const documentRef = useRef(document)
+  const [documents, setDocuments] = useState<SpriteDocument[]>([document]); const [openMenu, setOpenMenu] = useState<string>(); const [newDialog, setNewDialog] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
   const [tool, setTool] = useState<Tool>('pencil'); const toolRef = useRef(tool)
   const [color, setColor] = useState('#4bc3b7'); const colorRef = useRef(color)
   const [filled, setFilled] = useState(false); const filledRef = useRef(filled)
-  const [selectionMask, setSelectionMask] = useState<SelectionMask>(); const [palette, setPalette] = useState(['#4bc3b7', '#ffffff', '#111111', '#e85d68', '#e8bb6b', '#76a8df'])
+  const [selectionMask, setSelectionMask] = useState<SelectionMask>()
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('rectangle'); const selectionModeRef = useRef<SelectionMode>('rectangle')
   const selectionMaskRef = useRef<SelectionMask | undefined>(undefined); const selectionBaseRef = useRef<SelectionMask | undefined>(undefined); const lassoRef = useRef<GridCoordinate[]>([]); const selectionOperationRef = useRef<'replace' | 'add' | 'subtract'>('replace')
   const [flyout, setFlyout] = useState<'selection' | 'shape'>()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number }>()
-  const [playing, setPlaying] = useState(false); const [playbackFrameId, setPlaybackFrameId] = useState<string>(); const playbackFrameRef = useRef<string | undefined>(undefined)
+  const [playing, setPlaying] = useState(false)
   const [onion, setOnion] = useState(false); const onionRef = useRef(false)
   const [, refreshViewport] = useState(0)
   const [status, setStatus] = useState('Listo para dibujar'); const [size, setSize] = useState({ width: 32, height: 32 })
@@ -83,7 +76,8 @@ export function PixelArtEditor() {
   const previewRef = useRef<SpriteDocument | undefined>(undefined)
   const gesture = useRef<{ start: GridCoordinate; last: GridCoordinate; before: SpriteDocument; screen: Point; panning: boolean; moving?: SelectionMask } | undefined>(undefined)
 
-  const show = (next: SpriteDocument) => { documentRef.current = next; setDocument(next) }
+  const show = (next: SpriteDocument) => { documentRef.current = next; setDocument(next); setDocuments((items) => items.map((item) => item.id === next.id ? next : item)) }
+  const openDocument = (next: SpriteDocument) => { documentRef.current = next; setDocument(next); setDocuments((items) => [...items.filter((item) => item.id !== next.id), next]); undoRef.current = []; redoRef.current = []; selectMask(); window.requestAnimationFrame(fitCanvas) }
   const commit = (next: SpriteDocument, before = documentRef.current) => {
     if (next === before) return
     undoRef.current.push(before); redoRef.current = []; show(next)
@@ -96,8 +90,7 @@ export function PixelArtEditor() {
     if (!host || !renderer) return
     viewportRef.current = resizeViewport(viewportRef.current, Math.max(1, host.clientWidth), Math.max(1, host.clientHeight))
     const source = previewRef.current ?? documentRef.current
-    const frame = playbackFrameRef.current ? { ...source, activeFrameId: playbackFrameRef.current } : source
-    renderer.render(onionRef.current && !playbackFrameRef.current ? withOnionSkin(frame) : frame, viewportRef.current)
+    renderer.render(onionRef.current && !playing ? onionSkinDocument(source) : source, viewportRef.current)
   }
   const fitCanvas = () => {
     const host = hostRef.current; if (!host) return
@@ -114,23 +107,22 @@ export function PixelArtEditor() {
   useEffect(() => { try { localStorage.setItem(storageKey, serializeSpriteDocument(document)) } catch { setStatus('No se pudo guardar localmente') } }, [document])
   useEffect(render, [document])
   useEffect(() => {
-    if (!playing) { playbackFrameRef.current = undefined; setPlaybackFrameId(undefined); render(); return }
-    const currentId = playbackFrameId ?? document.activeFrameId
-    const currentIndex = document.frames.findIndex((frame) => frame.id === currentId)
+    if (!playing) return
+    const currentIndex = document.frames.findIndex((frame) => frame.id === document.activeFrameId)
     const current = document.frames[currentIndex] ?? document.frames[0]!
-    playbackFrameRef.current = current.id; render()
     const timer = window.setTimeout(() => {
       const next = document.frames[(currentIndex + 1) % document.frames.length]!
-      playbackFrameRef.current = next.id; setPlaybackFrameId(next.id); render()
+      show({ ...documentRef.current, activeFrameId: next.id })
     }, current.durationMs)
     return () => window.clearTimeout(timer)
-  }, [playing, playbackFrameId, document])
+  }, [playing, document.activeFrameId, document.frames])
 
   useEffect(() => {
     const host = hostRef.current; if (!host) return
     let disposed = false
     const point = (event: MouseEvent | PointerEvent | WheelEvent): Point => { const box = host.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top } }
     const pixel = (event: PointerEvent) => pickSpritePixel(viewportRef.current, point(event), documentRef.current)
+    const grid = (event: PointerEvent): GridCoordinate => { const world = screenToWorld(viewportRef.current, point(event)); return { x: Math.floor(world.x), y: Math.floor(world.y) } }
     const safely = (action: () => void) => { try { action() } catch (error) { setStatus(error instanceof Error && error.message === 'SPRITE_LAYER_LOCKED' ? 'Capa bloqueada' : 'No se pudo aplicar la herramienta') } }
     const applyStroke = (from: GridCoordinate, to: GridCoordinate) => safely(() => show(paint(documentRef.current, linePixels(from, to), toolRef.current === 'eraser' ? transparent : rgba(colorRef.current), selectionMaskRef.current)))
     const constrained = (start: GridCoordinate, end: GridCoordinate, shift: boolean) => !shift ? end : toolRef.current === 'line' ? snapLineEnd(start, end) : constrainSquareEnd(start, end)
@@ -149,7 +141,7 @@ export function PixelArtEditor() {
       host.setPointerCapture(event.pointerId); gesture.current = { start: picked, last: picked, before: documentRef.current, screen, panning: false }
       if (toolRef.current === 'select') {
         const selected = selectionMaskRef.current
-        if (selected?.pixels.has(picked.y * selected.width + picked.x) && !event.shiftKey && !event.altKey) { gesture.current.moving = selected; setContextMenu(undefined); return }
+        if (selected && selectionContains(selected, picked) && !event.shiftKey && !event.altKey) { gesture.current.moving = selected; setContextMenu(undefined); return }
         selectionBaseRef.current = selectionMaskRef.current; selectionOperationRef.current = event.altKey ? 'subtract' : event.shiftKey ? 'add' : 'replace'; lassoRef.current = [picked]
         if (selectionModeRef.current === 'magic') { const current = documentRef.current; applySelection(magicMask(picked, current.width, current.height, (point) => JSON.stringify(getPixel(current, current.activeLayerId, current.activeFrameId, point)))) }
         else applySelection(selectionModeRef.current === 'ellipse' ? ellipseMask(picked, picked, documentRef.current.width, documentRef.current.height) : rectangleMask(picked, picked, documentRef.current.width, documentRef.current.height))
@@ -160,12 +152,11 @@ export function PixelArtEditor() {
     const move = (event: PointerEvent) => {
       const active = gesture.current; const currentScreen = point(event)
       if (active?.panning) { viewportRef.current = panViewport(viewportRef.current, currentScreen.x - active.screen.x, currentScreen.y - active.screen.y); active.screen = currentScreen; render(); refreshViewport((value) => value + 1); return }
-      const picked = pixel(event); if (picked) setStatus(`${picked.x}, ${picked.y} · ${documentRef.current.width}×${documentRef.current.height}`)
+      const picked = active && (active.moving || toolRef.current === 'select') ? grid(event) : pixel(event); if (picked) setStatus(`${picked.x}, ${picked.y} · ${documentRef.current.width}×${documentRef.current.height}`)
       if (!active || !picked || (picked.x === active.last.x && picked.y === active.last.y)) return
       if (active.moving) {
-        const bounds = selectionBounds(active.moving); if (!bounds) return
-        const dx = Math.max(-bounds.x, Math.min(picked.x - active.start.x, documentRef.current.width - bounds.x - bounds.width)); const dy = Math.max(-bounds.y, Math.min(picked.y - active.start.y, documentRef.current.height - bounds.y - bounds.height))
-        previewRef.current = moveSpritePixels(active.before, active.before.activeLayerId, active.before.activeFrameId, [...active.moving.pixels], dx, dy); selectMask(translateSelection(active.moving, dx, dy)); render()
+        const dx = picked.x - active.start.x; const dy = picked.y - active.start.y
+        previewRef.current = moveSpritePixels(active.before, active.before.activeLayerId, active.before.activeFrameId, selectionIndexes(active.moving), dx, dy); selectMask(translateSelection(active.moving, dx, dy)); render()
       } else if (toolRef.current === 'pencil' || toolRef.current === 'eraser') applyStroke(active.last, picked)
       else if (toolRef.current === 'select' && selectionModeRef.current !== 'magic') { lassoRef.current.push(picked); applySelection(selectionModeRef.current === 'ellipse' ? ellipseMask(active.start, picked, documentRef.current.width, documentRef.current.height) : selectionModeRef.current === 'lasso' ? polygonMask(lassoRef.current, documentRef.current.width, documentRef.current.height) : rectangleMask(active.start, picked, documentRef.current.width, documentRef.current.height)) }
       else if (toolRef.current === 'line' || toolRef.current === 'rectangle' || toolRef.current === 'ellipse') safely(() => { previewRef.current = paint(active.before, shapePoints(active.start, constrained(active.start, picked, event.shiftKey)), rgba(colorRef.current), selectionMaskRef.current); render() })
@@ -182,9 +173,9 @@ export function PixelArtEditor() {
     }
     const wheel = (event: WheelEvent) => { event.preventDefault(); viewportRef.current = zoomViewportAt(viewportRef.current, point(event), Math.exp(-event.deltaY * 0.0015)); render(); refreshViewport((value) => value + 1) }
     const auxiliary = (event: MouseEvent) => { if (event.button === 1) event.preventDefault() }
-    const context = (event: MouseEvent) => { const picked = pickSpritePixel(viewportRef.current, point(event), documentRef.current); if (picked && selectionMaskRef.current?.pixels.has(picked.y * documentRef.current.width + picked.x)) { event.preventDefault(); const screen = point(event); setContextMenu({ x: screen.x, y: screen.y }) } }
+    const context = (event: MouseEvent) => { const picked = pickSpritePixel(viewportRef.current, point(event), documentRef.current); if (picked && selectionMaskRef.current && selectionContains(selectionMaskRef.current, picked)) { event.preventDefault(); const screen = point(event); setContextMenu({ x: screen.x, y: screen.y }) } }
     const observer = new ResizeObserver(render); observer.observe(host)
-    void PixiPixelViewport.create(host).then((renderer) => { if (disposed) renderer.destroy(); else { rendererRef.current = renderer; render() } })
+    void PixiPixelViewport.create(host).then((renderer) => { if (disposed) renderer.destroy(); else { rendererRef.current = renderer; fitCanvas() } })
     host.addEventListener('pointerdown', down); host.addEventListener('pointermove', move); host.addEventListener('pointerup', up); host.addEventListener('wheel', wheel, { passive: false }); host.addEventListener('auxclick', auxiliary); host.addEventListener('contextmenu', context)
     return () => { disposed = true; observer.disconnect(); host.removeEventListener('pointerdown', down); host.removeEventListener('pointermove', move); host.removeEventListener('pointerup', up); host.removeEventListener('wheel', wheel); host.removeEventListener('auxclick', auxiliary); host.removeEventListener('contextmenu', context); rendererRef.current?.destroy(); rendererRef.current = undefined }
   }, [])
@@ -206,16 +197,20 @@ export function PixelArtEditor() {
 
   const addLayer = () => commit(addSpriteLayer(documentRef.current, { id: crypto.randomUUID(), name: `Capa ${documentRef.current.layers.length + 1}` }))
   const removeLayer = () => { try { commit(removeSpriteLayer(documentRef.current, documentRef.current.activeLayerId)) } catch { setStatus('El documento necesita al menos una capa') } }
-  const newCanvas = () => { const next = blank(Math.max(1, Math.min(512, size.width)), Math.max(1, Math.min(512, size.height))); undoRef.current = []; redoRef.current = []; selectMask(); show(next); setStatus('Nuevo lienzo creado') }
+  const newCanvas = () => { openDocument(blank(Math.max(1, Math.min(4096, size.width)), Math.max(1, Math.min(4096, size.height)))); setNewDialog(false); setStatus('Nuevo lienzo creado') }
   const addFrame = (duplicate: boolean) => { setPlaying(false); selectMask(); commit(addSpriteFrame(documentRef.current, { id: crypto.randomUUID(), duplicateFromFrameId: duplicate ? document.activeFrameId : undefined })) }
   const removeFrame = () => { try { setPlaying(false); selectMask(); commit(removeSpriteFrame(documentRef.current, document.activeFrameId)) } catch { setStatus('La animación necesita al menos un frame') } }
   const chooseFrame = (frameId: string) => { setPlaying(false); selectMask(); show(selectSpriteFrame(documentRef.current, frameId)) }
   const activeFrame = document.frames.find((frame) => frame.id === document.activeFrameId)!
-  const exportPng = () => {
-    const canvas = window.document.createElement('canvas'); canvas.width = document.width; canvas.height = document.height
-    canvas.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(composeSpriteFrame(document, document.activeFrameId)), document.width, document.height), 0, 0)
-    downloadCanvas(canvas, `${document.name.replace(/[^a-z0-9_-]+/gi, '-')}.png`); setStatus('PNG exportado pixel-perfect')
+  const exportPng = () => void exportFrame(document, 'image/png').then(() => setStatus('PNG exportado pixel-perfect')).catch(() => setStatus('No se pudo exportar'))
+  const importFile = async (file?: File) => {
+    if (!file) return
+    try {
+      const next = file.name.endsWith('.mosaico') || file.type === 'application/json' ? deserializeSpriteDocument(await file.text()) : await importImage(file)
+      openDocument(next); setStatus(`${file.name} importado`)
+    } catch { setStatus('No se pudo importar el archivo') }
   }
+  const saveProject = () => downloadBlob(new Blob([serializeSpriteDocument(document)], { type: 'application/json' }), `${document.name}.mosaico`)
   const exportSheet = () => {
     const width = document.width * document.frames.length
     if (width > 16_384 || width * document.height > 67_108_864) { setStatus('Sprite sheet excede límite seguro del navegador'); return }
@@ -227,10 +222,22 @@ export function PixelArtEditor() {
   const selectionTool = selections.find(([id]) => id === selectionMode)!
   const ShapeIcon = shapeTool[2]; const SelectionIcon = selectionTool[2]
   // ponytail: SVG stays simplest at current 512² limit; move mask into Pixi only if profiling shows lag.
-  const selectionPath = selectionMask ? [...selectionMask.pixels].map((index) => { const x = index % selectionMask.width; const y = Math.floor(index / selectionMask.width); return `M${x} ${y}h1v1h-1z` }).join('') : ''
+  const selectionPath = selectionMask ? selectionOutlinePath(selectionMask) : ''
   const selectionStyle = { left: viewportRef.current.offsetX, top: viewportRef.current.offsetY, width: document.width * viewportRef.current.zoom, height: document.height * viewportRef.current.zoom }
+  const palette = useMemo(() => [...new Set([color, ...usedPalette(document)])].slice(0, 32), [color, document])
+  const menus: Record<string, readonly [string, () => void, boolean?][]> = {
+    Archivo: [['Nuevo…', () => setNewDialog(true)], ['Abrir…', () => fileRef.current?.click()], ['Guardar proyecto', saveProject], ['Exportar PNG', exportPng], ['PNG sin transparencia', () => void exportFrame(document, 'image/png', true)], ['Exportar JPG', () => void exportFrame(document, 'image/jpeg', true)], ['Exportar WebP', () => void exportFrame(document, 'image/webp')], ['Exportar GIF animado', () => exportGif(document)]],
+    Editar: [['Deshacer', undo], ['Rehacer', redo]],
+    Imagen: [['Centrar y ajustar', fitCanvas], ['Exportar PNG', exportPng], ['Exportar GIF animado', () => exportGif(document)]],
+    Capa: [['Nueva capa', addLayer], ['Eliminar capa', removeLayer]],
+    Seleccionar: [['Seleccionar todo', () => selectMask(rectangleMask({ x: 0, y: 0 }, { x: document.width - 1, y: document.height - 1 }, document.width, document.height))], ['Invertir selección', () => selectionMaskRef.current && selectMask(invertSelection(selectionMaskRef.current))], ['Deseleccionar', () => selectMask()]],
+    Filtro: [['Próximamente', () => undefined, true]], Vista: [['Centrar lienzo', fitCanvas], ['Onion skin', () => setOnion((value) => !value)]], Ventana: [['Restablecer espacio', fitCanvas]], Otro: [['Mosaico Pixel Art', () => setStatus('Editor compartido Web + Desktop')]],
+  }
 
   return <main className="pixel-editor">
+    <nav className="pixel-menubar" aria-label="Menú principal">{Object.keys(menus).map((menu) => <div className="menu-root" key={menu}><button onClick={() => setOpenMenu(openMenu === menu ? undefined : menu)}>{menu}</button>{openMenu === menu && <div className="menu-dropdown" role="menu">{menus[menu]!.map(([label, action, disabled]) => <button key={label} role="menuitem" disabled={disabled} onClick={() => { action(); setOpenMenu(undefined) }}>{label}</button>)}</div>}</div>)}</nav>
+    <div className="document-tabs">{documents.map((item) => <button key={item.id} className={item.id === document.id ? 'active' : ''} onClick={() => { const next = documents.find((candidate) => candidate.id === item.id); if (next) { documentRef.current = next; setDocument(next); window.requestAnimationFrame(fitCanvas) } }}>{item.name}</button>)}</div>
+    <input ref={fileRef} hidden type="file" accept=".mosaico,.json,image/png,image/jpeg,image/webp,image/gif" onChange={(event) => { void importFile(event.target.files?.[0]); event.currentTarget.value = '' }} />
     <header className="pixel-optionsbar">
       <strong>{toolLabel(tool, selectionMode)}</strong><span className="option-divider" />
       <label className="color-control">Color<input aria-label="Color principal" type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label>
@@ -246,9 +253,10 @@ export function PixelArtEditor() {
         {plainTools.slice(3).map(([id, label, Icon]) => <button key={id} aria-label={label} title={`${label} (${Object.entries(hotkeys).find(([, value]) => value === id)?.[0]?.toUpperCase()})`} className={tool === id ? 'active' : ''} onClick={() => { setTool(id); setFlyout(undefined) }}><Icon /></button>)}
       </aside>
       <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />{selectionPath && <svg className="selection-mask-overlay" style={selectionStyle} viewBox={`0 0 ${document.width} ${document.height}`} preserveAspectRatio="none"><path d={selectionPath} /></svg>}{contextMenu && <div className="selection-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu"><button role="menuitem" onClick={() => { if (selectionMaskRef.current) selectMask(invertSelection(selectionMaskRef.current)); setContextMenu(undefined) }}>Invertir selección</button><button role="menuitem" onClick={() => { selectMask(); setContextMenu(undefined) }}>Deseleccionar</button></div>}</div>
-      <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar PNG" title="Exportar PNG" onClick={exportPng}><Download /></button></div><div className="size-fields"><label>Ancho<input type="number" min="1" max="512" value={size.width} onChange={(event) => setSize({ ...size, width: Number(event.target.value) })} /></label><label>Alto<input type="number" min="1" max="512" value={size.height} onChange={(event) => setSize({ ...size, height: Number(event.target.value) })} /></label></div><button className="panel-action" onClick={newCanvas}><FilePlus2 />Crear lienzo</button><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Paleta</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}<button aria-label="Guardar color en paleta" onClick={() => setPalette([color, ...palette.filter((item) => item !== color)].slice(0, 8))}><Plus /></button></div></section><section className="layer-panel"><div className="panel-title"><div><p className="eyebrow">Inspector</p><h2>Capas <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button aria-label="Añadir capa" title="Añadir capa" onClick={addLayer}><Plus /></button><button aria-label="Eliminar capa" title="Eliminar capa" onClick={removeLayer}><Trash2 /></button></div></div><div className="layer-list">{[...document.layers].reverse().map((layer) => <div key={layer.id} className={`layer-row ${layer.id === document.activeLayerId ? 'selected' : ''}`}><button className="layer-select" onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><span className="layer-thumb"><Grid3X3 /></span><strong>{layer.name}</strong></button><button aria-label={`${layer.visible ? 'Ocultar' : 'Mostrar'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button aria-label={`${layer.locked ? 'Desbloquear' : 'Bloquear'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></section></aside>
+      <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar PNG" title="Exportar PNG" onClick={exportPng}><Download /></button></div><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Colores usados</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}</div></section><section className="layer-panel"><div className="panel-title"><div><p className="eyebrow">Inspector</p><h2>Capas <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button aria-label="Añadir capa" title="Añadir capa" onClick={addLayer}><Plus /></button><button aria-label="Eliminar capa" title="Eliminar capa" onClick={removeLayer}><Trash2 /></button></div></div><div className="layer-list">{[...document.layers].reverse().map((layer) => <div key={layer.id} className={`layer-row ${layer.id === document.activeLayerId ? 'selected' : ''}`}><button className="layer-select" onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><span className="layer-thumb"><Grid3X3 /></span><strong>{layer.name}</strong></button><button aria-label={`${layer.visible ? 'Ocultar' : 'Mostrar'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button aria-label={`${layer.locked ? 'Desbloquear' : 'Bloquear'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></section></aside>
     </section>
-    <section className="pixel-timeline"><div className="timeline-controls"><strong>Timeline</strong><button aria-label={playing ? 'Pausar animación' : 'Reproducir animación'} title={playing ? 'Pausar' : 'Reproducir'} onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button aria-label="Añadir frame" title="Añadir frame" onClick={() => addFrame(false)}><Plus /></button><button aria-label="Duplicar frame" title="Duplicar frame" onClick={() => addFrame(true)}><Copy /></button><button aria-label="Eliminar frame" title="Eliminar frame" onClick={removeFrame}><Trash2 /></button><button aria-label="Onion skin" title="Onion skin" className={onion ? 'active' : ''} onClick={() => setOnion(!onion)}><Eye /></button><button aria-label="Exportar sprite sheet" title="Exportar sprite sheet" onClick={exportSheet}><Download /></button><label>Duración <input aria-label="Duración del frame" type="number" min="10" max="60000" step="10" value={activeFrame.durationMs} onChange={(event) => { const durationMs = Number(event.target.value); if (Number.isInteger(durationMs) && durationMs >= 10 && durationMs <= 60_000) commit(updateSpriteFrame(documentRef.current, document.activeFrameId, { durationMs })) }} /> ms</label></div><div className="timeline-frames">{document.frames.map((frame, index) => <button key={frame.id} className={(playbackFrameId ?? document.activeFrameId) === frame.id ? 'active' : ''} aria-label={`Seleccionar frame ${index + 1}`} onClick={() => chooseFrame(frame.id)}><span>{index + 1}</span><small>{frame.durationMs} ms</small></button>)}</div></section>
+    <section className="pixel-timeline"><div className="timeline-controls"><strong>Timeline</strong><button aria-label={playing ? 'Pausar animación' : 'Reproducir animación'} title={playing ? 'Pausar' : 'Reproducir'} onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button aria-label="Añadir frame" title="Añadir frame" onClick={() => addFrame(false)}><Plus /></button><button aria-label="Duplicar frame" title="Duplicar frame" onClick={() => addFrame(true)}><Copy /></button><button aria-label="Eliminar frame" title="Eliminar frame" onClick={removeFrame}><Trash2 /></button><button aria-label="Onion skin" title="Onion skin" className={onion ? 'active' : ''} onClick={() => setOnion(!onion)}><Eye /></button><button aria-label="Exportar sprite sheet" title="Exportar sprite sheet" onClick={exportSheet}><Download /></button><label>Duración <input aria-label="Duración del frame" type="number" min="10" max="60000" step="10" value={activeFrame.durationMs} onChange={(event) => { const durationMs = Number(event.target.value); if (Number.isInteger(durationMs) && durationMs >= 10 && durationMs <= 60_000) commit(updateSpriteFrame(documentRef.current, document.activeFrameId, { durationMs })) }} /> ms</label></div><div className="timeline-frames">{document.frames.map((frame, index) => <button key={frame.id} className={document.activeFrameId === frame.id ? 'active' : ''} aria-label={`Seleccionar frame ${index + 1}`} onClick={() => chooseFrame(frame.id)}><span>{index + 1}</span><small>{frame.durationMs} ms</small></button>)}</div></section>
     <footer className="authoring-help"><span>{status}</span><span>0: ajustar · P/E/G/L/R/O/M/H: herramientas · PageUp/Down: frames</span></footer>
+    {newDialog && <div className="pixel-modal" role="dialog" aria-modal="true" aria-label="Nuevo lienzo"><div><header><h2>Nuevo lienzo</h2><button aria-label="Cerrar" onClick={() => setNewDialog(false)}><X /></button></header><div className="size-fields"><label>Ancho<input type="number" min="1" max="4096" value={size.width} onChange={(event) => setSize({ ...size, width: Number(event.target.value) })} /></label><label>Alto<input type="number" min="1" max="4096" value={size.height} onChange={(event) => setSize({ ...size, height: Number(event.target.value) })} /></label></div><button className="panel-action" onClick={newCanvas}>Crear</button></div></div>}
   </main>
 }

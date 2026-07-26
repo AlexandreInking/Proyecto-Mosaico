@@ -11,11 +11,14 @@ describe('PixelArtEditor', () => {
     }
     expect(html).not.toContain('aria-label="Rectángulo"')
     expect(html).not.toContain('aria-label="Elipse"')
-    expect(html).toContain('Crear lienzo')
+    expect(html).toContain('>Archivo<')
     expect(html).toContain('Capas')
     expect(html).toContain('Capa 1')
-    expect(html).toContain('Paleta')
+    expect(html).toContain('Colores usados')
     expect(html).toContain('Timeline')
+    for (const menu of ['Archivo', 'Editar', 'Imagen', 'Capa', 'Seleccionar', 'Filtro', 'Vista', 'Ventana', 'Otro']) expect(html).toContain(`>${menu}<`)
+    expect(html).toContain('document-tabs')
+    expect(html).not.toContain('>Crear lienzo<')
     for (const label of ['Reproducir animación', 'Añadir frame', 'Duplicar frame', 'Eliminar frame', 'Duración del frame', 'Onion skin', 'Exportar sprite sheet']) {
       expect(html).toContain(`aria-label="${label}"`)
     }

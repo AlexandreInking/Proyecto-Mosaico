@@ -152,6 +152,9 @@ importers:
       '@mosaico/pipeline':
         specifier: workspace:*
         version: link:../pipeline
+      gifenc:
+        specifier: ^1.0.3
+        version: 1.0.3
       lucide-react:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.7)
@@ -1950,6 +1953,9 @@ packages:
 
   getopts@2.3.0:
     resolution: {integrity: sha512-5eDf9fuSXwxBL6q5HX+dhDj+dslFGWzU5thZ9kNKUkcPtaPdatmUFKwHFrLb/uf/WpA4BHET+AX3Scl56cAjpA==}
+
+  gifenc@1.0.3:
+    resolution: {integrity: sha512-xdr6AdrfGBcfzncONUOlXMBuc5wJDtOueE3c5rdG0oNgtINLD+f2iFZltrBRZYzACRbKr+mSVU/x98zv2u3jmw==}
 
   gifuct-js@2.1.2:
     resolution: {integrity: sha512-rI2asw77u0mGgwhV3qA+OEgYqaDn5UNqgs+Bx0FGwSpuqfYn+Ir6RQY5ENNQ8SbIiG/m5gVa7CD5RriO4f4Lsg==}
@@ -4443,6 +4449,8 @@ snapshots:
       resolve-pkg-maps: 1.0.0
 
   getopts@2.3.0: {}
+
+  gifenc@1.0.3: {}
 
   gifuct-js@2.1.2:
     dependencies:
