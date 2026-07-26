@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { combineSelection, ellipseMask, invertSelection, magicMask, polygonMask, rectangleMask } from '../src/selection-model.js'
+import { combineSelection, ellipseMask, invertSelection, magicMask, polygonMask, rectangleMask, translateSelection } from '../src/selection-model.js'
 
 describe('selection model', () => {
   it('builds, combines and inverts pixel masks', () => {
@@ -14,5 +14,10 @@ describe('selection model', () => {
     expect(polygonMask([{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 0, y: 3 }], 4, 4).pixels.size).toBeGreaterThan(0)
     const magic = magicMask({ x: 0, y: 0 }, 3, 2, ({ x }) => x < 2 ? 'red' : 'blue')
     expect(magic.pixels.size).toBe(4)
+  })
+
+  it('translates exact selected pixels within canvas bounds', () => {
+    const moved = translateSelection(rectangleMask({ x: 0, y: 0 }, { x: 1, y: 0 }, 3, 2), 1, 1)
+    expect([...moved.pixels]).toEqual([4, 5])
   })
 })

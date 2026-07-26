@@ -84,25 +84,24 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .pixel-optionsbar strong { min-width: 4.5rem; font-size: 0.72rem; }
 .option-divider { width: 1px; height: 1.25rem; background: var(--border); }
 .option-hint { overflow: hidden; color: #718087; font-size: 0.65rem; text-overflow: ellipsis; white-space: nowrap; }
-.history-tools, .layer-actions, .selection-actions { display: flex; gap: 0.2rem; }
+.history-tools, .layer-actions { display: flex; gap: 0.2rem; }
 .color-control, .fill-control { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); font-size: 0.67rem; white-space: nowrap; }
 .color-control input { width: 1.75rem; height: 1.55rem; border: 0; background: transparent; padding: 0.1rem; }
 .fill-control input { width: auto; accent-color: var(--accent); }
 .history-tools { margin-left: auto; }
-.history-tools button, .layer-actions button, .selection-actions button, .pixel-tool-rail button, .panel-title > button { display: grid; place-items: center; border: 0; background: transparent; color: #a8b4ba; }
+.history-tools button, .layer-actions button, .pixel-tool-rail button, .panel-title > button { display: grid; place-items: center; border: 0; background: transparent; color: #a8b4ba; }
 .history-tools button { width: 2rem; height: 2rem; border-radius: 0.2rem; }
-.history-tools button:hover, .layer-actions button:hover, .selection-actions button:hover, .pixel-tool-rail button:hover, .panel-title > button:hover { background: #2a3338; color: #fff; }
+.history-tools button:hover, .layer-actions button:hover, .pixel-tool-rail button:hover, .panel-title > button:hover { background: #2a3338; color: #fff; }
 .history-tools svg, .layer-actions svg { width: 1rem; height: 1rem; }
-.selection-actions button, .panel-title > button { width: 1.8rem; height: 1.8rem; border-radius: 0.2rem; }
-.selection-actions svg, .panel-title > button svg { width: 0.9rem; height: 0.9rem; }
+.panel-title > button { width: 1.8rem; height: 1.8rem; border-radius: 0.2rem; }
+.panel-title > button svg { width: 0.9rem; height: 0.9rem; }
 .pixel-body { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-columns: 3rem minmax(20rem, 1fr) 16rem; }
 .pixel-tool-rail { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.45rem 0; border-right: 1px solid #293239; background: #181e22; }
 .pixel-tool-rail button { width: 2.25rem; height: 2.25rem; border-radius: 0.25rem; }
 .pixel-tool-rail button.active { background: #245d58; color: #e8fffc; box-shadow: inset 2px 0 #69ddd2; }
 .pixel-tool-rail svg { width: 1.1rem; height: 1.1rem; stroke-width: 1.7; }
-.tool-flyout { position: absolute; left: 2.7rem; display: flex; gap: 0.15rem; padding: 0.2rem; border: 1px solid #3b484e; background: #20272b; box-shadow: 0 0.35rem 1rem #0008; }
-.selection-flyout { top: 13.8rem; }
-.shape-flyout { top: 7rem; }
+.tool-group { position: relative; }
+.tool-flyout { position: absolute; z-index: 4; top: 0; left: 2.7rem; display: flex; gap: 0.15rem; padding: 0.2rem; border: 1px solid #3b484e; background: #20272b; box-shadow: 0 0.35rem 1rem #0008; }
 .tool-flyout button { width: 2rem; height: 2rem; }
 .pixel-inspector { min-width: 0; overflow-y: auto; border-left: 1px solid #293239; background: #181e22; }
 .pixel-inspector section { padding: 0.75rem; border-bottom: 1px solid #293239; }
@@ -123,7 +122,11 @@ input { width: 100%; border: 1px solid var(--border); background: #101518; color
 .pixel-palette svg { width: 0.75rem; height: 0.75rem; }
 .canvas-shell { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 .pixel-body .authoring-canvas { position: absolute; inset: 0; overflow: hidden; background: #0d1215; cursor: crosshair; }
-.selection-overlay { position: absolute; border: 1px dashed #fff; outline: 1px dashed #111; pointer-events: none; animation: selection-march 0.6s steps(2) infinite; }
+.selection-mask-overlay { position: absolute; overflow: visible; pointer-events: none; }
+.selection-mask-overlay path { fill: #4bc3b733; stroke: #fff; stroke-width: 0.06; stroke-dasharray: 0.12 0.12; animation: selection-march 0.6s steps(2) infinite; }
+.selection-context-menu { position: absolute; z-index: 6; display: grid; min-width: 10rem; padding: 0.2rem; border: 1px solid #435158; background: #20272b; box-shadow: 0 0.5rem 1.2rem #0009; }
+.selection-context-menu button { border: 0; background: transparent; padding: 0.45rem 0.6rem; color: #dce4e7; text-align: left; }
+.selection-context-menu button:hover { background: #2d393e; }
 @keyframes selection-march { to { filter: invert(1); } }
 .pixel-timeline { min-width: 0; overflow: hidden; display: grid; grid-template-columns: 13rem minmax(0, 1fr); border-top: 1px solid var(--border); background: #151b1f; }
 .timeline-controls { display: flex; align-content: flex-start; align-items: center; flex-wrap: wrap; gap: 0.25rem; padding: 0.45rem 0.6rem; border-right: 1px solid var(--border); }

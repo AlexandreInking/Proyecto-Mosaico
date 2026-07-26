@@ -9,6 +9,7 @@ import {
   removeSpriteLayer,
   removeSpriteFrame,
   flipSpriteRegion,
+  moveSpritePixels,
   moveSpriteRegion,
   selectSpriteLayer,
   selectSpriteFrame,
@@ -118,6 +119,14 @@ describe('pixel sprite domain', () => {
     expect(getPixel(moved, layerId, frameId, { x: 0, y: 0 })).toEqual(transparent)
     expect(getPixel(moved, layerId, frameId, { x: 1, y: 1 })).toEqual(red)
     expect(getPixel(moved, layerId, frameId, { x: 2, y: 1 })).toEqual(red)
+  })
+
+  it('moves selected paint without erasing destination below transparent holes', () => {
+    const source = setPixels(setPixels(createDocument(), layerId, frameId, [{ x: 0, y: 0 }], red), layerId, frameId, [{ x: 2, y: 0 }], blue)
+    const moved = moveSpritePixels(source, layerId, frameId, [0, 1], 1, 0)
+    expect(getPixel(moved, layerId, frameId, { x: 0, y: 0 })).toEqual(transparent)
+    expect(getPixel(moved, layerId, frameId, { x: 1, y: 0 })).toEqual(red)
+    expect(getPixel(moved, layerId, frameId, { x: 2, y: 0 })).toEqual(blue)
   })
 
   it('flips a selected region horizontally and vertically', () => {

@@ -6,9 +6,11 @@ describe('PixelArtEditor', () => {
   it('exposes visible authoring tools, document controls and layers', () => {
     const html = renderToStaticMarkup(<PixelArtEditor />)
 
-    for (const label of ['Lápiz', 'Borrador', 'Relleno', 'Línea', 'Rectángulo', 'Elipse', 'Selección', 'Mano', 'Deshacer', 'Rehacer', 'Exportar PNG']) {
+    for (const label of ['Lápiz', 'Borrador', 'Relleno', 'Línea', 'Selección rectangular', 'Mano', 'Deshacer', 'Rehacer', 'Exportar PNG']) {
       expect(html).toContain(`aria-label="${label}"`)
     }
+    expect(html).not.toContain('aria-label="Rectángulo"')
+    expect(html).not.toContain('aria-label="Elipse"')
     expect(html).toContain('Crear lienzo')
     expect(html).toContain('Capas')
     expect(html).toContain('Capa 1')

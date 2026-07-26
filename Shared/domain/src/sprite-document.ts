@@ -255,6 +255,23 @@ export function moveSpriteRegion(document: SpriteDocument, layerId: string, fram
   return replaceCel(document, layer, frameId, new PixelBuffer(pixels))
 }
 
+export function moveSpritePixels(document: SpriteDocument, layerId: string, frameId: string, selectedIndexes: readonly number[], dx: number, dy: number): SpriteDocument {
+  if (!Number.isInteger(dx) || !Number.isInteger(dy)) throw new RangeError('SPRITE_OFFSET_INVALID')
+  if (dx === 0 && dy === 0) return document
+  const layer = requireEditableLayer(document, layerId); const cel = requireCel(layer, frameId); const pixels = cel.pixels.mutableCopy()
+  const captured = selectedIndexes.map((index) => {
+    if (!Number.isInteger(index) || index < 0 || index >= document.width * document.height) throw new RangeError('SPRITE_SELECTION_INVALID')
+    const coordinate = { x: index % document.width, y: Math.floor(index / document.width) }
+    return { coordinate, color: readColor(pixels, pixelOffset(document, coordinate)) }
+  })
+  for (const { coordinate, color } of captured) if (color.a) writeColor(pixels, pixelOffset(document, coordinate), transparent)
+  for (const { coordinate, color } of captured) {
+    const target = { x: coordinate.x + dx, y: coordinate.y + dy }
+    if (color.a && target.x >= 0 && target.y >= 0 && target.x < document.width && target.y < document.height) writeColor(pixels, pixelOffset(document, target), color)
+  }
+  return replaceCel(document, layer, frameId, new PixelBuffer(pixels))
+}
+
 export function flipSpriteRegion(document: SpriteDocument, layerId: string, frameId: string, region: SpriteRegion, axis: 'horizontal' | 'vertical'): SpriteDocument {
   requireRegion(document, region)
   const layer = requireEditableLayer(document, layerId); const cel = requireCel(layer, frameId); const pixels = cel.pixels.mutableCopy()

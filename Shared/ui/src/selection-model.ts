@@ -47,6 +47,15 @@ export function invertSelection(mask: SelectionMask): SelectionMask {
   return { ...mask, pixels }
 }
 
+export function translateSelection(mask: SelectionMask, dx: number, dy: number): SelectionMask {
+  const pixels = new Set<number>()
+  for (const index of mask.pixels) {
+    const x = index % mask.width + dx; const y = Math.floor(index / mask.width) + dy
+    if (x >= 0 && y >= 0 && x < mask.width && y < mask.height) pixels.add(y * mask.width + x)
+  }
+  return { ...mask, pixels }
+}
+
 export function selectionBounds(mask: SelectionMask): { x: number; y: number; width: number; height: number } | undefined {
   if (!mask.pixels.size) return undefined
   const xs = [...mask.pixels].map((index) => index % mask.width); const ys = [...mask.pixels].map((index) => Math.floor(index / mask.width)); const x = Math.min(...xs); const y = Math.min(...ys)
