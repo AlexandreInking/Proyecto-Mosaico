@@ -110,6 +110,7 @@ function requireFrame(document: SpriteDocument, frameId: string): SpriteFrame {
 
 function requireEditableLayer(document: SpriteDocument, layerId: string): SpriteLayer {
   const layer = requireLayer(document, layerId)
+  if (!layer.visible) throw new Error('SPRITE_LAYER_HIDDEN')
   if (layer.locked) throw new Error('SPRITE_LAYER_LOCKED')
   return layer
 }

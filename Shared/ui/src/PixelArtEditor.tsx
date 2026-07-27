@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   addSpriteLayer, constrainSquareEnd, createSpriteDocument, deserializeSpriteDocument, ellipsePixels, fillPixels, linePixels, rectanglePixels,
   addSpriteFrame, getPixel, removeSpriteFrame, removeSpriteLayer, selectSpriteFrame, selectSpriteLayer, setPixels, updateSpriteFrame, updateSpriteLayer,
@@ -8,7 +8,7 @@ import {
 import { combineSelection, ellipseMask, invertSelection, magicMask, polygonMask, rectangleMask, selectionContains, selectionIndexes, selectionOutlinePath, translateSelection, type SelectionMask, type SelectionMode } from './selection-model.js'
 import { composeSpriteFrame, createViewport, panViewport, pickSpritePixel, PixiPixelViewport, resizeViewport, screenToWorld, zoomViewportAt, type Point, type ViewportState } from '@mosaico/canvas'
 import { onionSkinDocument, usedPalette } from './pixel-editor-model.js'
-import { downloadBlob, exportFrame, exportGif, importImage } from './pixel-media.js'
+import { chooseImageFile, exportDocument, importImage, saveBlob, saveProject as saveSpriteProject, type ExportFormat, type ExportOptions } from './pixel-media.js'
 import { BoxSelect, Circle, CircleDashed, Copy, Download, Eraser, Eye, EyeOff, Grid3X3, Hand, LassoSelect, Lock, PaintBucket, Pause, Pencil, Play, Plus, Redo2, Slash, Square, Trash2, Undo2, Unlock, WandSparkles, X, type LucideIcon } from 'lucide-react'
 
 type Tool = 'pencil' | 'eraser' | 'fill' | 'line' | 'rectangle' | 'ellipse' | 'select' | 'pan'
@@ -50,15 +50,13 @@ function keepMask(before: SpriteDocument, after: SpriteDocument, mask?: Selectio
   return next
 }
 
-function downloadCanvas(canvas: HTMLCanvasElement, name: string): void {
-  canvas.toBlob((blob) => { if (!blob) return; const url = URL.createObjectURL(blob); const link = window.document.createElement('a'); link.href = url; link.download = name; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0) }, 'image/png')
-}
-
 export function PixelArtEditor() {
   const hostRef = useRef<HTMLDivElement>(null); const rendererRef = useRef<PixiPixelViewport | undefined>(undefined)
   const viewportRef = useRef<ViewportState>(createViewport({ width: 1, height: 1, zoom: 16, offsetX: 48, offsetY: 48 }))
   const [document, setDocument] = useState(initialDocument); const documentRef = useRef(document)
   const [documents, setDocuments] = useState<SpriteDocument[]>([document]); const [openMenu, setOpenMenu] = useState<string>(); const [newDialog, setNewDialog] = useState(false)
+  const [exportDialog, setExportDialog] = useState(false)
+  const [exportOptions, setExportOptions] = useState<ExportOptions>({ format: 'png', scale: 1, transparent: true, quality: 92, name: document.name })
   const fileRef = useRef<HTMLInputElement>(null)
   const [tool, setTool] = useState<Tool>('pencil'); const toolRef = useRef(tool)
   const [color, setColor] = useState('#4bc3b7'); const colorRef = useRef(color)
@@ -67,6 +65,7 @@ export function PixelArtEditor() {
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('rectangle'); const selectionModeRef = useRef<SelectionMode>('rectangle')
   const selectionMaskRef = useRef<SelectionMask | undefined>(undefined); const selectionBaseRef = useRef<SelectionMask | undefined>(undefined); const lassoRef = useRef<GridCoordinate[]>([]); const selectionOperationRef = useRef<'replace' | 'add' | 'subtract'>('replace')
   const [flyout, setFlyout] = useState<'selection' | 'shape'>()
+  const holdTimerRef = useRef<number | undefined>(undefined)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number }>()
   const [playing, setPlaying] = useState(false)
   const [onion, setOnion] = useState(false); const onionRef = useRef(false)
@@ -105,6 +104,12 @@ export function PixelArtEditor() {
   useEffect(() => { filledRef.current = filled }, [filled])
   useEffect(() => { onionRef.current = onion; render() }, [onion])
   useEffect(() => { try { localStorage.setItem(storageKey, serializeSpriteDocument(document)) } catch { setStatus('No se pudo guardar localmente') } }, [document])
+  useEffect(() => {
+    const closeMenus = (event: PointerEvent) => { if (!(event.target instanceof Element) || !event.target.closest('.menu-root')) setOpenMenu(undefined) }
+    const escapeMenus = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpenMenu(undefined); setFlyout(undefined); setExportDialog(false) } }
+    window.addEventListener('pointerdown', closeMenus); window.addEventListener('keydown', escapeMenus)
+    return () => { window.removeEventListener('pointerdown', closeMenus); window.removeEventListener('keydown', escapeMenus) }
+  }, [])
   useEffect(render, [document])
   useEffect(() => {
     if (!playing) return
@@ -123,7 +128,7 @@ export function PixelArtEditor() {
     const point = (event: MouseEvent | PointerEvent | WheelEvent): Point => { const box = host.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top } }
     const pixel = (event: PointerEvent) => pickSpritePixel(viewportRef.current, point(event), documentRef.current)
     const grid = (event: PointerEvent): GridCoordinate => { const world = screenToWorld(viewportRef.current, point(event)); return { x: Math.floor(world.x), y: Math.floor(world.y) } }
-    const safely = (action: () => void) => { try { action() } catch (error) { setStatus(error instanceof Error && error.message === 'SPRITE_LAYER_LOCKED' ? 'Capa bloqueada' : 'No se pudo aplicar la herramienta') } }
+    const safely = (action: () => void) => { try { action() } catch (error) { setStatus(error instanceof Error && error.message === 'SPRITE_LAYER_LOCKED' ? 'Capa bloqueada' : error instanceof Error && error.message === 'SPRITE_LAYER_HIDDEN' ? 'Capa oculta: muéstrala para editar' : 'No se pudo aplicar la herramienta') } }
     const applyStroke = (from: GridCoordinate, to: GridCoordinate) => safely(() => show(paint(documentRef.current, linePixels(from, to), toolRef.current === 'eraser' ? transparent : rgba(colorRef.current), selectionMaskRef.current)))
     const constrained = (start: GridCoordinate, end: GridCoordinate, shift: boolean) => !shift ? end : toolRef.current === 'line' ? snapLineEnd(start, end) : constrainSquareEnd(start, end)
     const shapePoints = (start: GridCoordinate, end: GridCoordinate) => toolRef.current === 'line' ? linePixels(start, end)
@@ -138,6 +143,8 @@ export function PixelArtEditor() {
       if (event.button !== 0) return
       setContextMenu(undefined)
       if (!picked) { selectMask(); setContextMenu(undefined); return }
+      const activeLayer = documentRef.current.layers.find((layer) => layer.id === documentRef.current.activeLayerId)
+      if (!activeLayer?.visible && (toolRef.current !== 'select' || (selectionMaskRef.current && selectionContains(selectionMaskRef.current, picked)))) { setStatus('Capa oculta: muéstrala para editar'); return }
       host.setPointerCapture(event.pointerId); gesture.current = { start: picked, last: picked, before: documentRef.current, screen, panning: false }
       if (toolRef.current === 'select') {
         const selected = selectionMaskRef.current
@@ -202,7 +209,7 @@ export function PixelArtEditor() {
   const removeFrame = () => { try { setPlaying(false); selectMask(); commit(removeSpriteFrame(documentRef.current, document.activeFrameId)) } catch { setStatus('La animación necesita al menos un frame') } }
   const chooseFrame = (frameId: string) => { setPlaying(false); selectMask(); show(selectSpriteFrame(documentRef.current, frameId)) }
   const activeFrame = document.frames.find((frame) => frame.id === document.activeFrameId)!
-  const exportPng = () => void exportFrame(document, 'image/png').then(() => setStatus('PNG exportado pixel-perfect')).catch(() => setStatus('No se pudo exportar'))
+  const beginExport = (format: ExportFormat = 'png') => { setExportOptions({ format, scale: 1, transparent: format !== 'jpeg', quality: 92, name: document.name }); setExportDialog(true) }
   const importFile = async (file?: File) => {
     if (!file) return
     try {
@@ -210,14 +217,27 @@ export function PixelArtEditor() {
       openDocument(next); setStatus(`${file.name} importado`)
     } catch { setStatus('No se pudo importar el archivo') }
   }
-  const saveProject = () => downloadBlob(new Blob([serializeSpriteDocument(document)], { type: 'application/json' }), `${document.name}.mosaico`)
+  const openFile = async () => {
+    try { const file = await chooseImageFile(); if (file) await importFile(file); else fileRef.current?.click() }
+    catch (error) { if (!(error instanceof DOMException) || error.name !== 'AbortError') setStatus('No se pudo abrir el explorador') }
+  }
+  const saveProject = async () => {
+    try { await saveSpriteProject(document, serializeSpriteDocument(document)); setStatus('Proyecto guardado') }
+    catch (error) { if (!(error instanceof DOMException) || error.name !== 'AbortError') setStatus('No se pudo guardar') }
+  }
+  const confirmExport = async () => {
+    try { await exportDocument(document, exportOptions); setExportDialog(false); setStatus(`${exportOptions.format.toUpperCase()} exportado`) }
+    catch (error) { if (!(error instanceof DOMException) || error.name !== 'AbortError') setStatus('No se pudo exportar') }
+  }
   const exportSheet = () => {
     const width = document.width * document.frames.length
     if (width > 16_384 || width * document.height > 67_108_864) { setStatus('Sprite sheet excede límite seguro del navegador'); return }
     const canvas = window.document.createElement('canvas'); canvas.width = width; canvas.height = document.height; const context = canvas.getContext('2d'); if (!context) return
     document.frames.forEach((frame, index) => context.putImageData(new ImageData(new Uint8ClampedArray(composeSpriteFrame(document, frame.id)), document.width, document.height), index * document.width, 0))
-    downloadCanvas(canvas, `${document.name.replace(/[^a-z0-9_-]+/gi, '-')}-sheet.png`); setStatus('Sprite sheet exportado')
+    canvas.toBlob((blob) => { if (blob) void saveBlob(blob, `${document.name.replace(/[^a-z0-9_-]+/gi, '-')}-sheet.png`).then(() => setStatus('Sprite sheet exportado')) }, 'image/png')
   }
+  const startHold = (group: 'shape' | 'selection', event: ReactPointerEvent) => { if (event.button === 0) holdTimerRef.current = window.setTimeout(() => setFlyout(group), 450) }
+  const stopHold = () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); holdTimerRef.current = undefined }
   const shapeTool = shapes.find(([id]) => id === tool) ?? shapes[0]!
   const selectionTool = selections.find(([id]) => id === selectionMode)!
   const ShapeIcon = shapeTool[2]; const SelectionIcon = selectionTool[2]
@@ -225,10 +245,11 @@ export function PixelArtEditor() {
   const selectionPath = selectionMask ? selectionOutlinePath(selectionMask) : ''
   const selectionStyle = { left: viewportRef.current.offsetX, top: viewportRef.current.offsetY, width: document.width * viewportRef.current.zoom, height: document.height * viewportRef.current.zoom }
   const palette = useMemo(() => [...new Set([color, ...usedPalette(document)])].slice(0, 32), [color, document])
+  const maximumScale = Math.max(1, Math.min(32, Math.floor(16_384 / document.width), Math.floor(16_384 / document.height), Math.floor(Math.sqrt(67_108_864 / (document.width * document.height)))))
   const menus: Record<string, readonly [string, () => void, boolean?][]> = {
-    Archivo: [['Nuevo…', () => setNewDialog(true)], ['Abrir…', () => fileRef.current?.click()], ['Guardar proyecto', saveProject], ['Exportar PNG', exportPng], ['PNG sin transparencia', () => void exportFrame(document, 'image/png', true)], ['Exportar JPG', () => void exportFrame(document, 'image/jpeg', true)], ['Exportar WebP', () => void exportFrame(document, 'image/webp')], ['Exportar GIF animado', () => exportGif(document)]],
+    Archivo: [['Nuevo…', () => setNewDialog(true)], ['Abrir…', () => void openFile()], ['Guardar proyecto', () => void saveProject()], ['Exportar PNG…', () => beginExport('png')], ['Exportar JPG…', () => beginExport('jpeg')], ['Exportar WebP…', () => beginExport('webp')], ['Exportar GIF animado…', () => beginExport('gif')]],
     Editar: [['Deshacer', undo], ['Rehacer', redo]],
-    Imagen: [['Centrar y ajustar', fitCanvas], ['Exportar PNG', exportPng], ['Exportar GIF animado', () => exportGif(document)]],
+    Imagen: [['Centrar y ajustar', fitCanvas], ['Exportar…', () => beginExport('png')]],
     Capa: [['Nueva capa', addLayer], ['Eliminar capa', removeLayer]],
     Seleccionar: [['Seleccionar todo', () => selectMask(rectangleMask({ x: 0, y: 0 }, { x: document.width - 1, y: document.height - 1 }, document.width, document.height))], ['Invertir selección', () => selectionMaskRef.current && selectMask(invertSelection(selectionMaskRef.current))], ['Deseleccionar', () => selectMask()]],
     Filtro: [['Próximamente', () => undefined, true]], Vista: [['Centrar lienzo', fitCanvas], ['Onion skin', () => setOnion((value) => !value)]], Ventana: [['Restablecer espacio', fitCanvas]], Otro: [['Mosaico Pixel Art', () => setStatus('Editor compartido Web + Desktop')]],
@@ -248,15 +269,16 @@ export function PixelArtEditor() {
     <section className="pixel-body">
       <aside className="pixel-tool-rail" aria-label="Herramientas">
         {plainTools.slice(0, 3).map(([id, label, Icon]) => <button key={id} aria-label={label} title={`${label} (${Object.entries(hotkeys).find(([, value]) => value === id)?.[0]?.toUpperCase()})`} className={tool === id ? 'active' : ''} onClick={() => { setTool(id); setFlyout(undefined) }}><Icon /></button>)}
-        <div className="tool-group"><button aria-label={shapeTool[1]} title={`${shapeTool[1]} · clic derecho: formas`} className={shapes.some(([id]) => id === tool) ? 'active' : ''} onClick={() => setTool(shapeTool[0])} onContextMenu={(event) => { event.preventDefault(); setFlyout(flyout === 'shape' ? undefined : 'shape') }}><ShapeIcon /></button>{flyout === 'shape' && <div className="tool-flyout">{shapes.map(([id, label, Icon]) => <button key={id} aria-label={label} className={tool === id ? 'active' : ''} onClick={() => { setTool(id); setFlyout(undefined) }}><Icon /></button>)}</div>}</div>
-        <div className="tool-group"><button aria-label={selectionTool[1]} title={`${selectionTool[1]} · clic derecho: selecciones`} className={tool === 'select' ? 'active' : ''} onClick={() => setTool('select')} onContextMenu={(event) => { event.preventDefault(); setFlyout(flyout === 'selection' ? undefined : 'selection') }}><SelectionIcon /></button>{flyout === 'selection' && <div className="tool-flyout">{selections.map(([id, label, Icon]) => <button key={id} aria-label={label} className={selectionMode === id ? 'active' : ''} onClick={() => { setSelectionMode(id); setTool('select'); setFlyout(undefined) }}><Icon /></button>)}</div>}</div>
+        <div className="tool-group has-flyout"><button aria-label={shapeTool[1]} title={`${shapeTool[1]} · mantener o clic derecho: formas`} className={shapes.some(([id]) => id === tool) ? 'active' : ''} onPointerDown={(event) => startHold('shape', event)} onPointerUp={stopHold} onPointerLeave={stopHold} onClick={() => setTool(shapeTool[0])} onContextMenu={(event) => { event.preventDefault(); setFlyout(flyout === 'shape' ? undefined : 'shape') }}><ShapeIcon /></button>{flyout === 'shape' && <div className="tool-flyout">{shapes.map(([id, label, Icon]) => <button key={id} aria-label={label} className={tool === id ? 'active' : ''} onClick={() => { setTool(id); setFlyout(undefined) }}><Icon /></button>)}</div>}</div>
+        <div className="tool-group has-flyout"><button aria-label={selectionTool[1]} title={`${selectionTool[1]} · mantener o clic derecho: selecciones`} className={tool === 'select' ? 'active' : ''} onPointerDown={(event) => startHold('selection', event)} onPointerUp={stopHold} onPointerLeave={stopHold} onClick={() => setTool('select')} onContextMenu={(event) => { event.preventDefault(); setFlyout(flyout === 'selection' ? undefined : 'selection') }}><SelectionIcon /></button>{flyout === 'selection' && <div className="tool-flyout">{selections.map(([id, label, Icon]) => <button key={id} aria-label={label} className={selectionMode === id ? 'active' : ''} onClick={() => { setSelectionMode(id); setTool('select'); setFlyout(undefined) }}><Icon /></button>)}</div>}</div>
         {plainTools.slice(3).map(([id, label, Icon]) => <button key={id} aria-label={label} title={`${label} (${Object.entries(hotkeys).find(([, value]) => value === id)?.[0]?.toUpperCase()})`} className={tool === id ? 'active' : ''} onClick={() => { setTool(id); setFlyout(undefined) }}><Icon /></button>)}
       </aside>
       <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />{selectionPath && <svg className="selection-mask-overlay" style={selectionStyle} viewBox={`0 0 ${document.width} ${document.height}`} preserveAspectRatio="none"><path d={selectionPath} /></svg>}{contextMenu && <div className="selection-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu"><button role="menuitem" onClick={() => { if (selectionMaskRef.current) selectMask(invertSelection(selectionMaskRef.current)); setContextMenu(undefined) }}>Invertir selección</button><button role="menuitem" onClick={() => { selectMask(); setContextMenu(undefined) }}>Deseleccionar</button></div>}</div>
-      <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar PNG" title="Exportar PNG" onClick={exportPng}><Download /></button></div><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Colores usados</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}</div></section><section className="layer-panel"><div className="panel-title"><div><p className="eyebrow">Inspector</p><h2>Capas <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button aria-label="Añadir capa" title="Añadir capa" onClick={addLayer}><Plus /></button><button aria-label="Eliminar capa" title="Eliminar capa" onClick={removeLayer}><Trash2 /></button></div></div><div className="layer-list">{[...document.layers].reverse().map((layer) => <div key={layer.id} className={`layer-row ${layer.id === document.activeLayerId ? 'selected' : ''}`}><button className="layer-select" onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><span className="layer-thumb"><Grid3X3 /></span><strong>{layer.name}</strong></button><button aria-label={`${layer.visible ? 'Ocultar' : 'Mostrar'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button aria-label={`${layer.locked ? 'Desbloquear' : 'Bloquear'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></section></aside>
+      <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar imagen" title="Exportar imagen" onClick={() => beginExport('png')}><Download /></button></div><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Colores usados</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}</div></section><section className="layer-panel"><div className="panel-title"><div><p className="eyebrow">Inspector</p><h2>Capas <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button aria-label="Añadir capa" title="Añadir capa" onClick={addLayer}><Plus /></button><button aria-label="Eliminar capa" title="Eliminar capa" onClick={removeLayer}><Trash2 /></button></div></div><div className="layer-list">{[...document.layers].reverse().map((layer) => <div key={layer.id} className={`layer-row ${layer.id === document.activeLayerId ? 'selected' : ''}`}><button className="layer-select" onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><span className="layer-thumb"><Grid3X3 /></span><strong>{layer.name}</strong></button><button aria-label={`${layer.visible ? 'Ocultar' : 'Mostrar'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button aria-label={`${layer.locked ? 'Desbloquear' : 'Bloquear'} ${layer.name}`} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></section></aside>
     </section>
     <section className="pixel-timeline"><div className="timeline-controls"><strong>Timeline</strong><button aria-label={playing ? 'Pausar animación' : 'Reproducir animación'} title={playing ? 'Pausar' : 'Reproducir'} onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button aria-label="Añadir frame" title="Añadir frame" onClick={() => addFrame(false)}><Plus /></button><button aria-label="Duplicar frame" title="Duplicar frame" onClick={() => addFrame(true)}><Copy /></button><button aria-label="Eliminar frame" title="Eliminar frame" onClick={removeFrame}><Trash2 /></button><button aria-label="Onion skin" title="Onion skin" className={onion ? 'active' : ''} onClick={() => setOnion(!onion)}><Eye /></button><button aria-label="Exportar sprite sheet" title="Exportar sprite sheet" onClick={exportSheet}><Download /></button><label>Duración <input aria-label="Duración del frame" type="number" min="10" max="60000" step="10" value={activeFrame.durationMs} onChange={(event) => { const durationMs = Number(event.target.value); if (Number.isInteger(durationMs) && durationMs >= 10 && durationMs <= 60_000) commit(updateSpriteFrame(documentRef.current, document.activeFrameId, { durationMs })) }} /> ms</label></div><div className="timeline-frames">{document.frames.map((frame, index) => <button key={frame.id} className={document.activeFrameId === frame.id ? 'active' : ''} aria-label={`Seleccionar frame ${index + 1}`} onClick={() => chooseFrame(frame.id)}><span>{index + 1}</span><small>{frame.durationMs} ms</small></button>)}</div></section>
     <footer className="authoring-help"><span>{status}</span><span>0: ajustar · P/E/G/L/R/O/M/H: herramientas · PageUp/Down: frames</span></footer>
+    {exportDialog && <div className="pixel-modal" role="dialog" aria-modal="true" aria-label="Opciones de exportación"><div className="export-dialog"><header><h2>Exportar imagen</h2><button aria-label="Cerrar" onClick={() => setExportDialog(false)}><X /></button></header><div className="export-fields"><label>Nombre<input value={exportOptions.name} onChange={(event) => setExportOptions({ ...exportOptions, name: event.target.value })} /></label><label>Formato<select value={exportOptions.format} onChange={(event) => { const format = event.target.value as ExportFormat; setExportOptions({ ...exportOptions, format, transparent: format !== 'jpeg' && exportOptions.transparent }) }}><option value="png">PNG</option><option value="jpeg">JPG</option><option value="webp">WebP</option><option value="gif">GIF animado</option></select></label><label>Escala entera<input type="number" min="1" max={maximumScale} step="1" value={exportOptions.scale} onChange={(event) => setExportOptions({ ...exportOptions, scale: Number(event.target.value) })} /></label><output>{document.width * exportOptions.scale} × {document.height * exportOptions.scale} px</output></div><label className="export-check"><input type="checkbox" disabled={exportOptions.format === 'jpeg'} checked={exportOptions.transparent && exportOptions.format !== 'jpeg'} onChange={(event) => setExportOptions({ ...exportOptions, transparent: event.target.checked })} /> Conservar transparencia</label>{(exportOptions.format === 'jpeg' || exportOptions.format === 'webp') && <label className="export-quality">Calidad {exportOptions.quality}%<input type="range" min="1" max="100" value={exportOptions.quality} onChange={(event) => setExportOptions({ ...exportOptions, quality: Number(event.target.value) })} /></label>}<button className="panel-action" disabled={!exportOptions.name.trim() || !Number.isInteger(exportOptions.scale) || exportOptions.scale < 1 || exportOptions.scale > maximumScale} onClick={() => void confirmExport()}>Elegir ubicación y exportar</button></div></div>}
     {newDialog && <div className="pixel-modal" role="dialog" aria-modal="true" aria-label="Nuevo lienzo"><div><header><h2>Nuevo lienzo</h2><button aria-label="Cerrar" onClick={() => setNewDialog(false)}><X /></button></header><div className="size-fields"><label>Ancho<input type="number" min="1" max="4096" value={size.width} onChange={(event) => setSize({ ...size, width: Number(event.target.value) })} /></label><label>Alto<input type="number" min="1" max="4096" value={size.height} onChange={(event) => setSize({ ...size, height: Number(event.target.value) })} /></label></div><button className="panel-action" onClick={newCanvas}>Crear</button></div></div>}
   </main>
 }

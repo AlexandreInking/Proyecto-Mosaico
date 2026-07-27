@@ -6,7 +6,7 @@ describe('PixelArtEditor', () => {
   it('exposes visible authoring tools, document controls and layers', () => {
     const html = renderToStaticMarkup(<PixelArtEditor />)
 
-    for (const label of ['Lápiz', 'Borrador', 'Relleno', 'Línea', 'Selección rectangular', 'Mano', 'Deshacer', 'Rehacer', 'Exportar PNG']) {
+    for (const label of ['Lápiz', 'Borrador', 'Relleno', 'Línea', 'Selección rectangular', 'Mano', 'Deshacer', 'Rehacer', 'Exportar imagen']) {
       expect(html).toContain(`aria-label="${label}"`)
     }
     expect(html).not.toContain('aria-label="Rectángulo"')
@@ -23,6 +23,7 @@ describe('PixelArtEditor', () => {
       expect(html).toContain(`aria-label="${label}"`)
     }
     expect(html).toContain('pixel-tool-rail')
+    expect(html).toContain('has-flyout')
     expect(html).toContain('0: ajustar')
     expect(html).toContain('lucide')
     expect(html).not.toMatch(/[✎⌫▨✋🔒◇◉○＋−]/u)

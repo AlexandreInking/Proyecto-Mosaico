@@ -9,9 +9,9 @@ describe('pixel editor model', () => {
     let document = createSpriteDocument({ ...ids, name: 'Sprite', width: 2, height: 1 })
     document = addSpriteLayer(document, { id: 'layer-2', name: 'Oculta' })
     document = setPixel(document, 'layer-2', 'frame-1', { x: 0, y: 0 }, { r: 255, g: 0, b: 0, a: 255 })
-    document = updateSpriteLayer(document, 'layer-2', { visible: false })
     document = addSpriteFrame(document, { id: 'frame-2' })
     document = setPixel(document, 'layer-2', 'frame-2', { x: 1, y: 0 }, { r: 0, g: 0, b: 255, a: 255 })
+    document = updateSpriteLayer(document, 'layer-2', { visible: false })
     expect(usedPalette(document)).toEqual(['#ff0000', '#0000ff'])
   })
 

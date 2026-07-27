@@ -67,6 +67,10 @@ describe('pixel sprite domain', () => {
 
     const locked = { ...document, layers: document.layers.map((layer) => ({ ...layer, locked: true })) }
     expect(() => setPixel(locked, layerId, frameId, { x: 0, y: 0 }, red)).toThrow('SPRITE_LAYER_LOCKED')
+
+    const hidden = updateSpriteLayer(document, layerId, { visible: false })
+    expect(() => setPixel(hidden, layerId, frameId, { x: 0, y: 0 }, red)).toThrow('SPRITE_LAYER_HIDDEN')
+    expect(() => fillPixels(hidden, layerId, frameId, { x: 0, y: 0 }, red)).toThrow('SPRITE_LAYER_HIDDEN')
   })
 
   it('flood fills one contiguous RGBA region', () => {
