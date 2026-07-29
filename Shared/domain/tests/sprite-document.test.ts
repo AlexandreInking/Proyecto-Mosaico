@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   addSpriteLayer,
+  addSpriteFolder,
   addSpriteFrame,
   createSpriteDocument,
   erasePixel,
   fillPixels,
   getPixel,
   removeSpriteLayer,
+  reorderSpriteLayer,
   removeSpriteFrame,
   flipSpriteRegion,
   moveSpritePixels,
@@ -16,6 +18,7 @@ import {
   updateSpriteFrame,
   updateSpriteLayer,
   setPixel,
+  setSpriteLayerParent,
   setPixels,
   spriteSemanticFingerprint,
   type RgbaColor,
@@ -101,6 +104,26 @@ describe('pixel sprite domain', () => {
 
     expect(updated.activeLayerId).toBe(layerId)
     expect(updated.layers[0]).toMatchObject({ name: 'Fondo', visible: false, locked: true, opacity: 0.5 })
+  })
+
+  it('creates folders and reparents layers without allowing cycles', () => {
+    const folderId = '00000000-0000-4000-8000-000000000016'
+    const childId = '00000000-0000-4000-8000-000000000017'
+    const withFolder = addSpriteFolder(createDocument(), { id: folderId, name: 'FX' })
+    const withChild = addSpriteLayer(withFolder, { id: childId, name: 'Brillo', parentId: folderId })
+    expect(withChild.layers.find((layer) => layer.id === folderId)).toMatchObject({ isFolder: true, collapsed: false })
+    expect(withChild.layers.find((layer) => layer.id === childId)?.parentId).toBe(folderId)
+    expect(() => setSpriteLayerParent(withChild, folderId, folderId)).toThrow('SPRITE_LAYER_PARENT_INVALID')
+    expect(() => setSpriteLayerParent(withChild, folderId, childId)).toThrow('SPRITE_LAYER_PARENT_INVALID')
+  })
+
+  it('reorders layers without mutating the previous document', () => {
+    const secondId = '00000000-0000-4000-8000-000000000018'
+    const thirdId = '00000000-0000-4000-8000-000000000019'
+    const source = addSpriteLayer(addSpriteLayer(createDocument(), { id: secondId, name: 'Medio' }), { id: thirdId, name: 'Arriba' })
+    const moved = reorderSpriteLayer(source, layerId, 2)
+    expect(source.layers.map((layer) => layer.id)).toEqual([layerId, secondId, thirdId])
+    expect(moved.layers.map((layer) => layer.id)).toEqual([secondId, thirdId, layerId])
   })
 
   it('produces a deterministic semantic fingerprint for equal pixels', () => {

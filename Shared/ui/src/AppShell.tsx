@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import { ImageOff, ImagePlus } from 'lucide-react'
 import { UI_CONTRACT_VERSION, type Diagnostic, type Recipe } from '@mosaico/contracts'
 import {
@@ -33,6 +33,23 @@ const modules = ['Pixel Art', 'Assets', 'Pipelines', 'Mapas', 'Mundo', 'Jobs', '
 const activeModules = new Set(['Assets', 'Mapas', 'Pixel Art'])
 const AuthoringCanvas = lazy(async () => ({ default: (await import('./AuthoringCanvas.js')).AuthoringCanvas }))
 const recipeStorageKey = 'mosaico-t1-recipe'
+
+class AuthoringErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Authoring Core fallo al renderizar', error, info.componentStack)
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+    return <main className="authoring-error" role="alert"><h2>No se pudo cargar el editor</h2><p>{this.state.error.message || 'Error inesperado en Authoring Core.'}</p><button className="primary" type="button" onClick={() => this.setState({ error: null })}>Reintentar</button></main>
+  }
+}
 
 function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`
@@ -95,6 +112,12 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
   }, [width, height, mediaType, quality])
 
   useEffect(() => queueRef.current?.subscribe(setJobs), [])
+  useEffect(() => {
+    const assetTransfer = (event: Event) => { const file = (event as CustomEvent<{ file?: File }>).detail?.file; if (file) void addFiles([file]) }
+    const mapTransfer = (event: Event) => { setActiveModule('Mapas'); window.setTimeout(() => window.dispatchEvent(new CustomEvent('mosaico:map-import-ready', { detail: (event as CustomEvent).detail })), 0) }
+    window.addEventListener('mosaico:asset-import', assetTransfer); window.addEventListener('mosaico:map-import', mapTransfer)
+    return () => { window.removeEventListener('mosaico:asset-import', assetTransfer); window.removeEventListener('mosaico:map-import', mapTransfer) }
+  }, [])
 
   async function addFiles(files: readonly File[]): Promise<void> {
     for (const file of files) {
@@ -150,7 +173,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
   }
 
   return (
-    <div className="app-shell" data-ui-contract={UI_CONTRACT_VERSION}>
+    <div className="app-shell" data-ui-contract={UI_CONTRACT_VERSION} onContextMenu={(event) => event.preventDefault()}>
       <header className="titlebar">
         <div className="brand-mark" aria-hidden="true">M</div>
         <div><p className="eyebrow">Mosaico</p><h1>Asset Pipeline AI</h1></div>
@@ -198,7 +221,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
           {selected && <dl><div><dt>Tipo</dt><dd>{selected.record.mediaType}</dd></div><div><dt>Tamaño</dt><dd>{formatBytes(selected.record.byteSize)}</dd></div><div><dt>Hash original</dt><dd title={selected.record.sha256}>{selected.record.sha256.slice(0, 16)}…</dd></div></dl>}
           <div className="notice"><strong>Original protegido</strong><p>Resize y conversión crean salida derivada. El hash fuente y receta quedan en manifiesto JSON.</p></div>
         </aside>
-      </main> : <Suspense fallback={<main className="authoring-loading">Cargando Authoring Core…</main>}><AuthoringCanvas mode={activeModule as AuthoringMode} /></Suspense>}
+      </main> : <AuthoringErrorBoundary><Suspense fallback={<main className="authoring-loading">Cargando Authoring Core…</main>}><AuthoringCanvas mode={activeModule as AuthoringMode} /></Suspense></AuthoringErrorBoundary>}
 
       <footer className="statusbar"><span>Persistencia local activa</span><span>{assets.length} assets · {jobs.length} jobs · {diagnostics.filter((item) => item.severity === 'error').length} errores agrupados</span></footer>
     </div>

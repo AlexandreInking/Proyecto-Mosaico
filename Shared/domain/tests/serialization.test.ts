@@ -21,7 +21,7 @@ import {
 const fixturePath = fileURLToPath(new URL('../../../fixtures/t2/map-v1-wpf-project.json', import.meta.url))
 
 describe('authoring serialization', () => {
-  it('writes deterministic map v2 and preserves its semantic fingerprint', () => {
+  it('writes deterministic map v3 and preserves its semantic fingerprint', () => {
     const tileset = {
       id: '11111111-1111-4111-8111-111111111111', name: 'Tiles', assetId: 'asset',
       imageWidth: 16, imageHeight: 16, tileWidth: 16, tileHeight: 16,
@@ -52,12 +52,26 @@ describe('authoring serialization', () => {
       .toEqual({ r: 7, g: 8, b: 9, a: 255 })
   })
 
+  it('round-trips tileset source byte size metadata', () => {
+    const tileset = {
+      id: '11111111-1111-4111-8111-111111111111', name: 'Tiles', assetId: 'asset',
+      imageWidth: 16, imageHeight: 16, tileWidth: 16, tileHeight: 16,
+      marginX: 0, marginY: 0, spacingX: 0, spacingY: 0, tileCount: 1, byteSize: 1234,
+    }
+    const document = createMapDocument({
+      id: '22222222-2222-4222-8222-222222222222', name: 'Mapa', width: 1, height: 1,
+      cellWidth: 16, cellHeight: 16, layerId: '33333333-3333-4333-8333-333333333333', tilesets: [tileset],
+    })
+    expect(deserializeMapDocument(serializeMapDocument(document)).tilesets[0]?.byteSize).toBe(1234)
+  })
+
   it('migrates WPF v1 IDs, layer order, known tiles and orphan references', () => {
     const legacyText = readFileSync(fixturePath, 'utf8')
     const migrated = migrateLegacyMapManifest(legacyText)
 
-    expect(migrated.formatVersion).toBe(2)
+    expect(migrated.formatVersion).toBe(3)
     expect(migrated.id).toBe('77777777-7777-4777-8777-777777777777')
+    expect(migrated.tilesets[0]?.assetId).toBe('99999999-9999-4999-8999-999999999999')
     expect(getTile(migrated, migrated.activeLayerId, { x: 0, y: 0 })?.tileId).toBe(1)
     expect(getTile(migrated, migrated.activeLayerId, { x: 2, y: 1 }))
       .toEqual({ tilesetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tileId: 7 })
@@ -84,5 +98,16 @@ describe('authoring serialization', () => {
     })],
   ])('rejects corrupt input: %s', (_name, input) => {
     expect(() => deserializeMapDocument(input)).toThrow('AUTHORING_FORMAT_INVALID')
+  })
+
+  it('rejects persisted quarter-turns for rectangular tiles', () => {
+    const input = {
+      format: 'mosaico-map', formatVersion: 3, id: '22222222-2222-4222-8222-222222222222', revision: 0,
+      name: 'Bad rotation', orientation: 'orthogonal', width: 1, height: 1, cellWidth: 16, cellHeight: 16,
+      background: { kind: 'transparent' }, grid: { visible: true, color: '#41505899' }, activeLayerId: '33333333-3333-4333-8333-333333333333',
+      tilesets: [{ id: '11111111-1111-4111-8111-111111111111', name: 'Rect', assetId: 'asset', imageWidth: 24, imageHeight: 16, tileWidth: 24, tileHeight: 16, marginX: 0, marginY: 0, spacingX: 0, spacingY: 0, tileCount: 1 }],
+      autotileSets: [], layers: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Layer', kind: 'tile', visible: true, locked: false, opacity: 1, cells: [{ x: 0, y: 0, tilesetId: '11111111-1111-4111-8111-111111111111', tileId: 0, rotation: 90 }] }],
+    }
+    expect(() => deserializeMapDocument(JSON.stringify(input))).toThrow('AUTHORING_FORMAT_INVALID')
   })
 })

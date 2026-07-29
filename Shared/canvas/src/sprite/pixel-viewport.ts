@@ -90,7 +90,7 @@ export function composeSpriteFrame(document: SpriteDocument, frameId: string): U
   if (!document.frames.some((frame) => frame.id === frameId)) throw new Error('SPRITE_FRAME_NOT_FOUND')
   const output = new Uint8ClampedArray(document.width * document.height * 4)
   for (const layer of document.layers) {
-    if (!layer.visible || layer.opacity <= 0) continue
+    if (layer.isFolder || !layer.visible || layer.opacity <= 0) continue
     const cel = layer.cels.get(frameId)
     if (!cel) continue
     const source = cel.pixels.toUint8Array()

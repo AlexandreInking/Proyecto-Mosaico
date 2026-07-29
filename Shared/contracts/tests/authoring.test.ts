@@ -3,7 +3,7 @@ import { mapDocumentSchema, spriteDocumentSchema } from '../src/index.js'
 
 const mapFixture = {
   format: 'mosaico-map',
-  formatVersion: 2,
+  formatVersion: 3,
   id: '00000000-0000-4000-8000-000000000001',
   revision: 0,
   name: 'Mapa de prueba',
@@ -12,6 +12,8 @@ const mapFixture = {
   height: 18,
   cellWidth: 16,
   cellHeight: 16,
+  background: { kind: 'transparent' },
+  grid: { visible: true, color: '#41505899' },
   activeLayerId: '00000000-0000-4000-8000-000000000002',
   tilesets: [{
     id: '00000000-0000-4000-8000-000000000003',
@@ -27,6 +29,7 @@ const mapFixture = {
     spacingY: 0,
     tileCount: 16,
   }],
+  autotileSets: [],
   layers: [{
     id: '00000000-0000-4000-8000-000000000002',
     name: 'Suelo',
@@ -66,6 +69,11 @@ describe('T2 authoring contracts', () => {
   it('accepts minimal versioned map and sprite documents', () => {
     expect(mapDocumentSchema.parse(mapFixture)).toBeTruthy()
     expect(spriteDocumentSchema.parse(spriteFixture)).toBeTruthy()
+  })
+
+  it('rejects tileset counts that include partial or offset-overflow tiles', () => {
+    const invalid = { ...mapFixture, tilesets: [{ ...mapFixture.tilesets[0], offsetX: 49, tileCount: 1 }] }
+    expect(mapDocumentSchema.safeParse(invalid).success).toBe(false)
   })
 
   it('rejects duplicate stable identifiers', () => {

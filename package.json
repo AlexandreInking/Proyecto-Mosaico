@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "pnpm -r --if-present build",
+    "build:demo": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-demo.ps1",
     "dev:web": "pnpm --filter @mosaico/web-client dev",
     "dev:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-desktop-dev.ps1",
     "dev:api": "pnpm --filter @mosaico/web-server dev",

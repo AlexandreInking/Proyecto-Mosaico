@@ -4,9 +4,9 @@
   "version": "0.2.0",
   "identifier": "com.proyectomosaico.desktop",
   "build": {
-    "beforeDevCommand": "pnpm --dir ../app dev",
+    "beforeDevCommand": "cmd /c ..\\..\\scripts\\desktop-pnpm.cmd dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm --dir ../app build",
+    "beforeBuildCommand": "cmd /c ..\\..\\scripts\\desktop-pnpm.cmd build",
     "frontendDist": "../app/dist"
   },
   "app": {
@@ -26,6 +26,36 @@
     }
   },
   "bundle": {
-    "active": false
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "publisher": "Proyecto Mosaico",
+    "homepage": "https://github.com/AlexandreInking/Proyecto-Mosaico",
+    "copyright": "Copyright © Proyecto Mosaico",
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCNDhDMzU2NTE0OEYxRUUKUldUdThVaFJWc05JYTZ2MFlLQUkvQ1NsMWl6QVdCZ1RFOVBDSU15VUozcXVTYTJuTGllVGJXOVYK",
+      "endpoints": [
+        "https://github.com/AlexandreInking/Proyecto-Mosaico/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

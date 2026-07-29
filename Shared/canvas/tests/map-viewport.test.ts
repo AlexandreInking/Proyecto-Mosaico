@@ -60,4 +60,20 @@ describe('orthogonal viewport', () => {
     expect(visible).toHaveLength(1)
     expect(visible[0]).toMatchObject({ x: 1, y: 1, layerId: document.activeLayerId })
   })
+
+  it('renders mixed-size tiles at native size anchored to the cell bottom-left', () => {
+    const tileset = {
+      id: '11111111-1111-4111-8111-111111111111', name: 'Tall tiles', assetId: 'asset',
+      imageWidth: 24, imageHeight: 32, tileWidth: 24, tileHeight: 32,
+      marginX: 0, marginY: 0, spacingX: 0, spacingY: 0, tileCount: 1,
+    }
+    let document = createMapDocument({
+      id: '22222222-2222-4222-8222-222222222222', name: 'Map', width: 4, height: 4,
+      cellWidth: 16, cellHeight: 16, layerId: '33333333-3333-4333-8333-333333333333', tilesets: [tileset],
+    })
+    document = setTile(document, document.activeLayerId, { x: 1, y: 1 }, { tilesetId: tileset.id, tileId: 0 })
+
+    expect(visibleMapCells(document, createViewport({ width: 100, height: 100, zoom: 2 }))[0])
+      .toMatchObject({ screenX: 32, screenY: 0, screenWidth: 48, screenHeight: 64 })
+  })
 })

@@ -16,6 +16,7 @@
     "@mosaico/contracts": "workspace:*",
     "@mosaico/domain": "workspace:*",
     "@mosaico/pipeline": "workspace:*",
+    "fflate": "0.8.2",
     "gifenc": "^1.0.3",
     "lucide-react": "^1.25.0",
     "pixi.js": "8.19.0"

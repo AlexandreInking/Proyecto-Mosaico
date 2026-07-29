@@ -75,8 +75,9 @@ export function visibleMapCells(document: MapDocument, viewport: ViewportState):
   const range = visibleCellRange(viewport, document)
   if (range.startX >= range.endX || range.startY >= range.endY) return []
   const result: VisibleMapCell[] = []
+  const tilesets = new Map(document.tilesets.map((tileset) => [tileset.id, tileset]))
   for (const layer of document.layers) {
-    if (!layer.visible || layer.opacity <= 0) continue
+    if (layer.isFolder || !layer.visible || layer.opacity <= 0) continue
     const index = spatialIndex(layer.cells)
     const startChunkX = Math.floor(range.startX / SPATIAL_CHUNK_SIZE)
     const startChunkY = Math.floor(range.startY / SPATIAL_CHUNK_SIZE)
@@ -86,7 +87,13 @@ export function visibleMapCells(document: MapDocument, viewport: ViewportState):
       for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX += 1) {
         for (const cell of index.get(`${chunkX},${chunkY}`) ?? []) {
           if (cell.x < range.startX || cell.x >= range.endX || cell.y < range.startY || cell.y >= range.endY) continue
-          const screen = worldToScreen(viewport, { x: cell.x * document.cellWidth, y: cell.y * document.cellHeight })
+          const tileset = tilesets.get(cell.tile.tilesetId)
+          const tileWidth = tileset?.tileWidth ?? document.cellWidth
+          const tileHeight = tileset?.tileHeight ?? document.cellHeight
+          const screen = worldToScreen(viewport, {
+            x: cell.x * document.cellWidth,
+            y: (cell.y + 1) * document.cellHeight - tileHeight,
+          })
           result.push({
             layerId: layer.id,
             opacity: layer.opacity,
@@ -95,8 +102,8 @@ export function visibleMapCells(document: MapDocument, viewport: ViewportState):
             ...cell.tile,
             screenX: screen.x,
             screenY: screen.y,
-            screenWidth: document.cellWidth * viewport.zoom,
-            screenHeight: document.cellHeight * viewport.zoom,
+            screenWidth: tileWidth * viewport.zoom,
+            screenHeight: tileHeight * viewport.zoom,
           })
         }
       }

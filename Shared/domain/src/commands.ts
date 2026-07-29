@@ -1,5 +1,6 @@
 import {
   addMapLayer,
+  applyMapCells,
   eraseTile,
   fillTiles,
   mapSemanticFingerprint,
@@ -271,7 +272,7 @@ const pixelStrokeSchema: ParameterSchema<PixelStrokeParams> = { parse(input) {
 export function createMapCommandRegistry(): CommandRegistry<MapDocument> {
   return new CommandRegistry(mapSemanticFingerprint)
     .register({ id: 'map.tile.stroke', version: 1, label: 'Trazo de tiles', capabilities: ['map.write'], paramsSchema: mapStrokeSchema,
-      execute: (document, params) => params.cells.reduce((current, cell) => setTile(current, params.layerId, cell, { tilesetId: cell.tilesetId, tileId: cell.tileId }), document) })
+      execute: (document, params) => applyMapCells(document, params.layerId, params.cells.map((cell) => ({ ...cell, tile: { tilesetId: cell.tilesetId, tileId: cell.tileId } }))) })
     .register({ id: 'map.tile.set', version: 1, label: 'Pintar tile', capabilities: ['map.write'], paramsSchema: tileSetSchema,
       execute: (document, params) => setTile(document, params.layerId, { x: params.x, y: params.y }, { tilesetId: params.tilesetId, tileId: params.tileId }) })
     .register({ id: 'map.tile.erase', version: 1, label: 'Borrar tile', capabilities: ['map.write'], paramsSchema: coordinateSchema,

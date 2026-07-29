@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addMapLayer,
+  addMapFolder,
   createMapDocument,
   eraseTile,
   fillTiles,
@@ -10,6 +11,7 @@ import {
   removeMapLayer,
   removeTileset,
   setTile,
+  setMapLayerParent,
   type MapDocument,
   type TileReference,
 } from '../src/index.js'
@@ -102,6 +104,17 @@ describe('orthogonal map domain', () => {
     expect(removed.layers).toHaveLength(1)
     expect(removed.activeLayerId).toBe('00000000-0000-4000-8000-000000000004')
     expect(() => removeMapLayer(removed, removed.activeLayerId)).toThrow('MAP_REQUIRES_LAYER')
+  })
+
+  it('creates folders and reparents layers without allowing cycles', () => {
+    const folderId = '00000000-0000-4000-8000-000000000005'
+    const childId = '00000000-0000-4000-8000-000000000006'
+    const withFolder = addMapFolder(createDocument(), { id: folderId, name: 'Decoración' })
+    const withChild = addMapLayer(withFolder, { id: childId, name: 'Objetos', parentId: folderId })
+    expect(withChild.layers.find((layer) => layer.id === folderId)).toMatchObject({ isFolder: true, collapsed: false })
+    expect(withChild.layers.find((layer) => layer.id === childId)?.parentId).toBe(folderId)
+    expect(() => setMapLayerParent(withChild, folderId, folderId)).toThrow('MAP_LAYER_PARENT_INVALID')
+    expect(() => setMapLayerParent(withChild, folderId, childId)).toThrow('MAP_LAYER_PARENT_INVALID')
   })
 
   it('produces same semantic fingerprint regardless of paint insertion order', () => {

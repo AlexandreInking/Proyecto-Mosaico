@@ -51,6 +51,9 @@ export interface SpriteLayer {
   readonly locked: boolean
   readonly opacity: number
   readonly cels: ReadonlyMap<string, SpriteCel>
+  readonly isFolder?: boolean
+  readonly parentId?: string
+  readonly collapsed?: boolean
 }
 
 export interface SpriteDocument {
@@ -110,6 +113,7 @@ function requireFrame(document: SpriteDocument, frameId: string): SpriteFrame {
 
 function requireEditableLayer(document: SpriteDocument, layerId: string): SpriteLayer {
   const layer = requireLayer(document, layerId)
+  if (layer.isFolder) throw new Error('SPRITE_LAYER_FOLDER')
   if (!layer.visible) throw new Error('SPRITE_LAYER_HIDDEN')
   if (layer.locked) throw new Error('SPRITE_LAYER_LOCKED')
   return layer
@@ -333,6 +337,7 @@ export function addSpriteFrame(document: SpriteDocument, input: { readonly id: s
   const source = input.duplicateFromFrameId ? requireFrame(document, input.duplicateFromFrameId) : undefined
   const byteLength = document.width * document.height * 4
   const layers = document.layers.map((layer) => {
+    if (layer.isFolder) return layer
     const cels = new Map(layer.cels)
     const sourcePixels = source ? requireCel(layer, source.id).pixels.mutableCopy() : byteLength
     cels.set(input.id, { frameId: input.id, pixels: new PixelBuffer(sourcePixels) })
@@ -361,11 +366,33 @@ export function updateSpriteFrame(document: SpriteDocument, frameId: string, pat
   return { ...document, revision: document.revision + 1, frames: document.frames.map((frame) => frame.id === frameId ? { ...frame, durationMs: patch.durationMs } : frame) }
 }
 
-export function addSpriteLayer(document: SpriteDocument, input: { readonly id: string; readonly name: string }): SpriteDocument {
+function validateSpriteParent(document: SpriteDocument, layerId: string, parentId?: string): void {
+  if (!parentId) return
+  if (parentId === layerId) throw new Error('SPRITE_LAYER_PARENT_INVALID')
+  const parent = document.layers.find((layer) => layer.id === parentId)
+  if (!parent?.isFolder) throw new Error('SPRITE_LAYER_PARENT_INVALID')
+  const seen = new Set<string>([layerId]); let current: string | undefined = parentId
+  while (current) {
+    if (seen.has(current)) throw new Error('SPRITE_LAYER_PARENT_INVALID')
+    seen.add(current); current = document.layers.find((layer) => layer.id === current)?.parentId
+  }
+}
+
+export function addSpriteFolder(document: SpriteDocument, input: { readonly id: string; readonly name: string; readonly parentId?: string }): SpriteDocument {
+  if (document.layers.length >= MAXIMUM_SPRITE_LAYERS) throw new RangeError('SPRITE_LAYER_LIMIT')
+  if (!input.id || !input.name.trim()) throw new Error('SPRITE_REQUIRED_FIELD')
+  if (document.layers.some((layer) => layer.id === input.id) || document.frames.some((frame) => frame.id === input.id)) throw new Error('SPRITE_DUPLICATE_ID')
+  validateSpriteParent(document, input.id, input.parentId)
+  const layer: SpriteLayer = { id: input.id, name: input.name.trim(), kind: 'raster', visible: true, locked: false, opacity: 1, cels: new Map(), isFolder: true, collapsed: false, parentId: input.parentId }
+  return { ...document, revision: document.revision + 1, layers: [...document.layers, layer] }
+}
+
+export function addSpriteLayer(document: SpriteDocument, input: { readonly id: string; readonly name: string; readonly parentId?: string }): SpriteDocument {
   if (document.layers.length >= MAXIMUM_SPRITE_LAYERS) throw new RangeError('SPRITE_LAYER_LIMIT')
   if (!input.id || !input.name.trim()) throw new Error('SPRITE_REQUIRED_FIELD')
   if (document.layers.some((layer) => layer.id === input.id)
     || document.frames.some((frame) => frame.id === input.id)) throw new Error('SPRITE_DUPLICATE_ID')
+  validateSpriteParent(document, input.id, input.parentId)
   const byteLength = document.width * document.height * 4
   const cels = new Map(document.frames.map((frame) => [frame.id, {
     frameId: frame.id,
@@ -379,14 +406,15 @@ export function addSpriteLayer(document: SpriteDocument, input: { readonly id: s
     locked: false,
     opacity: 1,
     cels,
+    parentId: input.parentId,
   }
   return { ...document, revision: document.revision + 1, activeLayerId: layer.id, layers: [...document.layers, layer] }
 }
 
 export function removeSpriteLayer(document: SpriteDocument, layerId: string): SpriteDocument {
-  requireLayer(document, layerId)
+  const target = requireLayer(document, layerId)
   if (document.layers.length === 1) throw new Error('SPRITE_REQUIRES_LAYER')
-  const layers = document.layers.filter((layer) => layer.id !== layerId)
+  const layers = document.layers.filter((layer) => layer.id !== layerId).map((layer) => layer.parentId === layerId ? { ...layer, parentId: target.parentId } : layer)
   return {
     ...document,
     revision: document.revision + 1,
@@ -403,15 +431,31 @@ export function selectSpriteLayer(document: SpriteDocument, layerId: string): Sp
 export function updateSpriteLayer(
   document: SpriteDocument,
   layerId: string,
-  patch: Partial<Pick<SpriteLayer, 'name' | 'visible' | 'locked' | 'opacity'>>,
+  patch: Partial<Pick<SpriteLayer, 'name' | 'visible' | 'locked' | 'opacity' | 'parentId' | 'collapsed'>>,
 ): SpriteDocument {
   const layer = requireLayer(document, layerId)
   const name = patch.name === undefined ? layer.name : patch.name.trim()
   const opacity = patch.opacity ?? layer.opacity
   if (!name) throw new Error('SPRITE_REQUIRED_FIELD')
   if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new RangeError('SPRITE_OPACITY_INVALID')
+  if ('parentId' in patch) validateSpriteParent(document, layerId, patch.parentId)
   const updated = { ...layer, ...patch, name, opacity }
   return { ...document, revision: document.revision + 1, layers: document.layers.map((item) => item.id === layerId ? updated : item) }
+}
+
+export function setSpriteLayerParent(document: SpriteDocument, layerId: string, parentId?: string): SpriteDocument {
+  return updateSpriteLayer(document, layerId, { parentId })
+}
+
+export function reorderSpriteLayer(document: SpriteDocument, layerId: string, targetIndex: number): SpriteDocument {
+  const index = document.layers.findIndex((layer) => layer.id === layerId)
+  if (index < 0) throw new Error('SPRITE_LAYER_NOT_FOUND')
+  if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= document.layers.length) throw new RangeError('SPRITE_LAYER_INDEX_INVALID')
+  if (index === targetIndex) return document
+  const layers = [...document.layers]
+  const [layer] = layers.splice(index, 1)
+  layers.splice(targetIndex, 0, layer!)
+  return { ...document, revision: document.revision + 1, layers }
 }
 
 function updateHash(hash: bigint, value: number): bigint {
@@ -429,7 +473,7 @@ export function spriteSemanticFingerprint(document: SpriteDocument): string {
     `${document.format}|${document.formatVersion}|${document.id}|${document.name}|${document.width}|${document.height}|${document.colorMode}|${document.activeLayerId}|${document.activeFrameId}`)
   for (const frame of document.frames) hash = updateHashText(hash, `F|${frame.id}|${frame.durationMs}`)
   for (const layer of document.layers) {
-    hash = updateHashText(hash, `L|${layer.id}|${layer.name}|${layer.visible}|${layer.locked}|${layer.opacity}`)
+    hash = updateHashText(hash, `L|${layer.id}|${layer.name}|${layer.visible}|${layer.locked}|${layer.opacity}|${layer.isFolder}|${layer.parentId ?? ''}|${layer.collapsed}`)
     for (const frame of document.frames) {
       const cel = layer.cels.get(frame.id)
       if (!cel) continue

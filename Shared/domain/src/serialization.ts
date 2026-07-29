@@ -1,9 +1,11 @@
 import {
   legacyMapManifestSchema,
   mapDocumentSchema,
+  mapDocumentV2Schema,
   spriteDocumentSchema,
   type LegacyMapManifestContract,
   type MapDocumentContract,
+  type MapDocumentV2Contract,
   type SpriteDocumentContract,
 } from '@mosaico/contracts'
 import type { MapDocument, MapLayer } from './map-document.js'
@@ -53,7 +55,10 @@ function decodeBase64(value: string): Uint8Array {
 function mapToContract(document: MapDocument): MapDocumentContract {
   return {
     ...document,
+    background: { ...document.background },
+    grid: { ...document.grid },
     tilesets: document.tilesets.map((tileset) => ({ ...tileset })),
+    autotileSets: document.autotileSets.map((set) => ({ ...set, terrain: { ...set.terrain }, contour: { ...set.contour } })),
     layers: document.layers.map((layer) => ({
       ...layer,
       cells: [...layer.cells.entries()].map(([key, tile]) => {
@@ -67,9 +72,16 @@ function mapToContract(document: MapDocument): MapDocumentContract {
 function mapFromContract(contract: MapDocumentContract): MapDocument {
   const layers: MapLayer[] = contract.layers.map((layer) => ({
     ...layer,
-    cells: new Map(layer.cells.map(({ x, y, tilesetId, tileId }) => [`${x},${y}`, { tilesetId, tileId }])),
+    cells: new Map(layer.cells.map(({ x, y, ...tile }) => [`${x},${y}`, tile])),
   }))
-  return { ...contract, tilesets: contract.tilesets.map((tileset) => ({ ...tileset })), layers }
+  return {
+    ...contract,
+    background: { ...contract.background },
+    grid: { ...contract.grid },
+    tilesets: contract.tilesets.map((tileset) => ({ ...tileset })),
+    autotileSets: contract.autotileSets.map((set) => ({ ...set, terrain: { ...set.terrain }, contour: { ...set.contour } })),
+    layers,
+  }
 }
 
 function spriteToContract(document: SpriteDocument): SpriteDocumentContract {
@@ -110,9 +122,21 @@ export function deserializeMapDocument(text: string): MapDocument {
   const input = parseJson(text)
   const parsed = mapDocumentSchema.safeParse(input)
   if (parsed.success) return mapFromContract(parsed.data)
+  const previous = mapDocumentV2Schema.safeParse(input)
+  if (previous.success) return migrateV2Contract(previous.data)
   const legacy = legacyMapManifestSchema.safeParse(input)
   if (legacy.success) return migrateLegacyContract(legacy.data)
   return invalidFormat()
+}
+
+function migrateV2Contract(previous: MapDocumentV2Contract): MapDocument {
+  return mapFromContract({
+    ...previous,
+    formatVersion: 3,
+    background: { kind: 'transparent' },
+    grid: { visible: true, color: '#41505899' },
+    autotileSets: [],
+  })
 }
 
 export function serializeSpriteDocument(document: SpriteDocument): string {
@@ -137,15 +161,17 @@ function tileCount(tileset: LegacyMapManifestContract['tilesets'][number]): numb
 
 function migrateLegacyContract(legacy: LegacyMapManifestContract): MapDocument {
   const contract: MapDocumentContract = {
-    format: 'mosaico-map', formatVersion: 2, id: legacy.id, revision: 0, name: legacy.name,
+    format: 'mosaico-map', formatVersion: 3, id: legacy.id, revision: 0, name: legacy.name,
     orientation: 'orthogonal', width: legacy.width, height: legacy.height,
-    cellWidth: legacy.cellWidth, cellHeight: legacy.cellHeight, activeLayerId: legacy.activeLayerId,
+    cellWidth: legacy.cellWidth, cellHeight: legacy.cellHeight,
+    background: { kind: 'transparent' }, grid: { visible: true, color: '#41505899' },
+    activeLayerId: legacy.activeLayerId, autotileSets: [],
     tilesets: legacy.tilesets.map((tileset) => ({
-      id: tileset.id, name: tileset.name, assetId: `legacy:${tileset.sha256.toLowerCase()}`,
+      id: tileset.id, name: tileset.name, assetId: tileset.assetPath.slice('assets/'.length, -'.png'.length),
       imageWidth: tileset.imageWidth, imageHeight: tileset.imageHeight,
       tileWidth: tileset.tileWidth, tileHeight: tileset.tileHeight,
       marginX: tileset.marginX, marginY: tileset.marginY, spacingX: tileset.spacingX, spacingY: tileset.spacingY,
-      tileCount: tileCount(tileset),
+      tileCount: tileCount(tileset), sha256: tileset.sha256.toLowerCase(), mediaType: 'image/png' as const,
     })),
     layers: [...legacy.layers].sort((left, right) => left.order - right.order).map((layer) => ({
       id: layer.id, name: layer.name, kind: 'tile', visible: layer.isVisible, locked: layer.isLocked, opacity: 1,
