@@ -9,20 +9,21 @@ import { combineSelection, ellipseMask, invertSelection, magicMask, polygonMask,
 import { composeSpriteFrame, createViewport, isPointInsideViewport, panViewport, pickSpritePixel, PixiPixelViewport, resizeViewport, screenToWorld, zoomViewportAt, type Point, type ViewportState } from '@mosaico/canvas'
 import { onionSkinDocument, usedPalette } from './pixel-editor-model.js'
 import { chooseImageFile, exportDocument, importImage, saveBlob, saveProject as saveSpriteProject, type ExportFormat, type ExportOptions } from './pixel-media.js'
-import { BoxSelect, Circle, CircleDashed, Copy, Download, Eraser, Eye, EyeOff, Hand, LassoSelect, Lock, PaintBucket, Pause, Pencil, Play, Plus, Redo2, Slash, Square, Trash2, Undo2, Unlock, WandSparkles, X, type LucideIcon } from 'lucide-react'
+import { BoxSelect, Circle, CircleDashed, Copy, Download, Eraser, Eye, EyeOff, Hand, LassoSelect, Lock, PaintBucket, Pause, Pencil, Pipette, Play, Plus, Redo2, Slash, Square, Trash2, Undo2, Unlock, WandSparkles, X, type LucideIcon } from 'lucide-react'
 import { usePanelLayout } from './panel-layout.js'
+import { ColorWheel } from './ColorWheel.js'
 
-type Tool = 'pencil' | 'eraser' | 'fill' | 'line' | 'rectangle' | 'ellipse' | 'select' | 'pan'
+type Tool = 'pencil' | 'eraser' | 'eyedropper' | 'fill' | 'line' | 'rectangle' | 'ellipse' | 'select' | 'pan'
 const plainTools: readonly [Tool, string, LucideIcon][] = [
   ['pencil', 'Lápiz', Pencil], ['eraser', 'Borrador', Eraser], ['fill', 'Relleno', PaintBucket],
-  ['pan', 'Mano', Hand],
+  ['eyedropper', 'Selector de color', Pipette], ['pan', 'Mano', Hand],
 ]
 const shapes: readonly [Extract<Tool, 'line' | 'rectangle' | 'ellipse'>, string, LucideIcon][] = [['line', 'Línea', Slash], ['rectangle', 'Rectángulo', Square], ['ellipse', 'Elipse', Circle]]
 const selections: readonly [SelectionMode, string, LucideIcon][] = [['rectangle', 'Selección rectangular', BoxSelect], ['ellipse', 'Selección elíptica', CircleDashed], ['lasso', 'Lazo', LassoSelect], ['magic', 'Varita mágica', WandSparkles]]
 const toolLabel = (tool: Tool, selectionMode: SelectionMode) => tool === 'select' ? selections.find(([id]) => id === selectionMode)![1] : [...plainTools, ...shapes].find(([id]) => id === tool)![1]
 const transparent: RgbaColor = { r: 0, g: 0, b: 0, a: 0 }
 const storageKey = 'mosaico-pixel-document-v1'
-const hotkeys: Readonly<Record<string, Tool>> = { p: 'pencil', e: 'eraser', g: 'fill', l: 'line', r: 'rectangle', o: 'ellipse', m: 'select', h: 'pan' }
+const hotkeys: Readonly<Record<string, Tool>> = { p: 'pencil', e: 'eraser', i: 'eyedropper', g: 'fill', l: 'line', r: 'rectangle', o: 'ellipse', m: 'select', h: 'pan' }
 
 function blank(width = 32, height = 32): SpriteDocument {
   return createSpriteDocument({ id: crypto.randomUUID(), name: 'Sprite sin título', width, height, layerId: crypto.randomUUID(), frameId: crypto.randomUUID() })
@@ -37,6 +38,8 @@ function rgba(hex: string): RgbaColor {
   const value = Number.parseInt(hex.slice(1), 16)
   return { r: value >> 16, g: (value >> 8) & 255, b: value & 255, a: 255 }
 }
+
+const colorHex = ({ r, g, b }: RgbaColor) => `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
 
 function paint(document: SpriteDocument, points: readonly GridCoordinate[], color: RgbaColor, mask?: SelectionMask): SpriteDocument {
   const inside = points.filter((point) => point.x >= 0 && point.y >= 0 && point.x < document.width && point.y < document.height && (!mask || selectionContains(mask, point)))
@@ -91,6 +94,7 @@ export function PixelArtEditor() {
   const [playing, setPlaying] = useState(false)
   const [renamingLayerId, setRenamingLayerId] = useState<string>()
   const [renameValue, setRenameValue] = useState('')
+  const [draggingLayerId, setDraggingLayerId] = useState<string>()
   const [guides, setGuides] = useState(true)
   const [seamless, setSeamless] = useState<'none' | 'horizontal' | 'vertical' | 'total'>('none')
   const seamlessRef = useRef(seamless)
@@ -173,6 +177,10 @@ export function PixelArtEditor() {
       if (event.button !== 0) return
       setContextMenu(undefined)
       if (!picked) { selectMask(); setContextMenu(undefined); return }
+      if (toolRef.current === 'eyedropper') {
+        const current = documentRef.current; const pixels = composeSpriteFrame(current, current.activeFrameId); const index = (picked.y * current.width + picked.x) * 4
+        const sampled = colorHex({ r: pixels[index]!, g: pixels[index + 1]!, b: pixels[index + 2]!, a: pixels[index + 3]! }); setColor(sampled); setStatus(`Color ${sampled}`); return
+      }
       const activeLayer = documentRef.current.layers.find((layer) => layer.id === documentRef.current.activeLayerId)
       if (!activeLayer?.visible && (toolRef.current !== 'select' || (selectionMaskRef.current && selectionContains(selectionMaskRef.current, picked)))) { setStatus('Capa oculta: muéstrala para editar'); return }
       host.setPointerCapture(event.pointerId); gesture.current = { start: picked, last: picked, before: documentRef.current, screen, panning: false }
@@ -220,11 +228,12 @@ export function PixelArtEditor() {
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return
       if (event.ctrlKey && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); return }
       if (event.ctrlKey && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); return }
-      if (event.altKey && event.shiftKey && event.key.toLowerCase() === 'c') { event.preventDefault(); copySelection(); return }
-      if (event.altKey && event.shiftKey && event.key.toLowerCase() === 'x') { event.preventDefault(); cutSelection(); return }
-      if (event.altKey && event.shiftKey && event.key.toLowerCase() === 'v') { event.preventDefault(); pasteSelection(); return }
+      if (event.ctrlKey && selectionMaskRef.current && event.key.toLowerCase() === 'c') { event.preventDefault(); copySelection(); return }
+      if (event.ctrlKey && selectionMaskRef.current && event.key.toLowerCase() === 'x') { event.preventDefault(); cutSelection(); return }
+      if (event.ctrlKey && selectionMaskRef.current && event.key.toLowerCase() === 'v') { event.preventDefault(); pasteSelection(); return }
       if (event.altKey && event.shiftKey && event.key === 'Delete') { event.preventDefault(); deleteSelection(); return }
       if (!(event.target instanceof HTMLInputElement) && event.code === 'Digit0') { event.preventDefault(); fitCanvas(); return }
       const selectedTool = hotkeys[event.key.toLowerCase()]
@@ -259,12 +268,12 @@ export function PixelArtEditor() {
   const dropLayer = (sourceId: string, targetId?: string) => {
     if (!sourceId || sourceId === targetId) return
     try {
+      const source = documentRef.current.layers.find((layer) => layer.id === sourceId)
       const target = targetId ? documentRef.current.layers.find((layer) => layer.id === targetId) : undefined
-      commit(target?.isFolder
-        ? setSpriteLayerParent(documentRef.current, sourceId, targetId)
-        : target
-          ? reorderSpriteLayer(documentRef.current, sourceId, documentRef.current.layers.findIndex((layer) => layer.id === targetId))
-          : setSpriteLayerParent(documentRef.current, sourceId))
+      const parentId = target?.isFolder ? target.id : target?.parentId
+      let next = source?.parentId === parentId ? documentRef.current : setSpriteLayerParent(documentRef.current, sourceId, parentId)
+      if (target && !target.isFolder) next = reorderSpriteLayer(next, sourceId, next.layers.findIndex((layer) => layer.id === target.id))
+      commit(next)
     } catch { setStatus('No se pudo mover la capa') }
   }
   const removeLayerById = (layerId: string) => { try { commit(removeSpriteLayer(documentRef.current, layerId)) } catch { setStatus('El documento necesita al menos una capa') } }
@@ -321,9 +330,10 @@ export function PixelArtEditor() {
   const selectionStyle = { left: viewportRef.current.offsetX, top: viewportRef.current.offsetY, width: document.width * viewportRef.current.zoom, height: document.height * viewportRef.current.zoom }
   const palette = useMemo(() => [...new Set([color, ...usedPalette(document)])].slice(0, 32), [color, document])
   const maximumScale = Math.max(1, Math.min(32, Math.floor(16_384 / document.width), Math.floor(16_384 / document.height), Math.floor(Math.sqrt(67_108_864 / (document.width * document.height)))))
-  type MenuEntries = readonly [string, () => void, boolean?][]
+  type MenuAction = readonly [string, () => void, boolean?]
+  type MenuEntries = readonly (MenuAction | readonly [string, readonly MenuAction[]])[]
   const menus: Record<string, MenuEntries> & { Archivo: MenuEntries; Editar: MenuEntries; Capa: MenuEntries; Vista: MenuEntries; Ventana: MenuEntries } = {
-    Archivo: [['Nuevo…', () => setNewDialog(true)], ['Abrir…', () => void openFile()], ['Guardar proyecto', () => void saveProject()], ['Exportar PNG…', () => beginExport('png')], ['Exportar JPG…', () => beginExport('jpeg')], ['Exportar WebP…', () => beginExport('webp')], ['Exportar GIF animado…', () => beginExport('gif')]],
+    Archivo: [['Nuevo…', () => setNewDialog(true)], ['Abrir…', () => void openFile()], ['Guardar proyecto', () => void saveProject()], ['Exportar…', () => beginExport('png')]],
     Editar: [['Deshacer', undo], ['Rehacer', redo]],
     Imagen: [['Centrar y ajustar', fitCanvas], ['Exportar…', () => beginExport('png')]],
     Capa: [['Nueva capa', addLayer], ['Eliminar capa', removeLayer]],
@@ -333,16 +343,16 @@ export function PixelArtEditor() {
 
   if (!menus.Editar.some(([label]) => label === 'Copiar selección')) menus.Editar = [...menus.Editar, ['Copiar selección', copySelection], ['Cortar selección', cutSelection], ['Pegar selección', pasteSelection], ['Eliminar selección', deleteSelection]]
   if (!menus.Capa.some(([label]) => label === 'Nueva carpeta')) menus.Capa = [...menus.Capa, ['Nueva carpeta', addFolder]]
-  if (!menus.Vista.some(([label]) => label === 'Seamless horizontal')) menus.Vista = [...menus.Vista, ['Guías entre celdas', () => setGuides((value) => !value)], ['Seamless horizontal', () => setSeamless('horizontal')], ['Seamless vertical', () => setSeamless('vertical')], ['Seamless total', () => setSeamless('total')], ['Seamless normal', () => setSeamless('none')]]
+  if (!menus.Vista.some(([label]) => label === 'Seamless')) menus.Vista = [...menus.Vista, ['Guías entre celdas', () => setGuides((value) => !value)], ['No Seamless', () => setSeamless('none')], ['Seamless', [['Horizontal', () => setSeamless('horizontal')], ['Vertical', () => setSeamless('vertical')], ['Total', () => setSeamless('total')]]]]
   if (!menus.Vista.some(([label]) => label === 'Timeline')) menus.Vista = [...menus.Vista, ['Timeline', () => panelLayout.update({ timelineVisible: !panelLayout.layout.timelineVisible })], ['Panel de capas', () => panelLayout.update({ layersVisible: !panelLayout.layout.layersVisible })]]
   if (!menus.Ventana.some(([label]) => label === 'Guardar layout')) menus.Ventana = [...menus.Ventana, ['Guardar layout', () => { const name = window.prompt('Nombre layout'); if (name) panelLayout.saveLayout(name) }], ['Aplicar layout', () => { const names = Object.keys(panelLayout.saved); const name = window.prompt(`Layout (${names.join(', ')})`); if (name) panelLayout.applyLayout(name) }], ['Eliminar layout', () => { const name = window.prompt('Layout a eliminar'); if (name) panelLayout.deleteLayout(name) }], ['Restablecer layout', panelLayout.reset]]
   if (!menus.Archivo.some(([label]) => label === 'Guardar modo…')) menus.Archivo = [...menus.Archivo, ['Guardar modo…', () => setSaveModeDialog(true)], ['Enviar tilesheet a Mapas', () => void transferToMaps()], ['Enviar imagen a Assets', () => void transferToAssets()]]
   const layerTreeContent = <>
     <div className="panel-title"><strong>Capas</strong><div className="layer-actions"><button title="Nueva carpeta" onPointerDown={(event) => event.stopPropagation()} onClick={addFolder}>+F</button><button title="Nueva capa" onPointerDown={(event) => event.stopPropagation()} onClick={addLayer}>+</button></div></div>
-    <div className="layer-tree" role="tree" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const source = event.dataTransfer.getData('text/layer'); if (source) dropLayer(source) }}>
-      {layerTree.map(({ layer, depth }) => <div key={layer.id} className={`tree-row ${layer.id === document.activeLayerId ? 'selected' : ''}`} role="treeitem" draggable onDragStart={(event) => { event.dataTransfer.setData('text/layer', layer.id); event.dataTransfer.effectAllowed = 'move' }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const source = event.dataTransfer.getData('text/layer'); if (source) dropLayer(source, layer.id) }}>
+    <div className="layer-tree" role="tree" onPointerUp={(event) => { if (!draggingLayerId) return; const target = (event.target as Element).closest<HTMLElement>('[data-layer-id]'); dropLayer(draggingLayerId, target?.dataset.layerId); setDraggingLayerId(undefined) }}>
+      {layerTree.map(({ layer, depth }) => <div data-layer-id={layer.id} key={layer.id} className={`tree-row ${layer.id === document.activeLayerId ? 'selected' : ''} ${layer.id === draggingLayerId ? 'layer-dragging' : ''}`} role="treeitem">
         <button className="tree-toggle" disabled={!layer.isFolder} aria-label={layer.isFolder ? (layer.collapsed ? 'Expandir carpeta' : 'Contraer carpeta') : 'Capa'} onClick={() => layer.isFolder && commit(updateSpriteLayer(documentRef.current, layer.id, { collapsed: !layer.collapsed }))}>{layer.isFolder ? (layer.collapsed ? '▶' : '▼') : '·'}</button>
-        {renamingLayerId === layer.id ? <input className="tree-rename" autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') finishLayerRename(); if (event.key === 'Escape') setRenamingLayerId(undefined) }} onBlur={finishLayerRename} /> : <button className="tree-name" style={{ paddingLeft: `${0.15 + depth * 0.75}rem` }} onDoubleClick={() => beginLayerRename(layer)} onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><strong>{layer.name}</strong></button>}
+        {renamingLayerId === layer.id ? <input className="tree-rename" autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') finishLayerRename(); if (event.key === 'Escape') setRenamingLayerId(undefined) }} onBlur={finishLayerRename} /> : <button className="tree-name" style={{ paddingLeft: `${0.15 + depth * 0.75}rem` }} onPointerDown={(event) => { if (event.button === 0) setDraggingLayerId(layer.id) }} onDoubleClick={() => beginLayerRename(layer)} onClick={() => commit(selectSpriteLayer(documentRef.current, layer.id))}><strong>{layer.name}</strong></button>}
         <button title={layer.visible ? 'Ocultar' : 'Mostrar'} onPointerDown={(event) => event.stopPropagation()} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button>
         <button title={layer.locked ? 'Desbloquear' : 'Bloquear'} onPointerDown={(event) => event.stopPropagation()} onClick={() => commit(updateSpriteLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button>
         <button title="Eliminar" onPointerDown={(event) => event.stopPropagation()} onClick={() => removeLayerById(layer.id)}><Trash2 /></button>
@@ -351,12 +361,12 @@ export function PixelArtEditor() {
   </>
   const layoutStyle = { '--inspector-w': `${panelLayout.layout.inspectorWidth}px`, '--timeline-w': `${panelLayout.layout.timelineWidth}px`, '--timeline-h': `${panelLayout.layout.timelineHeight}px`, '--layers-h': `${panelLayout.layout.layersHeight}px`, gridTemplateRows: `1.8rem 2rem 2.5rem minmax(0, 1fr) ${panelLayout.layout.timelineVisible ? `${panelLayout.layout.timelineHeight}px` : '0px'} 1.65rem` } as CSSProperties
   return <main className={`pixel-editor ${panelLayout.layout.timelineVisible ? '' : 'timeline-collapsed'}`} style={layoutStyle} onContextMenu={(event) => event.preventDefault()}>
-    <nav className="pixel-menubar" aria-label="Menú principal">{Object.keys(menus).map((menu) => <div className="menu-root" key={menu}><button onClick={() => setOpenMenu(openMenu === menu ? undefined : menu)}>{menu}</button>{openMenu === menu && <div className="menu-dropdown" role="menu">{(menus[menu] ?? []).map(([label, action, disabled]) => <button key={label} role="menuitem" disabled={disabled} onClick={() => { action(); setOpenMenu(undefined) }}>{label}</button>)}</div>}</div>)}</nav>
+    <nav className="pixel-menubar" aria-label="Menú principal">{Object.keys(menus).map((menu) => <div className="menu-root" key={menu}><button onClick={() => setOpenMenu(openMenu === menu ? undefined : menu)}>{menu}</button>{openMenu === menu && <div className="menu-dropdown" role="menu">{(menus[menu] ?? []).map((entry) => { const action = entry[1]; return typeof action === 'function' ? <button key={entry[0]} role="menuitem" disabled={entry[2]} onClick={() => { action(); setOpenMenu(undefined) }}>{entry[0]}</button> : <details className="menu-submenu-root" key={entry[0]}><summary role="menuitem">{entry[0]} <span>▶</span></summary><div className="menu-submenu" role="menu">{action.map(([label, childAction, disabled]) => <button key={label} role="menuitem" disabled={disabled} onClick={() => { childAction(); setOpenMenu(undefined) }}>{label}</button>)}</div></details> })}</div>}</div>)}</nav>
     <div className="document-tabs">{documents.map((item) => <button key={item.id} className={item.id === document.id ? 'active' : ''} onClick={() => { const next = documents.find((candidate) => candidate.id === item.id); if (next) { documentRef.current = next; setDocument(next); window.requestAnimationFrame(fitCanvas) } }}>{item.name}</button>)}</div>
     <input ref={fileRef} hidden type="file" accept=".mosaico,.json,image/png,image/jpeg,image/webp,image/gif" onChange={(event) => { void importFile(event.target.files?.[0]); event.currentTarget.value = '' }} />
     <header className="pixel-optionsbar">
       <strong>{toolLabel(tool, selectionMode)}</strong><span className="option-divider" />
-      <label className="color-control">Color<input aria-label="Color principal" type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label>
+      <label className="color-control">Color<ColorWheel label="Color principal" value={color} onChange={setColor} /></label>
       <label className="fill-control"><input type="checkbox" checked={filled} onChange={(event) => setFilled(event.target.checked)} /> Relleno de formas</label>
       <span className="option-hint">Shift: restringir ángulo/proporción · Clic medio: mover lienzo</span>
       <div className="history-tools"><button aria-label="Deshacer" title="Deshacer (Ctrl+Z)" onClick={undo}><Undo2 /></button><button aria-label="Rehacer" title="Rehacer (Ctrl+Y)" onClick={redo}><Redo2 /></button></div>
@@ -368,7 +378,7 @@ export function PixelArtEditor() {
         <div className="tool-group has-flyout"><button aria-label={selectionTool[1]} title={`${selectionTool[1]} · mantener o clic derecho: selecciones`} className={tool === 'select' ? 'active' : ''} onPointerDown={(event) => startHold('selection', event)} onPointerUp={stopHold} onPointerLeave={stopHold} onClick={() => setTool('select')} onContextMenu={(event) => { event.preventDefault(); setFlyout(flyout === 'selection' ? undefined : 'selection') }}><SelectionIcon /></button>{flyout === 'selection' && <div className="tool-flyout">{selections.map(([id, label, Icon]) => <button key={id} aria-label={label} className={selectionMode === id ? 'active' : ''} onClick={() => { setSelectionMode(id); setTool('select'); setFlyout(undefined) }}><Icon /></button>)}</div>}</div>
         {plainTools.slice(3).map(([id, label, Icon]) => <button key={id} aria-label={label} title={`${label} (${Object.entries(hotkeys).find(([, value]) => value === id)?.[0]?.toUpperCase()})`} className={tool === id ? 'active' : ''} onClick={() => { setTool(id); setFlyout(undefined) }}><Icon /></button>)}
       </aside>
-      <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />{selectionPath && <svg className="selection-mask-overlay" style={selectionStyle} viewBox={`0 0 ${document.width} ${document.height}`} preserveAspectRatio="none"><path d={selectionPath} /></svg>}{contextMenu && <div className="selection-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu"><button role="menuitem" onClick={() => { if (selectionMaskRef.current) selectMask(invertSelection(selectionMaskRef.current)); setContextMenu(undefined) }}>Invertir selección</button><button role="menuitem" onClick={() => { selectMask(); setContextMenu(undefined) }}>Deseleccionar</button></div>}</div>
+      <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />{seamless !== 'none' && <div className="seamless-canvas-boundary" style={selectionStyle} aria-hidden="true" />}{selectionPath && <svg className="selection-mask-overlay" style={selectionStyle} viewBox={`0 0 ${document.width} ${document.height}`} preserveAspectRatio="none"><path d={selectionPath} /></svg>}{contextMenu && <div className="selection-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu"><button role="menuitem" onClick={() => { if (selectionMaskRef.current) selectMask(invertSelection(selectionMaskRef.current)); setContextMenu(undefined) }}>Invertir selección</button><button role="menuitem" onClick={() => { selectMask(); setContextMenu(undefined) }}>Deseleccionar</button></div>}</div>
       <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar imagen" title="Exportar imagen" onClick={() => beginExport('png')}><Download /></button></div><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Colores usados</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}</div></section>{panelLayout.layout.layersVisible && <><section className="layer-tree-panel layer-tree-sidebar">{layerTreeContent}</section><div className="sidebar-layers-splitter" role="separator" aria-label="Redimensionar capas" onPointerDown={(event) => panelLayout.resize('layers', 'height', event)} /></>}</aside>
     </section>
     <section className="pixel-timeline"><div className="timeline-controls"><strong>Timeline</strong><button aria-label={playing ? 'Pausar animación' : 'Reproducir animación'} title={playing ? 'Pausar' : 'Reproducir'} onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button aria-label="Añadir frame" title="Añadir frame" onClick={() => addFrame(false)}><Plus /></button><button aria-label="Duplicar frame" title="Duplicar frame" onClick={() => addFrame(true)}><Copy /></button><button aria-label="Eliminar frame" title="Eliminar frame" onClick={removeFrame}><Trash2 /></button><button aria-label="Onion skin" title="Onion skin" className={onion ? 'active' : ''} onClick={() => setOnion(!onion)}><Eye /></button><button aria-label="Exportar sprite sheet" title="Exportar sprite sheet" onClick={exportSheet}><Download /></button><label>Duración <input aria-label="Duración del frame" type="number" min="10" max="60000" step="10" value={activeFrame.durationMs} onChange={(event) => { const durationMs = Number(event.target.value); if (Number.isInteger(durationMs) && durationMs >= 10 && durationMs <= 60_000) commit(updateSpriteFrame(documentRef.current, document.activeFrameId, { durationMs })) }} /> ms</label></div><div className="timeline-frames">{document.frames.map((frame, index) => <button key={frame.id} className={document.activeFrameId === frame.id ? 'active' : ''} aria-label={`Seleccionar frame ${index + 1}`} onClick={() => chooseFrame(frame.id)}><span>{index + 1}</span><small>{frame.durationMs} ms</small></button>)}</div></section>

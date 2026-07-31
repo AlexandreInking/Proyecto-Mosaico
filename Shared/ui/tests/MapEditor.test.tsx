@@ -5,7 +5,7 @@ import { MapEditor } from '../src/MapEditor.js'
 describe('MapEditor', () => {
   it('renders complete manual editor controls', () => {
     const html = renderToString(<MapEditor />)
-    for (const label of ['Lápiz', 'Borrador', 'Cuentagotas', 'Balde', 'Línea', 'Rectángulo', 'Elipse', 'Selección', 'Mano', 'Tilesets', 'Capas', 'Redimensionar mapa']) expect(html).toContain(label)
+    for (const label of ['Lápiz', 'Borrador', 'Selector de tile', 'Balde', 'Línea', 'Rectángulo', 'Elipse', 'Selección', 'Mano', 'Tilesets', 'Capas', 'Redimensionar mapa']) expect(html).toContain(label)
     expect(html).toContain('layer-tree-sidebar')
     expect(html).not.toContain('map-tree-runtime-floating')
     expect(html).not.toContain('Panel de capas flotante')

@@ -18,7 +18,8 @@
         "height": 800,
         "minWidth": 760,
         "minHeight": 520,
-        "resizable": true
+        "resizable": true,
+        "backgroundColor": "#111518"
       }
     ],
     "security": {
@@ -40,10 +41,14 @@
     "copyright": "Copyright © Proyecto Mosaico",
     "createUpdaterArtifacts": true,
     "windows": {
+      "allowDowngrades": false,
       "nsis": {
         "installMode": "currentUser",
+        "headerImage": "icons/installer-header.bmp",
+        "sidebarImage": "icons/installer-sidebar.bmp",
         "installerIcon": "icons/icon.ico",
-        "uninstallerIcon": "icons/icon.ico"
+        "uninstallerIcon": "icons/icon.ico",
+        "installerHooks": "nsis/installer-hooks.nsh"
       }
     }
   },

@@ -31,11 +31,22 @@ describe('map editor model', () => {
     expect(captureSelection(moved, moved.activeLayerId, { left: 2, top: 2, width: 1, height: 1 }).cells[0]?.tileId).toBe(1)
   })
 
-  it('rejects paste and move that would clip a selection outside map', () => {
-    const document = create()
+  it('rejects clipped paste but clips moved tiles outside map', () => {
+    let document = create()
     const pattern = { width: 2, height: 1, cells: [{ tilesetId: tileset.id, tileId: 0 }, { tilesetId: tileset.id, tileId: 1 }] }
     expect(() => pastePattern(document, document.activeLayerId, { x: 3, y: 0 }, pattern)).toThrow('MAP_SELECTION_OUT_OF_BOUNDS')
-    expect(() => moveSelection(document, document.activeLayerId, { left: 0, top: 0, width: 2, height: 1 }, { x: 3, y: 0 })).toThrow('MAP_SELECTION_OUT_OF_BOUNDS')
+    document = setTile(document, document.activeLayerId, { x: 1, y: 0 }, pattern.cells[0]!)
+    document = setTile(document, document.activeLayerId, { x: 2, y: 0 }, pattern.cells[1]!)
+    const moved = moveSelection(document, document.activeLayerId, { left: 1, top: 0, width: 2, height: 1 }, { x: -1, y: 0 })
+    expect(captureSelection(moved, moved.activeLayerId, { left: 0, top: 0, width: 3, height: 1 }).cells.map((tile) => tile?.tileId)).toEqual([1, undefined, undefined])
+  })
+
+  it('does not erase destination tiles for empty cells in a moved selection', () => {
+    let document = create()
+    document = setTile(document, document.activeLayerId, { x: 0, y: 0 }, { tilesetId: tileset.id, tileId: 1 })
+    document = setTile(document, document.activeLayerId, { x: 1, y: 0 }, { tilesetId: tileset.id, tileId: 0 })
+    const moved = moveSelection(document, document.activeLayerId, { left: 1, top: 0, width: 2, height: 1 }, { x: -1, y: 0 })
+    expect(captureSelection(moved, moved.activeLayerId, { left: 0, top: 0, width: 2, height: 1 }).cells.map((tile) => tile?.tileId)).toEqual([1, undefined])
   })
 
   it('rotates pattern coordinates and tile metadata', () => {

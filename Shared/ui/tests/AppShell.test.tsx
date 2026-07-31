@@ -10,7 +10,8 @@ describe('AppShell', () => {
 
     expect(SHARED_UI_VERSION).toBe('mosaico-ui-t1-v1')
     expect(html).toContain('Asset Pipeline AI')
-    expect(html).toContain('Web · Conectado')
+    expect(html).toContain('Web · Connected')
+    expect(html).toContain('Language')
     expect(html).toContain('data-ui-contract="mosaico-ui-t1-v1"')
   })
 
@@ -21,9 +22,9 @@ describe('AppShell', () => {
 
     expect(html.indexOf('Pixel Art')).toBeLessThan(html.indexOf('Assets'))
     expect(html).toContain('class="active" type="button">Pixel Art')
-    expect(html).toContain('>Mapas<')
+    expect(html).toContain('>Maps<')
     expect(html).not.toContain('disabled="" type="button">Mapas')
-    expect(html).toContain('Planificado')
-    expect(html).toContain('Sin conexión')
+    expect(html).toContain('Planned')
+    expect(html).toContain('Desktop · Offline')
   })
 })

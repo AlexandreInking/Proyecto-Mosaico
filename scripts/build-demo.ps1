@@ -29,6 +29,7 @@ $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $keyPath
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = if ($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) { $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD } else { '' }
 
 Push-Location $desktopRoot
+$buildStarted = Get-Date
 try {
     & $tauri build --config 'src-tauri\tauri.conf.json' --bundles nsis --ci
     if ($LASTEXITCODE -ne 0) { throw "Build Demo falló con código $LASTEXITCODE." }
@@ -36,8 +37,11 @@ try {
 finally { Pop-Location }
 
 $bundleDirectory = Join-Path $desktopRoot 'src-tauri\target\release\bundle\nsis'
-$installer = Get-ChildItem -LiteralPath $bundleDirectory -Filter '*-setup.exe' -File | Select-Object -First 1
-$signature = Get-ChildItem -LiteralPath $bundleDirectory -Filter '*-setup.exe.sig' -File | Select-Object -First 1
+$installer = Get-ChildItem -LiteralPath $bundleDirectory -Filter '*-setup.exe' -File |
+    Where-Object { $_.Name -match [regex]::Escape($Version) -and $_.LastWriteTime -ge $buildStarted } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+$signature = if ($installer) { Get-Item -LiteralPath "$($installer.FullName).sig" -ErrorAction SilentlyContinue } else { $null }
 if (-not $installer -or -not $signature) { throw "Bundle NSIS incompleto en $bundleDirectory" }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) { $OutputDirectory = Join-Path $repoRoot "output\demo\Mosaico-$Version" }
@@ -66,11 +70,15 @@ Entrega sin código fuente. Ejecuta el archivo *-setup.exe para instalar o actua
 
 Actualizador automático:
 1. Publica el archivo *-setup.exe, su *.sig y latest.json en GitHub Release v$Version.
-2. Conserva la clave privada de Tauri fuera del repositorio.
+4. Para reparar, abre Aplicaciones instaladas, selecciona Mosaico y pulsa Modificar/Reparar.
+3. Conserva la clave privada de Tauri fuera del repositorio.
 3. Las futuras versiones deben incrementar la versión y volver a ejecutar este script.
 "@
+$readme = $readme -replace '(?m)^4\. Para reparar', '2. Para reparar'
+$readme = $readme -replace '(?m)^2\. Conserva', '3. Conserva'
+$readme = $readme -replace '(?m)^3\. Las futuras', '4. Las futuras'
 $readme | Set-Content -LiteralPath (Join-Path $OutputDirectory 'README.txt') -Encoding UTF8
 
 Write-Host "Demo generada: $OutputDirectory"
-Write-Host "Instalador actualizable: $($installer.Name)"
+Write-Host "Instalador actualizable y reparable: $($installer.Name)"
 Write-Host "Manifest updater: $(Join-Path $OutputDirectory 'latest.json')"

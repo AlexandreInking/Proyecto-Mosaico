@@ -22,7 +22,7 @@ function WebEntry() {
 const root = document.getElementById('root')
 
 if (!root) {
-  throw new Error('No se encontró el host #root de Mosaico Web.')
+  throw new Error('Mosaico Web root host not found.')
 }
 
 createRoot(root).render(

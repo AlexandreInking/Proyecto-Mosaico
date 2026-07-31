@@ -79,7 +79,8 @@ export function captureSelection(document: MapDocument, layerId: string, selecti
 export function deleteSelection(document: MapDocument, layerId: string, selection: TileSelection): MapDocument {
   const changes: MapCellChange[] = []
   for (let y = 0; y < selection.height; y += 1) for (let x = 0; x < selection.width; x += 1) {
-    changes.push({ x: selection.left + x, y: selection.top + y })
+    const point = { x: selection.left + x, y: selection.top + y }
+    if (point.x >= 0 && point.y >= 0 && point.x < document.width && point.y < document.height) changes.push(point)
   }
   return applyMapCells(document, layerId, changes)
 }
@@ -90,10 +91,12 @@ export function pastePattern(document: MapDocument, layerId: string, origin: Gri
 }
 
 export function moveSelection(document: MapDocument, layerId: string, selection: TileSelection, origin: GridCoordinate): MapDocument {
-  if (origin.x < 0 || origin.y < 0 || origin.x + selection.width > document.width || origin.y + selection.height > document.height) throw new RangeError('MAP_SELECTION_OUT_OF_BOUNDS')
   const pattern = captureSelection(document, layerId, selection)
   const erase: MapCellChange[] = []
-  for (let y = 0; y < selection.height; y += 1) for (let x = 0; x < selection.width; x += 1) erase.push({ x: selection.left + x, y: selection.top + y })
+  for (let y = 0; y < selection.height; y += 1) for (let x = 0; x < selection.width; x += 1) {
+    const point = { x: selection.left + x, y: selection.top + y }
+    if (point.x >= 0 && point.y >= 0 && point.x < document.width && point.y < document.height) erase.push(point)
+  }
   return applyMapCells(document, layerId, [...erase, ...patternChanges(document, [origin], pattern).filter((change) => change.tile)])
 }
 

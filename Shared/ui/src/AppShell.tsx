@@ -18,6 +18,7 @@ import {
   type SupportedImageType,
 } from '@mosaico/pipeline'
 import type { AuthoringMode } from './AuthoringCanvas.js'
+import { localeNames, localizeElement, translateText, useLocale, type Locale } from './i18n.js'
 
 export interface AppShellProps {
   platform: 'Web' | 'Desktop'
@@ -47,7 +48,7 @@ class AuthoringErrorBoundary extends Component<{ children: ReactNode }, { error:
 
   render() {
     if (!this.state.error) return this.props.children
-    return <main className="authoring-error" role="alert"><h2>No se pudo cargar el editor</h2><p>{this.state.error.message || 'Error inesperado en Authoring Core.'}</p><button className="primary" type="button" onClick={() => this.setState({ error: null })}>Reintentar</button></main>
+    return <main className="authoring-error" role="alert"><h2>The editor could not be loaded</h2><p>{this.state.error.message || 'Unexpected Authoring Core error.'}</p><button className="primary" type="button" onClick={() => this.setState({ error: null })}>Retry</button></main>
   }
 }
 
@@ -62,6 +63,9 @@ function safeBaseName(name: string): string {
 }
 
 export function AppShell({ platform, execution, online }: AppShellProps) {
+  const [locale, setLocale] = useLocale()
+  const shellRef = useRef<HTMLDivElement>(null)
+  const t = (value: string) => translateText(value, locale)
   const fileInput = useRef<HTMLInputElement>(null)
   const queueRef = useRef<PipelineJobQueue<ImageJobInput, ProcessedImage> | null>(null)
   if (!queueRef.current) {
@@ -79,6 +83,17 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
   const [occurrences, setOccurrences] = useState<DiagnosticOccurrence[]>([])
   const [consoleOpen, setConsoleOpen] = useState(true)
   const [activeModule, setActiveModule] = useState('Pixel Art')
+
+  useEffect(() => {
+    const root = shellRef.current
+    if (!root) return
+    let frame = 0
+    const apply = () => { frame = 0; localizeElement(root, locale) }
+    apply()
+    const observer = new MutationObserver(() => { if (!frame) frame = window.requestAnimationFrame(apply) })
+    observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['aria-label', 'title', 'placeholder'] })
+    return () => { observer.disconnect(); if (frame) window.cancelAnimationFrame(frame) }
+  }, [locale])
 
   const selected = assets.find((asset) => asset.record.id === selectedId)
   const diagnostics: Diagnostic[] = useMemo(() => groupDiagnostics(occurrences), [occurrences])
@@ -173,15 +188,15 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
   }
 
   return (
-    <div className="app-shell" data-ui-contract={UI_CONTRACT_VERSION} onContextMenu={(event) => event.preventDefault()}>
+    <div ref={shellRef} className="app-shell" data-ui-contract={UI_CONTRACT_VERSION} data-locale={locale} onContextMenu={(event) => event.preventDefault()}>
       <header className="titlebar">
         <div className="brand-mark" aria-hidden="true">M</div>
-        <div><p className="eyebrow">Mosaico</p><h1>Asset Pipeline AI</h1></div>
-        <div className="runtime-status" role="status"><span className={`status-dot ${online ? 'online' : ''}`} /><span>{platform} · {online ? 'Conectado' : 'Sin conexión'}</span></div>
+        <div><p className="eyebrow">{t('Mosaico')}</p><h1>{t('Asset Pipeline AI')}</h1></div>
+        <div className="titlebar-actions"><label className="language-picker"><span>{t('Idioma')}</span><select aria-label={t('Idioma')} value={locale} onChange={(event) => setLocale(event.target.value as Locale)}><option value="en">{localeNames.en}</option><option value="es">{localeNames.es}</option><option value="ru">{localeNames.ru}</option></select></label><div className="runtime-status" role="status"><span className={`status-dot ${online ? 'online' : ''}`} /><span>{platform} · {online ? t('Conectado') : t('Sin conexión')}</span></div></div>
       </header>
 
-      <nav className="module-nav" aria-label="Módulos principales">
-        {modules.map((module) => <button className={module === activeModule ? 'active' : ''} disabled={!activeModules.has(module)} key={module} type="button" onClick={() => setActiveModule(module)}>{module}{!activeModules.has(module) && <span>Planificado</span>}</button>)}
+      <nav className="module-nav" aria-label={t('Módulos principales')}>
+        {modules.map((module) => <button className={module === activeModule ? 'active' : ''} disabled={!activeModules.has(module)} key={module} type="button" onClick={() => setActiveModule(module)}>{t(module)}{!activeModules.has(module) && <span>{t('Planificado')}</span>}</button>)}
       </nav>
 
       {activeModule === 'Assets' ? <main className="workspace">
@@ -223,7 +238,7 @@ export function AppShell({ platform, execution, online }: AppShellProps) {
         </aside>
       </main> : <AuthoringErrorBoundary><Suspense fallback={<main className="authoring-loading">Cargando Authoring Core…</main>}><AuthoringCanvas mode={activeModule as AuthoringMode} /></Suspense></AuthoringErrorBoundary>}
 
-      <footer className="statusbar"><span>Persistencia local activa</span><span>{assets.length} assets · {jobs.length} jobs · {diagnostics.filter((item) => item.severity === 'error').length} errores agrupados</span></footer>
+      <footer className="statusbar"><span>{t('Persistencia local activa')}</span><span>{assets.length} {t('assets')} · {jobs.length} {t('jobs')} · {diagnostics.filter((item) => item.severity === 'error').length} {t('errores agrupados')}</span></footer>
     </div>
   )
 }
