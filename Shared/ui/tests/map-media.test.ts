@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { addAutotileSet, addMapLayer, applyMapCells, createMapDocument, mapSemanticFingerprint, removeTileset, serializeMapDocument, updateMapLayer } from '@mosaico/domain'
 import { sha256 } from '@mosaico/pipeline'
 import { strToU8, zipSync } from 'fflate'
-import { createMapPackage, loadMapProject, neutralMapJson } from '../src/map-media.js'
+import { createMapPackage, loadMapProject, MAP_PROJECT_EXTENSION, MAP_PROJECT_MEDIA_TYPE, neutralMapJson } from '../src/map-media.js'
 
 describe('map media', () => {
+  it('uses mtm for new map project saves while accepting legacy mosaico on load', () => {
+    expect(MAP_PROJECT_EXTENSION).toBe('.mtm')
+    expect(MAP_PROJECT_MEDIA_TYPE).toBe('application/vnd.mosaico.tilemap+zip')
+  })
+
   it('round-trips a self-contained package and reads legacy plain JSON', async () => {
     const document = createMapDocument({ id: crypto.randomUUID(), name: 'Map', width: 2, height: 2, cellWidth: 16, cellHeight: 16, layerId: crypto.randomUUID() })
     const packageBlob = await createMapPackage(document, new Map())

@@ -9,5 +9,7 @@ describe('MapEditor', () => {
     expect(html).toContain('layer-tree-sidebar')
     expect(html).not.toContain('map-tree-runtime-floating')
     expect(html).not.toContain('Panel de capas flotante')
+    expect(html).toContain('tabindex="0"')
+    expect(html).toContain('aria-keyshortcuts="Control+C Control+X Control+V Meta+C Meta+X Meta+V"')
   })
 })

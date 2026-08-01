@@ -19,7 +19,7 @@ import {
   type SpriteDocument,
 } from './sprite-document.js'
 
-export type CommandOriginKind = 'user' | 'node' | 'script' | 'generator' | 'ai'
+export type CommandOriginKind = 'user' | 'node' | 'script' | 'generator' | 'automation'
 
 export interface CommandOrigin {
   readonly kind: CommandOriginKind
@@ -162,7 +162,7 @@ export class CommandHistory<TDocument> {
   }
 }
 
-const originKinds = new Set<CommandOriginKind>(['user', 'node', 'script', 'generator', 'ai'])
+const originKinds = new Set<CommandOriginKind>(['user', 'node', 'script', 'generator', 'automation'])
 
 function assertRequest(request: CommandRequest): void {
   if (!request.commandId || !Number.isInteger(request.commandVersion) || request.commandVersion < 1) {

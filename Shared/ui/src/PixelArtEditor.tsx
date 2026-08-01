@@ -8,9 +8,11 @@ import {
 import { combineSelection, ellipseMask, invertSelection, magicMask, polygonMask, rectangleMask, selectionContains, selectionIndexes, selectionOutlinePath, translateSelection, type SelectionMask, type SelectionMode } from './selection-model.js'
 import { composeSpriteFrame, createViewport, isPointInsideViewport, panViewport, pickSpritePixel, PixiPixelViewport, resizeViewport, screenToWorld, zoomViewportAt, type Point, type ViewportState } from '@mosaico/canvas'
 import { onionSkinDocument, usedPalette } from './pixel-editor-model.js'
-import { chooseImageFile, exportDocument, importImage, saveBlob, saveProject as saveSpriteProject, type ExportFormat, type ExportOptions } from './pixel-media.js'
+import { chooseImageFile, createSpriteDocumentFromFrames, encodeSpriteGif, exportDocument, importImage, saveBlob, saveProject as saveSpriteProject, type ExportFormat, type ExportOptions } from './pixel-media.js'
+import type { PipelineTransferPayload } from './pipeline-frames.js'
 import { BoxSelect, Circle, CircleDashed, Copy, Download, Eraser, Eye, EyeOff, Hand, LassoSelect, Lock, PaintBucket, Pause, Pencil, Pipette, Play, Plus, Redo2, Slash, Square, Trash2, Undo2, Unlock, WandSparkles, X, type LucideIcon } from 'lucide-react'
 import { usePanelLayout } from './panel-layout.js'
+import { selectionClipboardCommand } from './selection-shortcuts.js'
 import { ColorWheel } from './ColorWheel.js'
 
 type Tool = 'pencil' | 'eraser' | 'eyedropper' | 'fill' | 'line' | 'rectangle' | 'ellipse' | 'select' | 'pan'
@@ -23,6 +25,7 @@ const selections: readonly [SelectionMode, string, LucideIcon][] = [['rectangle'
 const toolLabel = (tool: Tool, selectionMode: SelectionMode) => tool === 'select' ? selections.find(([id]) => id === selectionMode)![1] : [...plainTools, ...shapes].find(([id]) => id === tool)![1]
 const transparent: RgbaColor = { r: 0, g: 0, b: 0, a: 0 }
 const storageKey = 'mosaico-pixel-document-v1'
+const tabsStorageKey = 'mosaico-pixel-tabs-v1'
 const hotkeys: Readonly<Record<string, Tool>> = { p: 'pencil', e: 'eraser', i: 'eyedropper', g: 'fill', l: 'line', r: 'rectangle', o: 'ellipse', m: 'select', h: 'pan' }
 
 function blank(width = 32, height = 32): SpriteDocument {
@@ -32,6 +35,18 @@ function blank(width = 32, height = 32): SpriteDocument {
 function initialDocument(): SpriteDocument {
   if (typeof localStorage === 'undefined') return blank()
   try { const saved = localStorage.getItem(storageKey); return saved ? deserializeSpriteDocument(saved) : blank() } catch { return blank() }
+}
+
+function initialDocuments(): SpriteDocument[] {
+  const current = initialDocument()
+  if (typeof localStorage === 'undefined') return [current]
+  try {
+    const value = JSON.parse(localStorage.getItem(tabsStorageKey) ?? '') as { documents?: string[]; activeId?: string }
+    const documents = Array.isArray(value.documents) ? value.documents.flatMap((serialized) => { try { return [deserializeSpriteDocument(serialized)] } catch { return [] } }) : []
+    if (!documents.length) return [current]
+    const active = documents.find((item) => item.id === value.activeId) ?? documents.find((item) => item.id === current.id) ?? documents[0]!
+    return [active, ...documents.filter((item) => item.id !== active.id)]
+  } catch { return [current] }
 }
 
 function rgba(hex: string): RgbaColor {
@@ -72,12 +87,13 @@ function keepMask(before: SpriteDocument, after: SpriteDocument, mask?: Selectio
   return next
 }
 
-export function PixelArtEditor() {
+export function PixelArtEditor({ active = true }: { readonly active?: boolean } = {}) {
   const hostRef = useRef<HTMLDivElement>(null); const rendererRef = useRef<PixiPixelViewport | undefined>(undefined)
+  const activeRef = useRef(active)
   const viewportRef = useRef<ViewportState>(createViewport({ width: 1, height: 1, zoom: 16, offsetX: 48, offsetY: 48 }))
-  const [document, setDocument] = useState(initialDocument); const documentRef = useRef(document)
+  const [documents, setDocuments] = useState<SpriteDocument[]>(initialDocuments); const [document, setDocument] = useState<SpriteDocument>(() => documents[0]!); const documentRef = useRef(document)
   const panelLayout = usePanelLayout('pixel')
-  const [documents, setDocuments] = useState<SpriteDocument[]>([document]); const [openMenu, setOpenMenu] = useState<string>(); const [newDialog, setNewDialog] = useState(false)
+  const [openMenu, setOpenMenu] = useState<string>(); const [newDialog, setNewDialog] = useState(false)
   const [exportDialog, setExportDialog] = useState(false)
   const [saveModeDialog, setSaveModeDialog] = useState(false)
   const [exportOptions, setExportOptions] = useState<ExportOptions>({ format: 'png', scale: 1, transparent: true, quality: 92, name: document.name })
@@ -108,6 +124,18 @@ export function PixelArtEditor() {
 
   const show = (next: SpriteDocument) => { documentRef.current = next; setDocument(next); setDocuments((items) => items.map((item) => item.id === next.id ? next : item)) }
   const openDocument = (next: SpriteDocument) => { documentRef.current = next; setDocument(next); setDocuments((items) => [...items.filter((item) => item.id !== next.id), next]); undoRef.current = []; redoRef.current = []; selectMask(); window.requestAnimationFrame(fitCanvas) }
+  const closeDocument = (id: string) => {
+    if (documents.length <= 1) { setStatus('El Editor necesita al menos un documento abierto'); return }
+    const index = documents.findIndex((item) => item.id === id)
+    if (index < 0) return
+    const remaining = documents.filter((item) => item.id !== id)
+    if (documentRef.current.id === id) {
+      const next = remaining[Math.min(index, remaining.length - 1)]!
+      documentRef.current = next; setDocument(next); selectMask(); undoRef.current = []; redoRef.current = []; window.requestAnimationFrame(fitCanvas)
+    }
+    setDocuments(remaining)
+    setStatus('Documento cerrado')
+  }
   const commit = (next: SpriteDocument, before = documentRef.current) => {
     if (next === before) return
     undoRef.current.push(before); redoRef.current = []; show(next)
@@ -135,16 +163,54 @@ export function PixelArtEditor() {
   useEffect(() => { filledRef.current = filled }, [filled])
   useEffect(() => { seamlessRef.current = seamless }, [seamless])
   useEffect(() => { onionRef.current = onion; render() }, [onion])
-  useEffect(() => { try { localStorage.setItem(storageKey, serializeSpriteDocument(document)) } catch { setStatus('No se pudo guardar localmente') } }, [document])
+  useEffect(() => {
+    const save = () => {
+      try {
+        const serialized = documents.map((item) => ({ id: item.id, value: serializeSpriteDocument(item) }))
+        localStorage.setItem(storageKey, serialized.find((item) => item.id === document.id)?.value ?? serializeSpriteDocument(document))
+        localStorage.setItem(tabsStorageKey, JSON.stringify({ activeId: document.id, documents: serialized.map((item) => item.value) }))
+      } catch { setStatus('No se pudo guardar localmente') }
+    }
+    let idle = 0; let fallback: ReturnType<typeof setTimeout> | undefined
+    const timer = window.setTimeout(() => {
+      if ('requestIdleCallback' in window) idle = window.requestIdleCallback(save, { timeout: 2000 })
+      else fallback = globalThis.setTimeout(save, 0)
+    }, 750)
+    return () => { window.clearTimeout(timer); if (idle && 'cancelIdleCallback' in window) window.cancelIdleCallback(idle); if (fallback) globalThis.clearTimeout(fallback) }
+  }, [document, documents])
+  useEffect(() => {
+    const receive = (event: Event) => {
+      const detail = (event as CustomEvent<{ target?: string; file?: File }>).detail
+      if (detail.target !== 'Editor' || !detail.file) return
+      void importImage(detail.file).then((next) => { openDocument(next); setStatus('Asset abierto en Editor') }).catch((error: unknown) => setStatus(error instanceof Error ? error.message : 'No se pudo abrir el Asset'))
+    }
+    window.addEventListener('mosaico:asset-open', receive)
+    return () => window.removeEventListener('mosaico:asset-open', receive)
+  }, [])
+  useEffect(() => {
+    const receive = (event: Event) => {
+      const detail = (event as CustomEvent<PipelineTransferPayload>).detail
+      if (!detail?.frames?.length) return
+      try { openDocument(createSpriteDocumentFromFrames(detail.name, detail.width, detail.height, detail.frames.map((frame) => ({ pixels: new Uint8ClampedArray(frame.pixels), durationMs: frame.durationMs })))); setStatus('Resultado de Pipeline abierto en Editor') }
+      catch (error: unknown) { setStatus(error instanceof Error ? error.message : 'No se pudo abrir el resultado en Editor') }
+    }
+    window.addEventListener('mosaico:pipeline-transfer-ready', receive)
+    return () => window.removeEventListener('mosaico:pipeline-transfer-ready', receive)
+  }, [])
   useEffect(() => {
     const closeMenus = (event: PointerEvent) => { if (!(event.target instanceof Element) || !event.target.closest('.menu-root')) setOpenMenu(undefined) }
     const escapeMenus = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpenMenu(undefined); setFlyout(undefined); setExportDialog(false) } }
     window.addEventListener('pointerdown', closeMenus); window.addEventListener('keydown', escapeMenus)
     return () => { window.removeEventListener('pointerdown', closeMenus); window.removeEventListener('keydown', escapeMenus) }
   }, [])
-  useEffect(render, [document, guides, seamless])
+  useEffect(() => { if (active) render() }, [active, document, guides, seamless])
   useEffect(() => {
-    if (!playing) return
+    activeRef.current = active
+    if (!active) setPlaying(false)
+    else window.requestAnimationFrame(() => { if (viewportRef.current.width <= 1) fitCanvas(); else render() })
+  }, [active])
+  useEffect(() => {
+    if (!active || !playing) return
     const currentIndex = document.frames.findIndex((frame) => frame.id === document.activeFrameId)
     const current = document.frames[currentIndex] ?? document.frames[0]!
     const timer = window.setTimeout(() => {
@@ -152,7 +218,7 @@ export function PixelArtEditor() {
       show({ ...documentRef.current, activeFrameId: next.id })
     }, current.durationMs)
     return () => window.clearTimeout(timer)
-  }, [playing, document.activeFrameId, document.frames])
+  }, [active, playing, document.activeFrameId, document.frames])
 
   useEffect(() => {
     const host = hostRef.current; if (!host) return
@@ -169,6 +235,7 @@ export function PixelArtEditor() {
       : toolRef.current === 'rectangle' ? rectanglePixels(start, end, filledRef.current) : ellipsePixels(start, end, filledRef.current)
     const applySelection = (next: SelectionMask) => selectMask(combineSelection(selectionBaseRef.current, next, selectionOperationRef.current))
     const down = (event: PointerEvent) => {
+      host.focus({ preventScroll: true })
       const screen = point(event); const picked = gesturePixel(event)
       if (event.button === 1 || toolRef.current === 'pan') {
         event.preventDefault(); host.setPointerCapture(event.pointerId)
@@ -228,12 +295,15 @@ export function PixelArtEditor() {
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
+      if (!activeRef.current) return
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return
-      if (event.ctrlKey && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); return }
-      if (event.ctrlKey && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); return }
-      if (event.ctrlKey && selectionMaskRef.current && event.key.toLowerCase() === 'c') { event.preventDefault(); copySelection(); return }
-      if (event.ctrlKey && selectionMaskRef.current && event.key.toLowerCase() === 'x') { event.preventDefault(); cutSelection(); return }
-      if (event.ctrlKey && selectionMaskRef.current && event.key.toLowerCase() === 'v') { event.preventDefault(); pasteSelection(); return }
+      const modifier = event.ctrlKey || event.metaKey
+      if (modifier && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); return }
+      if (modifier && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); return }
+      const clipboardCommand = selectionClipboardCommand(event)
+      if (clipboardCommand === 'copy') { event.preventDefault(); copySelection(); return }
+      if (clipboardCommand === 'cut') { event.preventDefault(); cutSelection(); return }
+      if (clipboardCommand === 'paste') { event.preventDefault(); pasteSelection(); return }
       if (event.altKey && event.shiftKey && event.key === 'Delete') { event.preventDefault(); deleteSelection(); return }
       if (!(event.target instanceof HTMLInputElement) && event.code === 'Digit0') { event.preventDefault(); fitCanvas(); return }
       const selectedTool = hotkeys[event.key.toLowerCase()]
@@ -255,10 +325,10 @@ export function PixelArtEditor() {
     const left = Math.min(...points.map((point) => point.x)); const top = Math.min(...points.map((point) => point.y)); const right = Math.max(...points.map((point) => point.x)); const bottom = Math.max(...points.map((point) => point.y))
     return { left, top, width: right - left + 1, height: bottom - top + 1 }
   }
-  const copySelection = () => { const bounds = selectionBounds(); if (!bounds) return; const pixels: RgbaColor[] = []; for (let y = 0; y < bounds.height; y += 1) for (let x = 0; x < bounds.width; x += 1) pixels.push(getPixel(documentRef.current, documentRef.current.activeLayerId, documentRef.current.activeFrameId, { x: bounds.left + x, y: bounds.top + y })); pixelClipboardRef.current = { width: bounds.width, height: bounds.height, pixels }; setStatus('Selección copiada') }
-  const cutSelection = () => { const bounds = selectionBounds(); if (!bounds) return; copySelection(); const points = selectionIndexes(selectionMaskRef.current!); commit(setPixels(documentRef.current, documentRef.current.activeLayerId, documentRef.current.activeFrameId, points.map((index) => ({ x: index % documentRef.current.width, y: Math.floor(index / documentRef.current.width) })), transparent)); setStatus('Selección cortada') }
+  const copySelection = () => { const bounds = selectionBounds(); if (!bounds) { setStatus('Selecciona píxeles para copiar'); return } const pixels: RgbaColor[] = []; for (let y = 0; y < bounds.height; y += 1) for (let x = 0; x < bounds.width; x += 1) pixels.push(getPixel(documentRef.current, documentRef.current.activeLayerId, documentRef.current.activeFrameId, { x: bounds.left + x, y: bounds.top + y })); pixelClipboardRef.current = { width: bounds.width, height: bounds.height, pixels }; setStatus('Selección copiada') }
+  const cutSelection = () => { const bounds = selectionBounds(); if (!bounds) { setStatus('Selecciona píxeles para cortar'); return } copySelection(); const points = selectionIndexes(selectionMaskRef.current!); commit(setPixels(documentRef.current, documentRef.current.activeLayerId, documentRef.current.activeFrameId, points.map((index) => ({ x: index % documentRef.current.width, y: Math.floor(index / documentRef.current.width) })), transparent)); setStatus('Selección cortada') }
   const deleteSelection = () => { const mask = selectionMaskRef.current; if (!mask) return; const points = selectionIndexes(mask).map((index) => ({ x: index % documentRef.current.width, y: Math.floor(index / documentRef.current.width) })); commit(setPixels(documentRef.current, documentRef.current.activeLayerId, documentRef.current.activeFrameId, points, transparent)); }
-  const pasteSelection = () => { const value = pixelClipboardRef.current; if (!value) return; const origin = selectionBounds() ? { x: selectionBounds()!.left, y: selectionBounds()!.top } : { x: 0, y: 0 }; const points: GridCoordinate[] = []; const colors = new Map<string, { color: RgbaColor; points: GridCoordinate[] }>(); for (let y = 0; y < value.height; y += 1) for (let x = 0; x < value.width; x += 1) { const target = { x: origin.x + x, y: origin.y + y }; if (target.x < 0 || target.y < 0 || target.x >= documentRef.current.width || target.y >= documentRef.current.height) continue; const color = value.pixels[y * value.width + x]!; const id = `${color.r},${color.g},${color.b},${color.a}`; const group = colors.get(id) ?? { color, points: [] }; group.points.push(target); colors.set(id, group); points.push(target) } let next = documentRef.current; for (const group of colors.values()) next = setPixels(next, next.activeLayerId, next.activeFrameId, group.points, group.color); commit(next); selectMask(rectangleMask(origin, { x: origin.x + value.width - 1, y: origin.y + value.height - 1 }, next.width, next.height)); setStatus('Selección pegada') }
+  const pasteSelection = () => { const value = pixelClipboardRef.current; if (!value) { setStatus('El portapapeles del Editor está vacío'); return } const origin = selectionBounds() ? { x: selectionBounds()!.left, y: selectionBounds()!.top } : { x: 0, y: 0 }; const points: GridCoordinate[] = []; const colors = new Map<string, { color: RgbaColor; points: GridCoordinate[] }>(); for (let y = 0; y < value.height; y += 1) for (let x = 0; x < value.width; x += 1) { const target = { x: origin.x + x, y: origin.y + y }; if (target.x < 0 || target.y < 0 || target.x >= documentRef.current.width || target.y >= documentRef.current.height) continue; const color = value.pixels[y * value.width + x]!; const id = `${color.r},${color.g},${color.b},${color.a}`; const group = colors.get(id) ?? { color, points: [] }; group.points.push(target); colors.set(id, group); points.push(target) } let next = documentRef.current; for (const group of colors.values()) next = setPixels(next, next.activeLayerId, next.activeFrameId, group.points, group.color); commit(next); selectMask(rectangleMask(origin, { x: origin.x + value.width - 1, y: origin.y + value.height - 1 }, next.width, next.height)); setStatus('Selección pegada') }
   const newCanvas = () => { openDocument(blank(Math.max(1, Math.min(4096, size.width)), Math.max(1, Math.min(4096, size.height)))); setNewDialog(false); setStatus('Nuevo lienzo creado') }
   const addFrame = (duplicate: boolean) => { setPlaying(false); selectMask(); commit(addSpriteFrame(documentRef.current, { id: crypto.randomUUID(), duplicateFromFrameId: duplicate ? document.activeFrameId : undefined })) }
   const removeFrame = () => { try { setPlaying(false); selectMask(); commit(removeSpriteFrame(documentRef.current, document.activeFrameId)) } catch { setStatus('La animación necesita al menos un frame') } }
@@ -287,7 +357,7 @@ export function PixelArtEditor() {
   const importFile = async (file?: File) => {
     if (!file) return
     try {
-      const next = file.name.endsWith('.mosaico') || file.type === 'application/json' ? deserializeSpriteDocument(await file.text()) : await importImage(file)
+      const next = file.name.endsWith('.mpe') || file.name.endsWith('.mosaico') || file.type === 'application/json' || file.type === 'application/vnd.mosaico.editor+json' ? deserializeSpriteDocument(await file.text()) : await importImage(file)
       openDocument(next); setStatus(`${file.name} importado`)
     } catch { setStatus('No se pudo importar el archivo') }
   }
@@ -316,9 +386,23 @@ export function PixelArtEditor() {
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')); if (!blob) return
     window.dispatchEvent(new CustomEvent('mosaico:map-import', { detail: { file: new File([blob], `${document.name}-tilesheet.png`, { type: 'image/png' }), tileWidth: document.width, tileHeight: document.height, name: `${document.name} tileset` } })); setStatus('Tilesheet enviado a Mapas')
   }
+  const createSpriteBlob = async (frameId: string = document.activeFrameId): Promise<Blob | undefined> => {
+    const blob = await new Promise<Blob | null>((resolve) => { const canvas = window.document.createElement('canvas'); canvas.width = document.width; canvas.height = document.height; const context = canvas.getContext('2d'); if (!context) return resolve(null); context.putImageData(new ImageData(new Uint8ClampedArray(composeSpriteFrame(document, frameId)), document.width, document.height), 0, 0); canvas.toBlob(resolve, 'image/png') }); if (!blob) return
+    return blob
+  }
   const transferToAssets = async () => {
-    const blob = await new Promise<Blob | null>((resolve) => { const canvas = window.document.createElement('canvas'); canvas.width = document.width; canvas.height = document.height; const context = canvas.getContext('2d'); if (!context) return resolve(null); context.putImageData(new ImageData(new Uint8ClampedArray(composeSpriteFrame(document, document.activeFrameId)), document.width, document.height), 0, 0); canvas.toBlob(resolve, 'image/png') }); if (!blob) return
-    window.dispatchEvent(new CustomEvent('mosaico:asset-import', { detail: { file: new File([blob], `${document.name}.png`, { type: 'image/png' }) } })); setStatus('Imagen enviada a Assets')
+    const blob = await createSpriteBlob(); if (!blob) return
+    window.dispatchEvent(new CustomEvent('mosaico:asset-import', { detail: { file: new File([blob], `${document.name}.png`, { type: 'image/png' }), kind: 'sprite', sourceName: document.name } })); setStatus('Sprite enviado a Assets')
+  }
+  const transferAnimationToAssets = async () => {
+    const blob = encodeSpriteGif(document)
+    window.dispatchEvent(new CustomEvent('mosaico:asset-import', { detail: { file: new File([blob], `${document.name}.gif`, { type: 'image/gif' }), kind: 'animation', sourceName: document.name } })); setStatus('Animación enviada a Assets')
+  }
+  const transferTilesheetToAssets = async () => {
+    const width = document.width * document.frames.length; const canvas = window.document.createElement('canvas'); canvas.width = width; canvas.height = document.height; const context = canvas.getContext('2d'); if (!context) return
+    document.frames.forEach((frame, index) => context.putImageData(new ImageData(new Uint8ClampedArray(composeSpriteFrame(document, frame.id)), document.width, document.height), index * document.width, 0))
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')); if (!blob) return
+    window.dispatchEvent(new CustomEvent('mosaico:asset-import', { detail: { file: new File([blob], `${document.name}-tilesheet.png`, { type: 'image/png' }), kind: 'tilesheet', sourceName: document.name } })); setStatus('Tilesheet enviado a Assets')
   }
   const startHold = (group: 'shape' | 'selection', event: ReactPointerEvent) => { if (event.button === 0) holdTimerRef.current = window.setTimeout(() => setFlyout(group), 450) }
   const stopHold = () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); holdTimerRef.current = undefined }
@@ -346,7 +430,7 @@ export function PixelArtEditor() {
   if (!menus.Vista.some(([label]) => label === 'Seamless')) menus.Vista = [...menus.Vista, ['Guías entre celdas', () => setGuides((value) => !value)], ['No Seamless', () => setSeamless('none')], ['Seamless', [['Horizontal', () => setSeamless('horizontal')], ['Vertical', () => setSeamless('vertical')], ['Total', () => setSeamless('total')]]]]
   if (!menus.Vista.some(([label]) => label === 'Timeline')) menus.Vista = [...menus.Vista, ['Timeline', () => panelLayout.update({ timelineVisible: !panelLayout.layout.timelineVisible })], ['Panel de capas', () => panelLayout.update({ layersVisible: !panelLayout.layout.layersVisible })]]
   if (!menus.Ventana.some(([label]) => label === 'Guardar layout')) menus.Ventana = [...menus.Ventana, ['Guardar layout', () => { const name = window.prompt('Nombre layout'); if (name) panelLayout.saveLayout(name) }], ['Aplicar layout', () => { const names = Object.keys(panelLayout.saved); const name = window.prompt(`Layout (${names.join(', ')})`); if (name) panelLayout.applyLayout(name) }], ['Eliminar layout', () => { const name = window.prompt('Layout a eliminar'); if (name) panelLayout.deleteLayout(name) }], ['Restablecer layout', panelLayout.reset]]
-  if (!menus.Archivo.some(([label]) => label === 'Guardar modo…')) menus.Archivo = [...menus.Archivo, ['Guardar modo…', () => setSaveModeDialog(true)], ['Enviar tilesheet a Mapas', () => void transferToMaps()], ['Enviar imagen a Assets', () => void transferToAssets()]]
+  if (!menus.Archivo.some(([label]) => label === 'Guardar modo…')) menus.Archivo = [...menus.Archivo, ['Guardar modo…', () => setSaveModeDialog(true)], ['Enviar tilesheet a Mapas', () => void transferToMaps()], ['Enviar sprite a Assets', () => void transferToAssets()], ['Enviar animación a Assets', () => void transferAnimationToAssets()], ['Enviar tilesheet a Assets', () => void transferTilesheetToAssets()]]
   const layerTreeContent = <>
     <div className="panel-title"><strong>Capas</strong><div className="layer-actions"><button title="Nueva carpeta" onPointerDown={(event) => event.stopPropagation()} onClick={addFolder}>+F</button><button title="Nueva capa" onPointerDown={(event) => event.stopPropagation()} onClick={addLayer}>+</button></div></div>
     <div className="layer-tree" role="tree" onPointerUp={(event) => { if (!draggingLayerId) return; const target = (event.target as Element).closest<HTMLElement>('[data-layer-id]'); dropLayer(draggingLayerId, target?.dataset.layerId); setDraggingLayerId(undefined) }}>
@@ -362,8 +446,8 @@ export function PixelArtEditor() {
   const layoutStyle = { '--inspector-w': `${panelLayout.layout.inspectorWidth}px`, '--timeline-w': `${panelLayout.layout.timelineWidth}px`, '--timeline-h': `${panelLayout.layout.timelineHeight}px`, '--layers-h': `${panelLayout.layout.layersHeight}px`, gridTemplateRows: `1.8rem 2rem 2.5rem minmax(0, 1fr) ${panelLayout.layout.timelineVisible ? `${panelLayout.layout.timelineHeight}px` : '0px'} 1.65rem` } as CSSProperties
   return <main className={`pixel-editor ${panelLayout.layout.timelineVisible ? '' : 'timeline-collapsed'}`} style={layoutStyle} onContextMenu={(event) => event.preventDefault()}>
     <nav className="pixel-menubar" aria-label="Menú principal">{Object.keys(menus).map((menu) => <div className="menu-root" key={menu}><button onClick={() => setOpenMenu(openMenu === menu ? undefined : menu)}>{menu}</button>{openMenu === menu && <div className="menu-dropdown" role="menu">{(menus[menu] ?? []).map((entry) => { const action = entry[1]; return typeof action === 'function' ? <button key={entry[0]} role="menuitem" disabled={entry[2]} onClick={() => { action(); setOpenMenu(undefined) }}>{entry[0]}</button> : <details className="menu-submenu-root" key={entry[0]}><summary role="menuitem">{entry[0]} <span>▶</span></summary><div className="menu-submenu" role="menu">{action.map(([label, childAction, disabled]) => <button key={label} role="menuitem" disabled={disabled} onClick={() => { childAction(); setOpenMenu(undefined) }}>{label}</button>)}</div></details> })}</div>}</div>)}</nav>
-    <div className="document-tabs">{documents.map((item) => <button key={item.id} className={item.id === document.id ? 'active' : ''} onClick={() => { const next = documents.find((candidate) => candidate.id === item.id); if (next) { documentRef.current = next; setDocument(next); window.requestAnimationFrame(fitCanvas) } }}>{item.name}</button>)}</div>
-    <input ref={fileRef} hidden type="file" accept=".mosaico,.json,image/png,image/jpeg,image/webp,image/gif" onChange={(event) => { void importFile(event.target.files?.[0]); event.currentTarget.value = '' }} />
+    <div className="document-tabs">{documents.map((item) => <div key={item.id} className={item.id === document.id ? 'active' : ''}><button className="document-tab-title" onClick={() => { const next = documents.find((candidate) => candidate.id === item.id); if (next) { documentRef.current = next; setDocument(next); window.requestAnimationFrame(fitCanvas) } }}>{item.name}</button><button className="document-tab-close" aria-label={`Cerrar ${item.name}`} title="Cerrar documento" onClick={(event) => { event.stopPropagation(); closeDocument(item.id) }}><X size={12} /></button></div>)}</div>
+    <input ref={fileRef} hidden type="file" accept=".mpe,.mosaico,.json,image/png,image/jpeg,image/webp,image/gif" onChange={(event) => { void importFile(event.target.files?.[0]); event.currentTarget.value = '' }} />
     <header className="pixel-optionsbar">
       <strong>{toolLabel(tool, selectionMode)}</strong><span className="option-divider" />
       <label className="color-control">Color<ColorWheel label="Color principal" value={color} onChange={setColor} /></label>
@@ -378,7 +462,7 @@ export function PixelArtEditor() {
         <div className="tool-group has-flyout"><button aria-label={selectionTool[1]} title={`${selectionTool[1]} · mantener o clic derecho: selecciones`} className={tool === 'select' ? 'active' : ''} onPointerDown={(event) => startHold('selection', event)} onPointerUp={stopHold} onPointerLeave={stopHold} onClick={() => setTool('select')} onContextMenu={(event) => { event.preventDefault(); setFlyout(flyout === 'selection' ? undefined : 'selection') }}><SelectionIcon /></button>{flyout === 'selection' && <div className="tool-flyout">{selections.map(([id, label, Icon]) => <button key={id} aria-label={label} className={selectionMode === id ? 'active' : ''} onClick={() => { setSelectionMode(id); setTool('select'); setFlyout(undefined) }}><Icon /></button>)}</div>}</div>
         {plainTools.slice(3).map(([id, label, Icon]) => <button key={id} aria-label={label} title={`${label} (${Object.entries(hotkeys).find(([, value]) => value === id)?.[0]?.toUpperCase()})`} className={tool === id ? 'active' : ''} onClick={() => { setTool(id); setFlyout(undefined) }}><Icon /></button>)}
       </aside>
-      <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas Pixel Art editable" />{seamless !== 'none' && <div className="seamless-canvas-boundary" style={selectionStyle} aria-hidden="true" />}{selectionPath && <svg className="selection-mask-overlay" style={selectionStyle} viewBox={`0 0 ${document.width} ${document.height}`} preserveAspectRatio="none"><path d={selectionPath} /></svg>}{contextMenu && <div className="selection-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu"><button role="menuitem" onClick={() => { if (selectionMaskRef.current) selectMask(invertSelection(selectionMaskRef.current)); setContextMenu(undefined) }}>Invertir selección</button><button role="menuitem" onClick={() => { selectMask(); setContextMenu(undefined) }}>Deseleccionar</button></div>}</div>
+      <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} tabIndex={0} aria-label="Canvas Pixel Art editable" aria-keyshortcuts="Control+C Control+X Control+V Meta+C Meta+X Meta+V" />{seamless !== 'none' && <div className="seamless-canvas-boundary" style={selectionStyle} aria-hidden="true" />}{selectionPath && <svg className="selection-mask-overlay" style={selectionStyle} viewBox={`0 0 ${document.width} ${document.height}`} preserveAspectRatio="none"><path d={selectionPath} /></svg>}{contextMenu && <div className="selection-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu"><button role="menuitem" onClick={() => { if (selectionMaskRef.current) selectMask(invertSelection(selectionMaskRef.current)); setContextMenu(undefined) }}>Invertir selección</button><button role="menuitem" onClick={() => { selectMask(); setContextMenu(undefined) }}>Deseleccionar</button></div>}</div>
       <aside className="pixel-inspector"><section><div className="panel-title"><div><p className="eyebrow">Documento</p><h2>Lienzo</h2></div><button aria-label="Exportar imagen" title="Exportar imagen" onClick={() => beginExport('png')}><Download /></button></div><p className="document-meta">{document.name} · {document.width}×{document.height} · rev. {document.revision}</p><h3 className="palette-title">Colores usados</h3><div className="pixel-palette">{palette.map((swatch) => <button key={swatch} aria-label={`Color ${swatch}`} style={{ backgroundColor: swatch }} onClick={() => setColor(swatch)} />)}</div></section>{panelLayout.layout.layersVisible && <><section className="layer-tree-panel layer-tree-sidebar">{layerTreeContent}</section><div className="sidebar-layers-splitter" role="separator" aria-label="Redimensionar capas" onPointerDown={(event) => panelLayout.resize('layers', 'height', event)} /></>}</aside>
     </section>
     <section className="pixel-timeline"><div className="timeline-controls"><strong>Timeline</strong><button aria-label={playing ? 'Pausar animación' : 'Reproducir animación'} title={playing ? 'Pausar' : 'Reproducir'} onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button aria-label="Añadir frame" title="Añadir frame" onClick={() => addFrame(false)}><Plus /></button><button aria-label="Duplicar frame" title="Duplicar frame" onClick={() => addFrame(true)}><Copy /></button><button aria-label="Eliminar frame" title="Eliminar frame" onClick={removeFrame}><Trash2 /></button><button aria-label="Onion skin" title="Onion skin" className={onion ? 'active' : ''} onClick={() => setOnion(!onion)}><Eye /></button><button aria-label="Exportar sprite sheet" title="Exportar sprite sheet" onClick={exportSheet}><Download /></button><label>Duración <input aria-label="Duración del frame" type="number" min="10" max="60000" step="10" value={activeFrame.durationMs} onChange={(event) => { const durationMs = Number(event.target.value); if (Number.isInteger(durationMs) && durationMs >= 10 && durationMs <= 60_000) commit(updateSpriteFrame(documentRef.current, document.activeFrameId, { durationMs })) }} /> ms</label></div><div className="timeline-frames">{document.frames.map((frame, index) => <button key={frame.id} className={document.activeFrameId === frame.id ? 'active' : ''} aria-label={`Seleccionar frame ${index + 1}`} onClick={() => chooseFrame(frame.id)}><span>{index + 1}</span><small>{frame.durationMs} ms</small></button>)}</div></section>
@@ -386,7 +470,7 @@ export function PixelArtEditor() {
     <div className="panel-splitter timeline-width-splitter" role="separator" aria-label="Redimensionar controles de timeline" onPointerDown={(event) => panelLayout.resize('timeline', 'width', event)} />
     <footer className="authoring-help"><span>{status}</span><span>0: ajustar · P/E/G/L/R/O/M/H: herramientas · PageUp/Down: frames</span></footer>
     {exportDialog && <div className="pixel-modal" role="dialog" aria-modal="true" aria-label="Opciones de exportación"><div className="export-dialog"><header><h2>Exportar imagen</h2><button aria-label="Cerrar" onClick={() => setExportDialog(false)}><X /></button></header><div className="export-fields"><label>Nombre<input value={exportOptions.name} onChange={(event) => setExportOptions({ ...exportOptions, name: event.target.value })} /></label><label>Formato<select value={exportOptions.format} onChange={(event) => { const format = event.target.value as ExportFormat; setExportOptions({ ...exportOptions, format, transparent: format !== 'jpeg' && exportOptions.transparent }) }}><option value="png">PNG</option><option value="jpeg">JPG</option><option value="webp">WebP</option><option value="gif">GIF animado</option></select></label><label>Escala entera<input type="number" min="1" max={maximumScale} step="1" value={exportOptions.scale} onChange={(event) => setExportOptions({ ...exportOptions, scale: Number(event.target.value) })} /></label><output>{document.width * exportOptions.scale} × {document.height * exportOptions.scale} px</output></div><label className="export-check"><input type="checkbox" disabled={exportOptions.format === 'jpeg'} checked={exportOptions.transparent && exportOptions.format !== 'jpeg'} onChange={(event) => setExportOptions({ ...exportOptions, transparent: event.target.checked })} /> Conservar transparencia</label>{(exportOptions.format === 'jpeg' || exportOptions.format === 'webp') && <label className="export-quality">Calidad {exportOptions.quality}%<input type="range" min="1" max="100" value={exportOptions.quality} onChange={(event) => setExportOptions({ ...exportOptions, quality: Number(event.target.value) })} /></label>}<button className="panel-action" disabled={!exportOptions.name.trim() || !Number.isInteger(exportOptions.scale) || exportOptions.scale < 1 || exportOptions.scale > maximumScale} onClick={() => void confirmExport()}>Elegir ubicación y exportar</button></div></div>}
-    {saveModeDialog && <div className="pixel-modal" role="dialog" aria-modal="true" aria-label="Guardar modo"><div><header><h2>Guardar modo</h2><button aria-label="Cerrar" onClick={() => setSaveModeDialog(false)}><X /></button></header><p className="document-meta">Elige formato de salida.</p><button className="panel-action" onClick={() => { setSaveModeDialog(false); void saveProject() }}>Normal (.mosaico)</button><button className="panel-action" onClick={() => { setSaveModeDialog(false); exportSheet() }}>Spritesheet (PNG)</button><button className="panel-action" onClick={() => { setSaveModeDialog(false); exportSheet() }}>Tilesheet (PNG)</button></div></div>}
+    {saveModeDialog && <div className="pixel-modal" role="dialog" aria-modal="true" aria-label="Guardar modo"><div><header><h2>Guardar modo</h2><button aria-label="Cerrar" onClick={() => setSaveModeDialog(false)}><X /></button></header><p className="document-meta">Elige formato de salida.</p><button className="panel-action" onClick={() => { setSaveModeDialog(false); void saveProject() }}>Normal (.mpe)</button><button className="panel-action" onClick={() => { setSaveModeDialog(false); exportSheet() }}>Spritesheet (PNG)</button><button className="panel-action" onClick={() => { setSaveModeDialog(false); exportSheet() }}>Tilesheet (PNG)</button></div></div>}
     {newDialog && <div className="pixel-modal" role="dialog" aria-modal="true" aria-label="Nuevo lienzo"><div><header><h2>Nuevo lienzo</h2><button aria-label="Cerrar" onClick={() => setNewDialog(false)}><X /></button></header><div className="size-fields"><label>Ancho<input type="number" min="1" max="4096" value={size.width} onChange={(event) => setSize({ ...size, width: Number(event.target.value) })} /></label><label>Alto<input type="number" min="1" max="4096" value={size.height} onChange={(event) => setSize({ ...size, height: Number(event.target.value) })} /></label></div><button className="panel-action" onClick={newCanvas}>Crear</button></div></div>}
   </main>
 }

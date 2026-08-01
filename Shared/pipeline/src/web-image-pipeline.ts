@@ -1,6 +1,6 @@
 import type { AssetRecord, DerivedAssetManifest, Recipe } from '@mosaico/contracts'
-import { assetSchema, derivedAssetManifestSchema, recipeSchema } from '@mosaico/contracts'
-import { isSupportedImageType, type SupportedImageType } from './formats.js'
+import { assetSchema, derivedAssetManifestSchema, recipeSchema, type AssetAnimation } from '@mosaico/contracts'
+import { isSupportedAssetType, type AssetMediaType, type SupportedImageType } from './formats.js'
 import { resizeNearestRgbaAsync } from './pixel-resize.js'
 import { orderRecipeSteps } from './recipe-graph.js'
 
@@ -23,11 +23,32 @@ export interface ProcessOptions {
 const MAX_SOURCE_BYTES = 50 * 1024 * 1024
 const MAX_PIXELS = 67_108_864
 
-export function detectImageType(bytes: Uint8Array): SupportedImageType | undefined {
+export function detectImageType(bytes: Uint8Array): AssetMediaType | undefined {
   if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return 'image/png'
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg'
   if (bytes.length >= 12 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return 'image/webp'
+  if (bytes.length >= 6 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38 && (bytes[4] === 0x37 || bytes[4] === 0x39) && bytes[5] === 0x61) return 'image/gif'
   return undefined
+}
+
+async function gifAnimation(file: File): Promise<AssetAnimation> {
+  const Decoder = (globalThis as unknown as { ImageDecoder?: new (input: { data: ArrayBuffer; type: string }) => any }).ImageDecoder
+  if (!Decoder) throw new Error('GIF_DECODER_UNAVAILABLE')
+  const decoder = new Decoder({ data: await file.arrayBuffer(), type: file.type })
+  try {
+    await decoder.tracks.ready
+    const frameCount = decoder.tracks.selectedTrack.frameCount
+    if (!Number.isInteger(frameCount) || frameCount < 1 || frameCount > 1024) throw new RangeError('GIF_FRAME_LIMIT')
+    const frameDurationsMs: number[] = []
+    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+      const decoded = await decoder.decode({ frameIndex, completeFramesOnly: true })
+      frameDurationsMs.push(Math.max(10, Math.round((decoded.image.duration ?? 100_000) / 1000)))
+      decoded.image.close()
+    }
+    return { frameCount, frameDurationsMs, loop: true }
+  } finally {
+    decoder.close()
+  }
 }
 
 function assertNotCancelled(signal?: AbortSignal): void {
@@ -88,11 +109,12 @@ async function renderToBlob(source: ImageBitmap, width: number, height: number, 
 }
 
 export async function importImage(file: File, now = new Date()): Promise<ImportedImage> {
-  if (!isSupportedImageType(file.type)) throw new Error(`Formato no soportado: ${file.type || 'desconocido'}. Usa PNG, JPEG o WebP.`)
+  if (!isSupportedAssetType(file.type)) throw new Error(`Formato no soportado: ${file.type || 'desconocido'}. Usa PNG, JPEG, WebP o GIF.`)
   if (file.size > MAX_SOURCE_BYTES) throw new Error('La imagen supera el límite T1 de 50 MB.')
   const detectedType = detectImageType(new Uint8Array(await file.slice(0, 16).arrayBuffer()))
-  if (!detectedType || detectedType !== file.type) throw new Error('La firma binaria no coincide con un PNG, JPEG o WebP válido.')
+  if (!detectedType || detectedType !== file.type) throw new Error('La firma binaria no coincide con un PNG, JPEG, WebP o GIF válido.')
   const hash = await sha256(file)
+  const animation = file.type === 'image/gif' ? await gifAnimation(file).catch((error: unknown) => error instanceof Error && error.message === 'GIF_DECODER_UNAVAILABLE' ? undefined : Promise.reject(error)) : undefined
   const bitmap = await createImageBitmap(file).catch(() => {
     throw new Error(`No se pudo decodificar ${file.name}. El archivo puede estar corrupto.`)
   })
@@ -109,6 +131,7 @@ export async function importImage(file: File, now = new Date()): Promise<Importe
       width: bitmap.width,
       height: bitmap.height,
       importedAt: now.toISOString(),
+      animation,
     })
     return { record, original: file, thumbnail }
   } finally {

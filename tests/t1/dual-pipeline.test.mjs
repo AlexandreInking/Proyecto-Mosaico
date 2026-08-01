@@ -8,10 +8,12 @@ test('Web and Desktop render the same pipeline UI', () => {
   const desktopEntry = readFileSync('DesktopApp/app/src/main.tsx', 'utf8')
   const webEntry = readFileSync('WebApp/client/src/main.tsx', 'utf8')
 
-  assert.match(desktopEntry, /import \{ AppShell \} from '@mosaico\/ui'/)
-  assert.match(webEntry, /import \{ AppShell \} from '@mosaico\/ui'/)
+  assert.match(desktopEntry, /import\s+\{[^}]*\bAppShell\b[^}]*\}\s+from '@mosaico\/ui'/s)
+  assert.match(webEntry, /import\s+\{[^}]*\bAppShell\b[^}]*\}\s+from '@mosaico\/ui'/s)
   assert.match(desktopEntry, /<AppShell platform="Desktop"/)
   assert.match(webEntry, /<AppShell platform="Web"/)
+  assert.match(desktopEntry, /addEventListener\(['"]online['"]|setOnline/s)
+  assert.match(webEntry, /addEventListener\(['"]online['"]|setOnline/s)
 })
 
 test('the shared UI owns the single image pipeline implementation', () => {
@@ -22,6 +24,16 @@ test('the shared UI owns the single image pipeline implementation', () => {
   assert.equal(desktop.dependencies['@mosaico/ui'], 'workspace:*')
   assert.equal(web.dependencies['@mosaico/ui'], 'workspace:*')
   assert.equal(ui.dependencies['@mosaico/pipeline'], 'workspace:*')
+})
+
+test('inactive Pipelines stays mounted without painting or receiving input', () => {
+  const shell = readFileSync('Shared/ui/src/AppShell.tsx', 'utf8')
+  const styles = readFileSync('Shared/ui/src/styles.css', 'utf8')
+
+  assert.match(shell, /const pipelineActive = activeModule === 'Pipelines'/)
+  assert.match(shell, /hidden=\{!pipelineActive\}/)
+  assert.match(styles, /\.pipeline-preserved-view\s*\{\s*display:\s*none;\s*\}/)
+  assert.doesNotMatch(styles, /\.pipeline-preserved-view\s*\{[^}]*visibility:\s*hidden/)
 })
 
 test('T1 manual gate covers both surfaces and pixel-perfect resize', () => {

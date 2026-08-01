@@ -1,7 +1,7 @@
 [package]
 name = "mosaico-desktop"
-version = "0.2.0"
-description = "Mosaico Asset Pipeline AI desktop shell"
+version = "0.2.17"
+description = "Mosaico desktop shell"
 authors = ["Proyecto Mosaico"]
 edition = "2024"
 

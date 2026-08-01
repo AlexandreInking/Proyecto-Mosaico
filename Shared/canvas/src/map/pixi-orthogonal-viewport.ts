@@ -23,10 +23,14 @@ export class OrthogonalPixiViewport {
   readonly #resolveTexture: TileTextureResolver
   readonly #sprites = new Map<string, Sprite>()
   readonly #spritePool: Sprite[] = []
+  #width: number
+  #height: number
 
-  private constructor(renderer: CanvasRenderer, resolveTexture: TileTextureResolver) {
+  private constructor(renderer: CanvasRenderer, resolveTexture: TileTextureResolver, width: number, height: number) {
     this.#renderer = renderer
     this.#resolveTexture = resolveTexture
+    this.#width = width
+    this.#height = height
     this.#content.mask = this.#clip
     this.#orphans.mask = this.#clip
     this.#stage.addChild(this.#mapBackground, this.#clip, this.#content, this.#orphans, this.#grid)
@@ -34,9 +38,11 @@ export class OrthogonalPixiViewport {
 
   static async create(options: OrthogonalPixiViewportOptions): Promise<OrthogonalPixiViewport> {
     const renderer = new CanvasRenderer()
+    const width = Math.max(1, options.host.clientWidth)
+    const height = Math.max(1, options.host.clientHeight)
     await renderer.init({
-      width: Math.max(1, options.host.clientWidth),
-      height: Math.max(1, options.host.clientHeight),
+      width,
+      height,
       resolution: options.resolution ?? globalThis.devicePixelRatio ?? 1,
       autoDensity: true,
       antialias: false,
@@ -49,13 +55,17 @@ export class OrthogonalPixiViewport {
     renderer.canvas.style.imageRendering = 'pixelated'
     renderer.canvas.setAttribute('aria-label', 'Canvas de mapa ortogonal')
     options.host.replaceChildren(renderer.canvas)
-    return new OrthogonalPixiViewport(renderer, options.resolveTexture)
+    return new OrthogonalPixiViewport(renderer, options.resolveTexture, width, height)
   }
 
   get canvas(): HTMLCanvasElement { return this.#renderer.canvas }
 
   render(document: MapDocument, viewport: ViewportState, options: { readonly showGrid?: boolean } = {}): number {
-    this.#renderer.resize(viewport.width, viewport.height)
+    if (viewport.width !== this.#width || viewport.height !== this.#height) {
+      this.#renderer.resize(viewport.width, viewport.height)
+      this.#width = viewport.width
+      this.#height = viewport.height
+    }
     const mapWidth = document.width * document.cellWidth * viewport.zoom
     const mapHeight = document.height * document.cellHeight * viewport.zoom
     const clipX = Math.max(0, viewport.offsetX); const clipY = Math.max(0, viewport.offsetY)
@@ -92,7 +102,9 @@ export class OrthogonalPixiViewport {
       sprite.alpha = cell.opacity
     }
     for (const [key, sprite] of this.#sprites) if (!retained.has(key)) { this.#sprites.delete(key); this.#content.removeChild(sprite); sprite.visible = false; this.#spritePool.push(sprite) }
-    order.forEach((sprite, index) => this.#content.setChildIndex(sprite, index))
+    order.forEach((sprite, index) => {
+      if (this.#content.children[index] !== sprite) this.#content.setChildIndex(sprite, index)
+    })
     this.#drawGrid(document, viewport, options.showGrid ?? document.grid.visible)
     this.#renderer.render({ container: this.#stage })
     return this.#content.children.length
@@ -120,15 +132,22 @@ export class OrthogonalPixiViewport {
     const height = document.height * document.cellHeight * viewport.zoom
     const cellWidth = document.cellWidth * viewport.zoom
     const cellHeight = document.cellHeight * viewport.zoom
-    for (let x = 0; x <= document.width; x += 1) {
+    const left = Math.max(0, viewport.offsetX)
+    const right = Math.min(viewport.width, viewport.offsetX + width)
+    const top = Math.max(0, viewport.offsetY)
+    const bottom = Math.min(viewport.height, viewport.offsetY + height)
+    if (left > right || top > bottom) return
+    const startX = Math.max(0, Math.ceil(-viewport.offsetX / cellWidth))
+    const endX = Math.min(document.width, Math.floor((viewport.width - viewport.offsetX) / cellWidth))
+    const startY = Math.max(0, Math.ceil(-viewport.offsetY / cellHeight))
+    const endY = Math.min(document.height, Math.floor((viewport.height - viewport.offsetY) / cellHeight))
+    for (let x = startX; x <= endX; x += 1) {
       const screenX = viewport.offsetX + x * cellWidth
-      if (screenX < 0 || screenX > viewport.width) continue
-      this.#grid.moveTo(screenX, Math.max(0, viewport.offsetY)).lineTo(screenX, Math.min(viewport.height, viewport.offsetY + height))
+      this.#grid.moveTo(screenX, top).lineTo(screenX, bottom)
     }
-    for (let y = 0; y <= document.height; y += 1) {
+    for (let y = startY; y <= endY; y += 1) {
       const screenY = viewport.offsetY + y * cellHeight
-      if (screenY < 0 || screenY > viewport.height) continue
-      this.#grid.moveTo(Math.max(0, viewport.offsetX), screenY).lineTo(Math.min(viewport.width, viewport.offsetX + width), screenY)
+      this.#grid.moveTo(left, screenY).lineTo(right, screenY)
     }
     const color = document.grid.color.match(/^#([0-9a-f]{6})([0-9a-f]{2})?$/i)
     this.#grid.stroke({

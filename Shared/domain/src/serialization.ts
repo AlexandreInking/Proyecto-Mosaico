@@ -115,7 +115,7 @@ function spriteFromContract(contract: SpriteDocumentContract): SpriteDocument {
 export function serializeMapDocument(document: MapDocument): string {
   const parsed = mapDocumentSchema.safeParse(mapToContract(document))
   if (!parsed.success) return invalidFormat()
-  return `${JSON.stringify(parsed.data, null, 2)}\n`
+  return JSON.stringify(parsed.data)
 }
 
 export function deserializeMapDocument(text: string): MapDocument {
@@ -142,7 +142,7 @@ function migrateV2Contract(previous: MapDocumentV2Contract): MapDocument {
 export function serializeSpriteDocument(document: SpriteDocument): string {
   const parsed = spriteDocumentSchema.safeParse(spriteToContract(document))
   if (!parsed.success) return invalidFormat()
-  return `${JSON.stringify(parsed.data, null, 2)}\n`
+  return JSON.stringify(parsed.data)
 }
 
 export function deserializeSpriteDocument(text: string): SpriteDocument {

@@ -4,6 +4,8 @@ import { strFromU8, strToU8, unzip, zip, type AsyncZippable } from 'fflate'
 
 export interface MapAsset { readonly blob: Blob; readonly url: string }
 export interface LoadedMapProject { readonly document: MapDocument; readonly assets: ReadonlyMap<string, MapAsset> }
+export const MAP_PROJECT_EXTENSION = '.mtm'
+export const MAP_PROJECT_MEDIA_TYPE = 'application/vnd.mosaico.tilemap+zip'
 
 const maxPackageBytes = 256 * 1024 * 1024
 const safeName = (name: string) => name.replace(/[^a-z0-9_-]+/gi, '-') || 'map'
@@ -51,7 +53,7 @@ function unzipFiles(bytes: Uint8Array): Promise<Record<string, Uint8Array>> {
 export async function createMapPackage(document: MapDocument, assets: ReadonlyMap<string, MapAsset>): Promise<Blob> {
   const bytes = await zipFiles({ 'project.json': strToU8(serializeMapDocument(document)), ...await assetEntries(document, assets) })
   if (bytes.byteLength > maxPackageBytes) throw new RangeError('MAP_PACKAGE_TOO_LARGE')
-  return new Blob([bytes.slice().buffer as ArrayBuffer], { type: 'application/vnd.mosaico.project+zip' })
+  return new Blob([bytes.slice().buffer as ArrayBuffer], { type: MAP_PROJECT_MEDIA_TYPE })
 }
 
 export async function loadMapProject(blob: Blob): Promise<LoadedMapProject> {
@@ -128,7 +130,7 @@ export async function renderMapPng(document: MapDocument, assets: ReadonlyMap<st
 
 export async function saveMapPackage(document: MapDocument, assets: ReadonlyMap<string, MapAsset>): Promise<void> {
   const blob = await createMapPackage(document, assets)
-  await saveMapBlob(blob, `${safeName(document.name)}.mosaico`, 'Proyecto Mosaico', 'application/vnd.mosaico.project+zip', '.mosaico')
+  await saveMapBlob(blob, `${safeName(document.name)}${MAP_PROJECT_EXTENSION}`, 'Proyecto Mosaico', MAP_PROJECT_MEDIA_TYPE, MAP_PROJECT_EXTENSION)
 }
 
 export async function saveMapBlob(blob: Blob, name: string, description: string, mediaType: string, fileExtension: string): Promise<void> {

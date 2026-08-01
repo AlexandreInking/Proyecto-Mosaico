@@ -17,14 +17,16 @@ import { saveBlob } from './pixel-media.js'
 import { createNeutralMapPackage, loadMapProject, neutralMapJson, renderMapPng, saveMapBlob, saveMapPackage } from './map-media.js'
 import { loadMapImage } from './map-textures.js'
 import { usePanelLayout } from './panel-layout.js'
+import { selectionClipboardCommand } from './selection-shortcuts.js'
 import { ColorWheel } from './ColorWheel.js'
+import type { VisibleAsset } from './asset-catalog.js'
 import {
   captureSelection, deleteSelection, moveSelection, pastePattern, patternChanges, prepareClipboardPaste, selectionBetween, transformPattern, visibleSliceIndexes,
   type TilePattern, type TileSelection,
 } from './map-editor-model.js'
 
 type Tool = 'pencil' | 'eraser' | 'eyedropper' | 'fill' | 'line' | 'rectangle' | 'ellipse' | 'select' | 'pan'
-type Asset = { readonly blob: Blob; readonly url: string; readonly name?: string; readonly mediaType?: string }
+type Asset = { readonly blob: Blob; readonly url: string; readonly name?: string; readonly mediaType?: string; readonly sha256?: string }
 type ImportDraft = { name: string; tileWidth: number; tileHeight: number; marginX: number; marginY: number; spacingX: number; spacingY: number; offsetX: number; offsetY: number; zoom: number }
 type MapSession = { undo: MapDocumentDelta[]; redo: MapDocumentDelta[]; viewport: ViewportState; selection?: TileSelection; activeTilesetId?: string; pattern?: TilePattern; tileStart: number; tileEnd: number }
 const tools: readonly [Tool, string, LucideIcon, string][] = [
@@ -44,14 +46,23 @@ const terrainRoles: readonly TerrainRole[] = ['center', 'top', 'right', 'bottom'
 const importFieldLabels: Record<keyof Omit<ImportDraft, 'zoom'>, string> = { name: 'Nombre', tileWidth: 'Ancho tile', tileHeight: 'Alto tile', marginX: 'Margen X', marginY: 'Margen Y', spacingX: 'Separación X', spacingY: 'Separación Y', offsetX: 'Offset X', offsetY: 'Offset Y' }
 const tabsStorageKey = 'mosaico-map-tabs-v3'
 
-function initialDocuments(): { documents: MapDocument[]; activeId: string } {
+function initialDocuments(): { documents: MapDocument[]; activeId: string; deferred: string[] } {
   if (typeof localStorage !== 'undefined') try {
     const stored = JSON.parse(localStorage.getItem(tabsStorageKey) ?? '') as { activeId?: string; documents?: string[] }
-    const documents = stored.documents?.map(deserializeMapDocument) ?? []
-    if (documents.length) return { documents, activeId: documents.some((item) => item.id === stored.activeId) ? stored.activeId! : documents[0]!.id }
+    const serialized = stored.documents ?? []
+    const activeIndex = stored.activeId ? serialized.findIndex((value) => value.includes(stored.activeId!)) : 0
+    const selectedIndex = activeIndex >= 0 ? activeIndex : 0
+    const candidates = [selectedIndex, ...serialized.map((_, index) => index).filter((index) => index !== selectedIndex)]
+    for (const index of candidates) {
+      if (!serialized[index]) continue
+      try {
+        const document = deserializeMapDocument(serialized[index])
+        return { documents: [document], activeId: document.id, deferred: serialized.filter((_, candidate) => candidate !== index) }
+      } catch { /* intenta recuperar otra pestaña */ }
+    }
   } catch { /* autosave inválido usa documento limpio */ }
   const document = blank()
-  return { documents: [document], activeId: document.id }
+  return { documents: [document], activeId: document.id, deferred: [] }
 }
 
 function brushPoints(center: GridCoordinate, size: number): GridCoordinate[] {
@@ -67,9 +78,10 @@ function selectionContains(selection: TileSelection, point: GridCoordinate): boo
 type MapLayerRow = { readonly layer: MapLayer; readonly depth: number }
 function mapLayerTree(layers: readonly MapLayer[]): MapLayerRow[] {
   const rows: MapLayerRow[] = []
+  const children = new Map<string | undefined, MapLayer[]>()
+  for (const layer of [...layers].reverse()) children.set(layer.parentId, [...(children.get(layer.parentId) ?? []), layer])
   const visit = (parentId: string | undefined, depth: number) => {
-    for (const layer of [...layers].reverse()) {
-      if (layer.parentId !== parentId) continue
+    for (const layer of children.get(parentId) ?? []) {
       rows.push({ layer, depth })
       if (layer.isFolder && !layer.collapsed) visit(layer.id, depth + 1)
     }
@@ -78,13 +90,18 @@ function mapLayerTree(layers: readonly MapLayer[]): MapLayerRow[] {
   return rows
 }
 
-export function MapEditor() {
+export function MapEditor({ active = true, sharedAssets }: { readonly active?: boolean; readonly sharedAssets?: readonly VisibleAsset[] } = {}) {
   const [initial] = useState(initialDocuments)
   const first = initial.documents.find((item) => item.id === initial.activeId) ?? initial.documents[0]!
   const hostRef = useRef<HTMLDivElement>(null); const rendererRef = useRef<OrthogonalPixiViewport | undefined>(undefined); const viewportRef = useRef<ViewportState>(createMapViewport())
   const [document, setDocument] = useState(first); const documentRef = useRef(document); const [documents, setDocuments] = useState<MapDocument[]>(initial.documents)
+  const [restoringDocuments, setRestoringDocuments] = useState(initial.deferred.length > 0)
+  const deferredDocumentsRef = useRef([...initial.deferred])
   const panelLayout = usePanelLayout('map')
   const [assets, setAssets] = useState<Map<string, Asset>>(new Map()); const assetsRef = useRef(assets); const texturesRef = useRef(new Map<string, Texture>()); const baseTexturesRef = useRef(new Map<string, Texture>()); const textureGenerationRef = useRef(0)
+  const baseTextureUrlsRef = useRef(new Map<string, string>()); const tilesetSignaturesRef = useRef(new Map<string, string>()); const loadingAssetsRef = useRef(new Set<string>()); const activeRef = useRef(active)
+  const tilesetsByIdRef = useRef(new Map(first.tilesets.map((tileset) => [tileset.id, tileset] as const)))
+  const animationFramesRef = useRef(new Map<string, TileReference[]>())
   const [tool, setTool] = useState<Tool>('pencil'); const toolRef = useRef(tool); const [status, setStatus] = useState('Crea o importa un tileset')
   const toolBeforeSpaceRef = useRef<Tool | undefined>(undefined)
   const [filled, setFilled] = useState(false); const filledRef = useRef(filled); const [eraserSize, setEraserSize] = useState(1); const eraserSizeRef = useRef(eraserSize)
@@ -112,6 +129,7 @@ export function MapEditor() {
   const gestureRef = useRef<{ start: GridCoordinate; last: GridCoordinate; before: MapDocument; screen: Point; panning: boolean; moving?: TileSelection } | undefined>(undefined)
 
   const show = (next: MapDocument) => { documentRef.current = next; setDocument(next); setDocuments((items) => items.map((item) => item.id === next.id ? next : item)) }
+  const selectTiles = (next?: TileSelection) => { selectionRef.current = next; setSelection(next) }
   const commit = (next: MapDocument, before = documentRef.current) => { if (next === before) return; undoRef.current.push(createMapDocumentDelta(before, next)); redoRef.current = []; show(next) }
   const undo = () => { const value = undoRef.current.pop(); if (!value) return; redoRef.current.push(value); show(applyMapDocumentDelta(documentRef.current, value, 'undo')) }
   const redo = () => { const value = redoRef.current.pop(); if (!value) return; undoRef.current.push(value); show(applyMapDocumentDelta(documentRef.current, value, 'redo')) }
@@ -122,7 +140,7 @@ export function MapEditor() {
     saveSession()
     const session: MapSession = sessionsRef.current.get(next.id) ?? { undo: [], redo: [], viewport: createMapViewport(), tileStart: 0, tileEnd: 0 }
     sessionsRef.current.set(next.id, session); undoRef.current = session.undo; redoRef.current = session.redo; viewportRef.current = session.viewport
-    documentRef.current = next; setDocument(next); setSelection(session.selection); setActiveTilesetId(session.activeTilesetId ?? next.tilesets[0]?.id); setPattern(session.pattern); setTileStart(session.tileStart); setTileEnd(session.tileEnd)
+    documentRef.current = next; setDocument(next); selectTiles(session.selection); setActiveTilesetId(session.activeTilesetId ?? next.tilesets[0]?.id); setPattern(session.pattern); setTileStart(session.tileStart); setTileEnd(session.tileEnd)
     requestAnimationFrame(() => { session.viewport.width <= 1 ? fitMap() : render() })
   }
   const openDocument = (next: MapDocument, saved = false) => {
@@ -154,9 +172,14 @@ export function MapEditor() {
   }
 
   const render = () => {
+    if (!activeRef.current) return
     const host = hostRef.current; const renderer = rendererRef.current; if (!host || !renderer) return
     viewportRef.current = resizeViewport(viewportRef.current, Math.max(1, host.clientWidth), Math.max(1, host.clientHeight))
     renderer.render(previewRef.current ?? documentRef.current, viewportRef.current)
+  }
+  const markReady = () => {
+    performance.mark('mosaico:Mapas:ready')
+    if (performance.getEntriesByName('mosaico:Mapas:activate').length) performance.measure('mosaico:Mapas:activation', 'mosaico:Mapas:activate', 'mosaico:Mapas:ready')
   }
   function fitMap() {
     const host = hostRef.current; if (!host) return
@@ -170,36 +193,56 @@ export function MapEditor() {
   }
 
   const rebuildTextures = () => {
-    const generation = textureGenerationRef.current + 1
-    textureGenerationRef.current = generation
-    for (const texture of texturesRef.current.values()) texture.destroy(false)
-    for (const texture of baseTexturesRef.current.values()) texture.destroy(false)
-    texturesRef.current.clear(); baseTexturesRef.current.clear()
-    const seenAssets = new Set<string>()
+    const generation = textureGenerationRef.current
+    const requiredAssets = new Set(documentRef.current.tilesets.map((tileset) => tileset.assetId))
+    const currentTilesets = new Set(documentRef.current.tilesets.map((tileset) => tileset.id))
+    for (const [id, signature] of tilesetSignaturesRef.current) {
+      const tileset = documentRef.current.tilesets.find((candidate) => candidate.id === id)
+      const next = tileset ? JSON.stringify([tileset.assetId, tileset.imageWidth, tileset.imageHeight, tileset.tileWidth, tileset.tileHeight, tileset.marginX, tileset.marginY, tileset.spacingX, tileset.spacingY, tileset.offsetX, tileset.offsetY]) : ''
+      if (currentTilesets.has(id) && signature === next) continue
+      for (const [key, texture] of texturesRef.current) if (key.startsWith(`${id}:`)) { texture.destroy(false); texturesRef.current.delete(key) }
+      tilesetSignaturesRef.current.delete(id)
+    }
+    for (const tileset of documentRef.current.tilesets) tilesetSignaturesRef.current.set(tileset.id, JSON.stringify([tileset.assetId, tileset.imageWidth, tileset.imageHeight, tileset.tileWidth, tileset.tileHeight, tileset.marginX, tileset.marginY, tileset.spacingX, tileset.spacingY, tileset.offsetX, tileset.offsetY]))
+    for (const [assetId, texture] of baseTexturesRef.current) {
+      const asset = assetsRef.current.get(assetId)
+      if (requiredAssets.has(assetId) && asset?.url === baseTextureUrlsRef.current.get(assetId)) continue
+      texture.destroy(false); baseTexturesRef.current.delete(assetId); baseTextureUrlsRef.current.delete(assetId)
+      for (const [key, child] of texturesRef.current) {
+        const tilesetId = key.slice(0, key.indexOf(':'))
+        if (tilesetsByIdRef.current.get(tilesetId)?.assetId === assetId) { child.destroy(false); texturesRef.current.delete(key) }
+      }
+    }
+    const pending: Promise<void>[] = []
     for (const tileset of documentRef.current.tilesets) {
-      const asset = assetsRef.current.get(tileset.assetId); if (!asset || seenAssets.has(tileset.assetId)) continue
-      seenAssets.add(tileset.assetId)
-      void loadMapImage(asset.url).then((image) => {
+      const asset = assetsRef.current.get(tileset.assetId); const loadingKey = asset ? `${tileset.assetId}:${asset.url}` : ''
+      if (!asset || baseTexturesRef.current.has(tileset.assetId) || loadingAssetsRef.current.has(loadingKey)) continue
+      loadingAssetsRef.current.add(loadingKey)
+      pending.push(loadMapImage(asset.url).then((image) => {
         if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return
         const base = Texture.from(image as unknown as HTMLImageElement)
         const source = base.source
         if (!source || source.width <= 0 || source.height <= 0) { base.destroy(false); return }
         source.scaleMode = 'nearest'
-        if (generation !== textureGenerationRef.current) { base.destroy(false); return }
+        if (generation !== textureGenerationRef.current || assetsRef.current.get(tileset.assetId)?.url !== asset.url || !documentRef.current.tilesets.some((candidate) => candidate.assetId === tileset.assetId)) { base.destroy(false); return }
         baseTexturesRef.current.set(tileset.assetId, base)
-        render()
-      }).catch(() => { if (generation === textureGenerationRef.current) setStatus('No se pudo cargar el tileset') })
+        baseTextureUrlsRef.current.set(tileset.assetId, asset.url)
+      }).catch(() => { if (assetsRef.current.get(tileset.assetId)?.url === asset.url) setStatus('No se pudo cargar el tileset') }).finally(() => {
+        loadingAssetsRef.current.delete(loadingKey)
+        if (assetsRef.current.get(tileset.assetId)?.url !== asset.url) window.setTimeout(rebuildTextures, 0)
+      }))
     }
     render()
+    if (pending.length) void Promise.allSettled(pending).then(() => { if (generation === textureGenerationRef.current) render() })
   }
   const resolveTileTexture = (tile: TileReference): Texture | undefined => {
     let tileId = tile.tileId
     if (tile.animationId) {
-      const frames = documentRef.current.layers.flatMap((layer) => [...layer.cells.values()]).filter((candidate) => candidate.animationId === tile.animationId).sort((left, right) => (left.animationFrame ?? 0) - (right.animationFrame ?? 0))
+      const frames = animationFramesRef.current.get(tile.animationId) ?? []
       if (frames.length > 1) tileId = frames[Math.floor(Date.now() / (tile.animationDurationMs ?? 125)) % frames.length]!.tileId
     }
     const key = `${tile.tilesetId}:${tileId}`; const cached = texturesRef.current.get(key); if (cached?.source && cached.source.width > 0 && cached.source.height > 0) return cached
-    const tileset = documentRef.current.tilesets.find((candidate) => candidate.id === tile.tilesetId); const base = tileset ? baseTexturesRef.current.get(tileset.assetId) : undefined
+    const tileset = tilesetsByIdRef.current.get(tile.tilesetId); const base = tileset ? baseTexturesRef.current.get(tileset.assetId) : undefined
     const source = base?.source
     if (!tileset || !source || source.width <= 0 || source.height <= 0 || tileset.tileWidth <= 0 || tileset.tileHeight <= 0) return undefined
     const columns = Math.max(1, Math.floor((tileset.imageWidth - (tileset.offsetX ?? 0) - tileset.marginX * 2 + tileset.spacingX) / (tileset.tileWidth + tileset.spacingX)))
@@ -209,17 +252,55 @@ export function MapEditor() {
     const texture = new Texture({ source, frame: new PixiRectangle(x, y, tileset.tileWidth, tileset.tileHeight) }); texturesRef.current.set(key, texture); return texture
   }
 
-  useEffect(() => { documentRef.current = document; render() }, [document])
   useEffect(() => {
+    documentRef.current = document
+    tilesetsByIdRef.current = new Map(document.tilesets.map((tileset) => [tileset.id, tileset] as const))
+    const animations = new Map<string, TileReference[]>()
+    for (const layer of document.layers) for (const tile of layer.cells.values()) if (tile.animationId) animations.set(tile.animationId, [...(animations.get(tile.animationId) ?? []), tile])
+    for (const frames of animations.values()) frames.sort((left, right) => (left.animationFrame ?? 0) - (right.animationFrame ?? 0))
+    animationFramesRef.current = animations
+    render()
+  }, [document])
+  useEffect(() => {
+    let cancelled = false; let idle = 0; let timer: ReturnType<typeof setTimeout> | undefined
+    const restoreNext = () => {
+      if (cancelled) return
+      const serialized = deferredDocumentsRef.current.shift()
+      if (!serialized) { setRestoringDocuments(false); return }
+      try {
+        const restored = deserializeMapDocument(serialized)
+        sessionsRef.current.set(restored.id, { undo: [], redo: [], viewport: createMapViewport(), tileStart: 0, tileEnd: 0 })
+        savedRevisionRef.current.set(restored.id, restored.revision)
+        setDocuments((items) => items.some((item) => item.id === restored.id) ? items : [...items, restored])
+      } catch { setStatus('Un mapa guardado no pudo restaurarse') }
+      if ('requestIdleCallback' in window) idle = window.requestIdleCallback(restoreNext, { timeout: 1000 })
+      else timer = globalThis.setTimeout(restoreNext, 0)
+    }
+    if (deferredDocumentsRef.current.length) {
+      if ('requestIdleCallback' in window) idle = window.requestIdleCallback(restoreNext, { timeout: 1000 })
+      else timer = globalThis.setTimeout(restoreNext, 0)
+    }
+    return () => { cancelled = true; if (idle && 'cancelIdleCallback' in window) window.cancelIdleCallback(idle); if (timer) globalThis.clearTimeout(timer) }
+  }, [])
+  useEffect(() => {
+    if (!active) return
     const animated = document.layers.some((layer) => [...layer.cells.values()].some((tile) => tile.animationId))
     if (!animated) return
     const timer = window.setInterval(render, 100)
     return () => window.clearInterval(timer)
-  }, [document])
+  }, [active, document])
   useEffect(() => {
-    try { localStorage.setItem(tabsStorageKey, JSON.stringify({ activeId: document.id, documents: documents.map(serializeMapDocument) })) } catch { setStatus('Autosave local no disponible') }
-  }, [documents, document.id])
+    if (restoringDocuments) return
+    const save = () => { try { localStorage.setItem(tabsStorageKey, JSON.stringify({ activeId: document.id, documents: documents.map(serializeMapDocument) })) } catch { setStatus('Autosave local no disponible') } }
+    let idle = 0
+    const timer = window.setTimeout(() => {
+      if ('requestIdleCallback' in window) idle = window.requestIdleCallback(save, { timeout: 2000 })
+      else save()
+    }, 750)
+    return () => { window.clearTimeout(timer); if (idle && 'cancelIdleCallback' in window) window.cancelIdleCallback(idle) }
+  }, [documents, document.id, restoringDocuments])
   useEffect(() => {
+    if (sharedAssets) return
     let active = true
     void loadImages().then((stored) => {
       if (!active) return
@@ -230,8 +311,27 @@ export function MapEditor() {
       })
     }).catch(() => setStatus('Repositorio interno no disponible'))
     return () => { active = false }
-  }, [])
+  }, [sharedAssets])
+  useEffect(() => {
+    if (!sharedAssets) return
+    setAssets((current) => {
+      const next = new Map(current)
+      const incoming = new Set(sharedAssets.map((image) => image.record.id))
+      for (const [id, previous] of next) if (!incoming.has(id)) { URL.revokeObjectURL(previous.url); next.delete(id) }
+      for (const image of sharedAssets) {
+        const previous = next.get(image.record.id)
+        if (previous?.sha256 === image.record.sha256) continue
+        if (previous) URL.revokeObjectURL(previous.url)
+        next.set(image.record.id, { blob: image.original, url: URL.createObjectURL(image.original), name: image.record.name, mediaType: image.record.mediaType, sha256: image.record.sha256 })
+      }
+      return next
+    })
+  }, [sharedAssets])
   useEffect(() => { assetsRef.current = assets; rebuildTextures() }, [assets, document.tilesets])
+  useEffect(() => {
+    activeRef.current = active
+    if (active) window.requestAnimationFrame(() => { const viewport = viewportRef.current; viewport.width <= 1 ? fitMap() : render(); markReady() })
+  }, [active])
   useEffect(() => { toolRef.current = tool }, [tool]); useEffect(() => { patternRef.current = pattern }, [pattern])
   useEffect(() => { selectionRef.current = selection }, [selection])
   useEffect(() => { filledRef.current = filled }, [filled]); useEffect(() => { eraserSizeRef.current = eraserSize }, [eraserSize])
@@ -267,6 +367,7 @@ export function MapEditor() {
       } else show(applyPoints(documentRef.current, line))
     })
     const down = (event: PointerEvent) => {
+      host.focus({ preventScroll: true })
       const picked = cell(event); const screen = screenPoint(event)
       if (event.button === 1 || toolRef.current === 'pan') { event.preventDefault(); host.setPointerCapture(event.pointerId); gestureRef.current = { start: picked ?? { x: 0, y: 0 }, last: picked ?? { x: 0, y: 0 }, before: documentRef.current, screen, panning: true }; return }
       if (event.button !== 0 || !picked) return
@@ -281,7 +382,7 @@ export function MapEditor() {
       const moving = toolRef.current === 'select' && selectionRef.current && selectionContains(selectionRef.current, picked) ? selectionRef.current : undefined
       gestureRef.current = { start: picked, last: picked, before: documentRef.current, screen, panning: false, moving }
       if (toolRef.current === 'pencil' || toolRef.current === 'eraser') stroke(picked, picked)
-      if (toolRef.current === 'select' && !moving) setSelection(selectionBetween(picked, picked))
+      if (toolRef.current === 'select' && !moving) selectTiles(selectionBetween(picked, picked))
     }
     const move = (event: PointerEvent) => {
       const picked = cell(event); const gesture = gestureRef.current; if (!gesture || !host.hasPointerCapture(event.pointerId)) { setCursor(picked); setHoverCell(picked); return }
@@ -298,7 +399,7 @@ export function MapEditor() {
           const origin = { x: gesture.moving.left + gestureCell.x - gesture.start.x, y: gesture.moving.top + gestureCell.y - gesture.start.y }
           safely(() => { previewRef.current = moveSelection(gesture.before, gesture.before.activeLayerId, gesture.moving!, origin); render() })
         }
-        else setSelection(selectionBetween(gesture.start, gestureCell))
+        else selectTiles(selectionBetween(gesture.start, gestureCell))
       } else if (toolRef.current === 'line' || toolRef.current === 'rectangle' || toolRef.current === 'ellipse') safely(() => { previewRef.current = applyPoints(gesture.before, shapePoints(gesture.start, gestureCell)); render() })
       gesture.last = gestureCell
     }
@@ -309,33 +410,32 @@ export function MapEditor() {
         if (previewRef.current) { const next = previewRef.current; previewRef.current = undefined; commit(next, gesture.before) }
         else if ((toolRef.current === 'pencil' || toolRef.current === 'eraser') && documentRef.current !== gesture.before) { undoRef.current.push(createMapDocumentDelta(gesture.before, documentRef.current)); redoRef.current = [] }
         else if (toolRef.current === 'line' || toolRef.current === 'rectangle' || toolRef.current === 'ellipse') safely(() => commit(applyPoints(gesture.before, shapePoints(gesture.start, gesture.last)), gesture.before))
-        if (gesture.moving && previewCommitted) setSelection({ ...gesture.moving, left: gesture.moving.left + gesture.last.x - gesture.start.x, top: gesture.moving.top + gesture.last.y - gesture.start.y })
+        if (gesture.moving && previewCommitted) selectTiles({ ...gesture.moving, left: gesture.moving.left + gesture.last.x - gesture.start.x, top: gesture.moving.top + gesture.last.y - gesture.start.y })
       }
       gestureRef.current = undefined; if (host.hasPointerCapture(event.pointerId)) host.releasePointerCapture(event.pointerId); render()
     }
     const wheel = (event: WheelEvent) => { event.preventDefault(); viewportRef.current = zoomViewportAt(viewportRef.current, screenPoint(event), Math.exp(-event.deltaY * 0.0015)); render(); refreshViewport((v) => v + 1) }
     const observer = new ResizeObserver(render); observer.observe(host)
-    void OrthogonalPixiViewport.create({ host, resolveTexture: resolveTileTexture }).then((renderer) => { if (disposed) renderer.destroy(); else { rendererRef.current = renderer; fitMap() } }).catch((error: unknown) => { if (!disposed) setStatus(error instanceof Error ? `Canvas no disponible: ${error.message}` : 'Canvas no disponible') })
-    const outside = (event: PointerEvent) => { if (!host.contains(event.target as Node)) setSelection(undefined) }
+    void OrthogonalPixiViewport.create({ host, resolveTexture: resolveTileTexture }).then((renderer) => { if (disposed) renderer.destroy(); else { rendererRef.current = renderer; fitMap(); markReady() } }).catch((error: unknown) => { if (!disposed) setStatus(error instanceof Error ? `Canvas no disponible: ${error.message}` : 'Canvas no disponible') })
     const leave = () => { if (!gestureRef.current) setHoverCell(undefined) }
-    host.addEventListener('pointerdown', down); host.addEventListener('pointermove', move); host.addEventListener('pointerup', up); host.addEventListener('pointercancel', up); host.addEventListener('pointerleave', leave); host.addEventListener('wheel', wheel, { passive: false }); window.addEventListener('pointerdown', outside)
-    return () => { disposed = true; observer.disconnect(); host.removeEventListener('pointerdown', down); host.removeEventListener('pointermove', move); host.removeEventListener('pointerup', up); host.removeEventListener('pointercancel', up); host.removeEventListener('pointerleave', leave); host.removeEventListener('wheel', wheel); window.removeEventListener('pointerdown', outside); rendererRef.current?.destroy(); rendererRef.current = undefined }
+    host.addEventListener('pointerdown', down); host.addEventListener('pointermove', move); host.addEventListener('pointerup', up); host.addEventListener('pointercancel', up); host.addEventListener('pointerleave', leave); host.addEventListener('wheel', wheel, { passive: false })
+    return () => { disposed = true; observer.disconnect(); host.removeEventListener('pointerdown', down); host.removeEventListener('pointermove', move); host.removeEventListener('pointerup', up); host.removeEventListener('pointercancel', up); host.removeEventListener('pointerleave', leave); host.removeEventListener('wheel', wheel); rendererRef.current?.destroy(); rendererRef.current = undefined }
   }, [])
 
-  const copy = () => { if (selectionRef.current) { const pattern = captureSelection(documentRef.current, documentRef.current.activeLayerId, selectionRef.current); const referenced = new Set(pattern.cells.flatMap((tile) => tile ? [tile.tilesetId] : [])); clipboardRef.current = { pattern, tilesets: documentRef.current.tilesets.filter((tileset) => referenced.has(tileset.id)) }; setStatus('Selección copiada') } }
-  const cut = () => { if (!selectionRef.current) return; copy(); safely(() => commit(deleteSelection(documentRef.current, documentRef.current.activeLayerId, selectionRef.current!))) }
+  const copy = () => { if (!selectionRef.current) { setStatus('Selecciona tiles para copiar'); return } const pattern = captureSelection(documentRef.current, documentRef.current.activeLayerId, selectionRef.current); const referenced = new Set(pattern.cells.flatMap((tile) => tile ? [tile.tilesetId] : [])); clipboardRef.current = { pattern, tilesets: documentRef.current.tilesets.filter((tileset) => referenced.has(tileset.id)) }; setStatus('Selección copiada') }
+  const cut = () => { if (!selectionRef.current) { setStatus('Selecciona tiles para cortar'); return } copy(); safely(() => { commit(deleteSelection(documentRef.current, documentRef.current.activeLayerId, selectionRef.current!)); setStatus('Selección cortada') }) }
   const paste = () => {
-    const value = clipboardRef.current; if (!value) return
+    const value = clipboardRef.current; if (!value) { setStatus('El portapapeles de Mapas está vacío'); return }
     const origin = cursor ?? { x: 0, y: 0 }
     if (origin.x + value.pattern.width > documentRef.current.width || origin.y + value.pattern.height > documentRef.current.height) { setStatus('Pegado debe quedar dentro del mapa'); return }
-    safely(() => { const prepared = prepareClipboardPaste(documentRef.current, value.pattern, value.tilesets); const next = pastePattern(prepared.document, prepared.document.activeLayerId, origin, prepared.pattern); commit(next); setSelection({ left: origin.x, top: origin.y, width: prepared.pattern.width, height: prepared.pattern.height }) })
+    safely(() => { const prepared = prepareClipboardPaste(documentRef.current, value.pattern, value.tilesets); const next = pastePattern(prepared.document, prepared.document.activeLayerId, origin, prepared.pattern); commit(next); selectTiles({ left: origin.x, top: origin.y, width: prepared.pattern.width, height: prepared.pattern.height }); setStatus('Selección pegada') })
   }
   const deleteSelected = () => { if (selectionRef.current) safely(() => commit(deleteSelection(documentRef.current, documentRef.current.activeLayerId, selectionRef.current!))) }
   const duplicateSelected = () => {
     const selected = selectionRef.current; if (!selected) return
     copy(); const value = clipboardRef.current; if (!value) return
     const origin = { x: Math.min(documentRef.current.width - value.pattern.width, selected.left + 1), y: Math.min(documentRef.current.height - value.pattern.height, selected.top + 1) }
-    safely(() => { commit(pastePattern(documentRef.current, documentRef.current.activeLayerId, origin, value.pattern)); setSelection({ left: origin.x, top: origin.y, width: value.pattern.width, height: value.pattern.height }) })
+    safely(() => { commit(pastePattern(documentRef.current, documentRef.current.activeLayerId, origin, value.pattern)); selectTiles({ left: origin.x, top: origin.y, width: value.pattern.width, height: value.pattern.height }) })
   }
   const transformSelected = (operation: 'flipX' | 'flipY' | 'rotate90' | 'rotate180' | 'rotate270') => {
     const value = selectionRef.current ? captureSelection(documentRef.current, documentRef.current.activeLayerId, selectionRef.current) : patternRef.current
@@ -345,27 +445,30 @@ export function MapEditor() {
     if (selectionRef.current) {
       const selected = selectionRef.current
       if (selected.left + transformed.width > documentRef.current.width || selected.top + transformed.height > documentRef.current.height) { setStatus('Transformación debe quedar dentro del mapa'); return }
-      safely(() => { let next = deleteSelection(documentRef.current, documentRef.current.activeLayerId, selected); next = pastePattern(next, next.activeLayerId, { x: selected.left, y: selected.top }, transformed); commit(next); setSelection({ ...selected, width: transformed.width, height: transformed.height }) })
+      safely(() => { let next = deleteSelection(documentRef.current, documentRef.current.activeLayerId, selected); next = pastePattern(next, next.activeLayerId, { x: selected.left, y: selected.top }, transformed); commit(next); selectTiles({ ...selected, width: transformed.width, height: transformed.height }) })
     }
     else { setPattern(transformed); setStatus('Transformación aplicada al stamp') }
   }
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
+      if (!activeRef.current) return
       const key = event.key.toLowerCase()
       if (event.key === 'Escape') {
         operationAbortRef.current?.abort()
-        setOpenMenu(undefined); setNewDialog(false); setResizeDialog(false); if (importDialog) closeImportDialog(); else setImportDialog(false); setAutotileDialog(false); setSelection(undefined)
+        setOpenMenu(undefined); setNewDialog(false); setResizeDialog(false); if (importDialog) closeImportDialog(); else setImportDialog(false); setAutotileDialog(false); selectTiles()
         const gesture = gestureRef.current; if (gesture && !gesture.panning) show(gesture.before)
         previewRef.current = undefined; gestureRef.current = undefined; render(); return
       }
       if (newDialog || resizeDialog || importDialog || autotileDialog) return
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || (event.target instanceof HTMLElement && event.target.closest('[role="dialog"]'))) return
-      if (event.ctrlKey && key === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); return }
-      if (event.ctrlKey && key === 'y') { event.preventDefault(); redo(); return }
-      if (event.ctrlKey && selectionRef.current && key === 'c') { event.preventDefault(); copy(); return }
-      if (event.ctrlKey && selectionRef.current && key === 'x') { event.preventDefault(); cut(); return }
-      if (event.ctrlKey && selectionRef.current && key === 'v') { event.preventDefault(); paste(); return }
+      const modifier = event.ctrlKey || event.metaKey
+      if (modifier && key === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); return }
+      if (modifier && key === 'y') { event.preventDefault(); redo(); return }
+      const clipboardCommand = selectionClipboardCommand(event)
+      if (clipboardCommand === 'copy') { event.preventDefault(); copy(); return }
+      if (clipboardCommand === 'cut') { event.preventDefault(); cut(); return }
+      if (clipboardCommand === 'paste') { event.preventDefault(); paste(); return }
       if (event.altKey && event.shiftKey && event.key === 'Delete') { event.preventDefault(); deleteSelected(); return }
       if (event.code === 'Digit0') { event.preventDefault(); fitMap(); return }
       if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomCenter(1.25); return }
@@ -373,7 +476,7 @@ export function MapEditor() {
       if (event.code === 'Space') { event.preventDefault(); if (!event.repeat && !toolBeforeSpaceRef.current) toolBeforeSpaceRef.current = toolRef.current; setTool('pan'); return }
       const next = hotkeys[key]; if (next) { event.preventDefault(); setTool(next) }
     }
-    const keyup = (event: KeyboardEvent) => { if (event.code === 'Space' && toolBeforeSpaceRef.current) { setTool(toolBeforeSpaceRef.current); toolBeforeSpaceRef.current = undefined } }
+    const keyup = (event: KeyboardEvent) => { if (activeRef.current && event.code === 'Space' && toolBeforeSpaceRef.current) { setTool(toolBeforeSpaceRef.current); toolBeforeSpaceRef.current = undefined } }
     window.addEventListener('keydown', keydown); window.addEventListener('keyup', keyup); return () => { window.removeEventListener('keydown', keydown); window.removeEventListener('keyup', keyup) }
   }, [cursor, newDialog, resizeDialog, importDialog, autotileDialog])
 
@@ -409,8 +512,11 @@ export function MapEditor() {
     if (importUrl) URL.revokeObjectURL(importUrl)
     setImportDialog(false); setImportFile(undefined); setImportUrl(undefined); setImportSize({ width: 0, height: 0 }); setImportScroll({ left: 0, top: 0 }); setImportDraft(initialDraft())
   }
-  let slicing: ReturnType<typeof sliceTileset> | undefined; let slicingError = ''
-  if (importFile) try { slicing = sliceTileset({ imageWidth: importSize.width, imageHeight: importSize.height, ...importDraft }) } catch (error) { slicingError = error instanceof Error ? error.message : 'Configuración inválida' }
+  const { slicing, slicingError } = useMemo(() => {
+    if (!importFile) return { slicing: undefined, slicingError: '' }
+    try { return { slicing: sliceTileset({ imageWidth: importSize.width, imageHeight: importSize.height, ...importDraft }), slicingError: '' } }
+    catch (error) { return { slicing: undefined, slicingError: error instanceof Error ? error.message : 'Configuración inválida' } }
+  }, [importDraft, importFile, importSize.height, importSize.width])
   const confirmImport = async () => {
     if (!importFile || !slicing) return
     try {
@@ -503,7 +609,7 @@ export function MapEditor() {
   const tileFirstRow = Math.max(0, Math.floor(tileScrollTop / tileRowHeight) - 3)
   const tileLastRow = Math.min(tileRows, tileFirstRow + 43)
   const visibleTileIds = activeTileset ? Array.from({ length: Math.max(0, (tileLastRow - tileFirstRow) * tileDisplayColumns) }, (_, index) => tileFirstRow * tileDisplayColumns + index).filter((id) => id < activeTileset.tileCount) : []
-  const diagnostics = [...orphanTileDiagnostics(document), ...autotileDiagnostics(document)]
+  const diagnostics = useMemo(() => [...orphanTileDiagnostics(document), ...autotileDiagnostics(document)], [document])
   const layerTree = useMemo(() => mapLayerTree(document.layers), [document.layers])
   const visibleImportIndexes = importUrl && slicing ? visibleSliceIndexes({
     columns: slicing.columns, rows: slicing.rows, tileWidth: importDraft.tileWidth, tileHeight: importDraft.tileHeight,
@@ -534,8 +640,8 @@ export function MapEditor() {
   const layoutStyle = { '--inspector-w': `${panelLayout.layout.inspectorWidth}px`, '--tileset-h': `${panelLayout.layout.tilesetHeight}px`, '--layers-h': `${panelLayout.layout.layersHeight}px` } as CSSProperties
   return <main className="pixel-editor map-editor" style={layoutStyle} onPointerDown={() => setOpenMenu(undefined)} onContextMenu={(event) => event.preventDefault()}>
     <nav className="pixel-menubar" onPointerDown={(event) => event.stopPropagation()}>{Object.entries(menu).map(([name, items]) => <div className="menu-root" key={name}><button onClick={() => setOpenMenu(openMenu === name ? undefined : name)}>{name}</button>{openMenu === name && <div className="menu-dropdown">{items.map(([label, action, disabled]) => <button key={label} disabled={disabled} onClick={() => { action(); setOpenMenu(undefined) }}>{label}</button>)}</div>}</div>)}</nav>
-    <div className="document-tabs">{documents.map((item) => <div key={item.id} className={item.id === document.id ? 'active' : ''}><button onClick={() => switchDocument(item)}>{item.name}{item.revision !== (savedRevisionRef.current.get(item.id) ?? -1) ? ' â€¢' : ''}</button><button aria-label={`Cerrar ${item.name}`} title="Cerrar mapa" onClick={() => closeDocument(item)}><X /></button></div>)}</div>
-    <input id="map-open" hidden type="file" accept=".mosaico,.json" onChange={(event) => { void load(event.target.files?.[0]); event.currentTarget.value = '' }} />
+    <div className="document-tabs">{documents.map((item) => <div key={item.id} className={item.id === document.id ? 'active' : ''}><button onClick={() => switchDocument(item)}>{item.name}{item.revision !== (savedRevisionRef.current.get(item.id) ?? -1) ? ' •' : ''}</button><button aria-label={`Cerrar ${item.name}`} title="Cerrar mapa" onClick={() => closeDocument(item)}><X /></button></div>)}</div>
+    <input id="map-open" hidden type="file" accept=".mtm,.mosaico,.json" onChange={(event) => { void load(event.target.files?.[0]); event.currentTarget.value = '' }} />
     <header className="pixel-optionsbar"><strong>{tools.find(([id]) => id === tool)?.[1]}</strong><span className="option-divider" />
       {(tool === 'rectangle' || tool === 'ellipse') && <label className="fill-control"><input type="checkbox" checked={filled} onChange={(e) => setFilled(e.target.checked)} /> Relleno</label>}
       {tool === 'eraser' && <label className="map-inline-field">Tamaño <input type="number" min="1" max="32" value={eraserSize} onChange={(e) => setEraserSize(Math.max(1, Math.min(32, Number(e.target.value))))} /></label>}
@@ -545,7 +651,7 @@ export function MapEditor() {
     </header>
     <section className="pixel-body map-body"><div className="panel-splitter inspector-splitter" role="separator" aria-label="Redimensionar inspector" onPointerDown={(event) => panelLayout.resize('inspector', 'width', event)} /><div className="map-folder-float" aria-label="Carpetas"><button className="folder-create" onClick={() => commit(addMapFolder(documentRef.current, { id: crypto.randomUUID(), name: `Carpeta ${document.layers.filter((layer) => layer.isFolder).length + 1}` }))}>+ Carpeta</button>{document.layers.filter((layer) => layer.isFolder).map((folder) => <button data-folder-id={folder.id} key={folder.id} onClick={() => commit(updateMapLayer(documentRef.current, folder.id, { collapsed: !folder.collapsed }))}>{folder.collapsed ? '▶' : '▼'} {folder.name}</button>)}</div>
       <aside className="pixel-tool-rail">{tools.map(([id, label, Icon, key]) => <button key={id} className={tool === id ? 'active' : ''} aria-label={label} title={`${label} (${key})`} onClick={() => setTool(id)}><Icon /></button>)}</aside>
-      <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} aria-label="Canvas de mapa editable" />{hoverCell && pattern && <div className="map-hover-cell" aria-hidden="true" style={{ left: viewportRef.current.offsetX + hoverCell.x * document.cellWidth * viewportRef.current.zoom, top: viewportRef.current.offsetY + hoverCell.y * document.cellHeight * viewportRef.current.zoom, width: pattern.width * document.cellWidth * viewportRef.current.zoom, height: pattern.height * document.cellHeight * viewportRef.current.zoom, opacity: 0.5, backgroundImage: activeAsset && pattern.cells[0] ? `url(${activeAsset.url})` : undefined, backgroundRepeat: 'no-repeat', backgroundSize: activeAsset && pattern.cells[0] ? `${activeTileset!.imageWidth * viewportRef.current.zoom}px ${activeTileset!.imageHeight * viewportRef.current.zoom}px` : undefined, backgroundPosition: activeAsset && pattern.cells[0] ? `${-((activeTileset!.offsetX ?? 0) + activeTileset!.marginX + (pattern.cells[0]!.tileId % columns) * (activeTileset!.tileWidth + activeTileset!.spacingX)) * viewportRef.current.zoom}px ${-((activeTileset!.offsetY ?? 0) + activeTileset!.marginY + Math.floor(pattern.cells[0]!.tileId / columns) * (activeTileset!.tileHeight + activeTileset!.spacingY)) * viewportRef.current.zoom}px` : undefined }} />}{selectionStyle && <div className="map-selection-overlay" style={selectionStyle} />}</div>
+      <div className="canvas-shell"><div ref={hostRef} className={`authoring-canvas tool-${tool}`} tabIndex={0} aria-label="Canvas de mapa editable" aria-keyshortcuts="Control+C Control+X Control+V Meta+C Meta+X Meta+V" />{tool !== 'select' && hoverCell && pattern && <div className="map-hover-cell" aria-hidden="true" style={{ left: viewportRef.current.offsetX + hoverCell.x * document.cellWidth * viewportRef.current.zoom, top: viewportRef.current.offsetY + hoverCell.y * document.cellHeight * viewportRef.current.zoom, width: pattern.width * document.cellWidth * viewportRef.current.zoom, height: pattern.height * document.cellHeight * viewportRef.current.zoom, opacity: 0.5, backgroundImage: activeAsset && pattern.cells[0] ? `url(${activeAsset.url})` : undefined, backgroundRepeat: 'no-repeat', backgroundSize: activeAsset && pattern.cells[0] ? `${activeTileset!.imageWidth * viewportRef.current.zoom}px ${activeTileset!.imageHeight * viewportRef.current.zoom}px` : undefined, backgroundPosition: activeAsset && pattern.cells[0] ? `${-((activeTileset!.offsetX ?? 0) + activeTileset!.marginX + (pattern.cells[0]!.tileId % columns) * (activeTileset!.tileWidth + activeTileset!.spacingX)) * viewportRef.current.zoom}px ${-((activeTileset!.offsetY ?? 0) + activeTileset!.marginY + Math.floor(pattern.cells[0]!.tileId / columns) * (activeTileset!.tileHeight + activeTileset!.spacingY)) * viewportRef.current.zoom}px` : undefined }} />}{selectionStyle && <div className="map-selection-overlay" style={selectionStyle} />}</div>
       <aside className="pixel-inspector map-inspector"><div className="panel-splitter horizontal tileset-splitter" role="separator" aria-label="Redimensionar tilesets" onPointerDown={(event) => panelLayout.resize('tileset', 'height', event)} />{panelLayout.layout.layersVisible && <div className="panel-splitter horizontal layers-splitter" role="separator" aria-label="Redimensionar capas" onPointerDown={(event) => panelLayout.resize('layers', 'height', event)} />}
         {document.layers.some((layer) => layer.isFolder) && <section className="folder-summary"><div className="panel-title"><h3>Carpetas</h3><span>{document.layers.filter((layer) => layer.isFolder).length}</span></div>{document.layers.filter((layer) => layer.isFolder).map((folder) => <button className="panel-action" data-folder-id={folder.id} key={folder.id} onClick={() => commit(updateMapLayer(documentRef.current, folder.id, { collapsed: !folder.collapsed }))}>{folder.collapsed ? 'Mostrar' : 'Ocultar'} · {folder.name}</button>)}</section>}
         <section className="tileset-panel"><div className="panel-title"><div><p className="eyebrow">Biblioteca</p><h2>Tilesets <span>{document.tilesets.length}</span></h2></div><div className="layer-actions"><button title="Importar" onClick={() => setImportDialog(true)}><Upload /></button>{activeTileset && <button title="Eliminar tileset" onClick={deleteTileset}><Trash2 /></button>}</div></div>

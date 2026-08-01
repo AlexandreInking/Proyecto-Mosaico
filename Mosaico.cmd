@@ -1,3 +1,2 @@
 @echo off
-setlocal
-start "" /b powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0scripts\start-desktop.ps1"
+start "" wscript.exe "%~dp0Mosaico.vbs"

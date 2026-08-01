@@ -21,11 +21,15 @@ describe('PixelArtEditor', () => {
     expect(html).toContain('Timeline')
     for (const menu of ['Archivo', 'Editar', 'Imagen', 'Capa', 'Seleccionar', 'Filtro', 'Vista', 'Ventana', 'Otro']) expect(html).toContain(`>${menu}<`)
     expect(html).toContain('document-tabs')
+    expect(html).toContain('document-tab-close')
+    expect(html).toContain('title="Cerrar documento"')
     expect(html).not.toContain('>Crear lienzo<')
     for (const label of ['Reproducir animación', 'Añadir frame', 'Duplicar frame', 'Eliminar frame', 'Duración del frame', 'Onion skin', 'Exportar sprite sheet']) {
       expect(html).toContain(`aria-label="${label}"`)
     }
     expect(html).toContain('pixel-tool-rail')
+    expect(html).toContain('tabindex="0"')
+    expect(html).toContain('aria-keyshortcuts="Control+C Control+X Control+V Meta+C Meta+X Meta+V"')
     expect(html).toContain('has-flyout')
     expect(html).toContain('0: ajustar')
     expect(html).toContain('lucide')

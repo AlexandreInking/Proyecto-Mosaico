@@ -1,4 +1,4 @@
-import { StrictMode, useEffect } from 'react'
+import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AppShell, getStoredLocale, translateText } from '@mosaico/ui'
 import '@mosaico/ui/styles.css'
@@ -34,6 +34,17 @@ function DesktopBootReady() {
   return null
 }
 
+function DesktopShell() {
+  const [online, setOnline] = useState(navigator.onLine)
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine)
+    window.addEventListener('online', update)
+    window.addEventListener('offline', update)
+    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update) }
+  }, [])
+  return <AppShell platform="Desktop" execution="Local" online={online} />
+}
+
 const root = document.getElementById('root')
 
 if (!root) {
@@ -44,6 +55,6 @@ createRoot(root).render(
   <StrictMode>
     <DesktopBootReady />
     <DesktopUpdater />
-    <AppShell platform="Desktop" execution="Local" online={navigator.onLine} />
+    <DesktopShell />
   </StrictMode>,
 )

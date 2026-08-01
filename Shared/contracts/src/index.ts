@@ -1,6 +1,12 @@
 import { z } from 'zod'
 
+import type { AssetRecord } from './asset.js'
+export { assetAnimationSchema, assetMediaTypeSchema, assetSchema } from './asset.js'
+export type { AssetAnimation, AssetMediaType, AssetRecord } from './asset.js'
+export type { AssetFolder, AssetLocation } from './workspace.js'
 export * from './authoring.js'
+export * from './pipeline.js'
+export * from './workspace.js'
 
 export const UI_CONTRACT_VERSION = 'mosaico-ui-t1-v1' as const
 
@@ -11,17 +17,6 @@ export const capabilitiesSchema = z.object({
   executionTarget: executionTargetSchema,
   offline: z.boolean(),
   fileAccess: z.enum(['picker', 'native']),
-})
-
-export const assetSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  mediaType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/),
-  byteSize: z.number().int().nonnegative(),
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
-  importedAt: z.string().datetime(),
 })
 
 export const resizeStepSchema = z.object({
@@ -84,7 +79,6 @@ export const derivedAssetManifestSchema = z.object({
 })
 
 export type PlatformCapabilities = z.infer<typeof capabilitiesSchema>
-export type AssetRecord = z.infer<typeof assetSchema>
 export type Recipe = z.infer<typeof recipeSchema>
 export type RecipeStep = z.infer<typeof recipeStepSchema>
 export type PipelineJob = z.infer<typeof jobSchema>

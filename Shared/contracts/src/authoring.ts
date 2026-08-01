@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { assetMediaTypeSchema } from './asset.js'
 
 export const AUTHORING_CONTRACT_VERSION = 'mosaico-authoring-t2-v1' as const
 
@@ -41,7 +42,7 @@ export const tilesetSchema = z.object({
   offsetY: z.number().int().min(0).max(4095).optional(),
   sha256: z.string().length(64).regex(/^[0-9a-f]+$/i).optional(),
   byteSize: z.number().int().nonnegative().max(50 * 1024 * 1024).optional(),
-  mediaType: z.enum(['image/png', 'image/jpeg', 'image/webp']).optional(),
+  mediaType: assetMediaTypeSchema.optional(),
   tileCount: z.number().int().min(1).max(1_000_000),
 }).strict().superRefine((tileset, context) => {
   const originX = (tileset.offsetX ?? 0) + tileset.marginX

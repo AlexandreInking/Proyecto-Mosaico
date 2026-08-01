@@ -36,6 +36,7 @@ describe('authoring serialization', () => {
     const second = serializeMapDocument(deserializeMapDocument(first))
 
     expect(second).toBe(first)
+    expect(first).not.toContain('\n')
     expect(mapSemanticFingerprint(deserializeMapDocument(first))).toBe(mapSemanticFingerprint(painted))
   })
 
