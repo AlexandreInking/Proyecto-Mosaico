@@ -1,4 +1,4 @@
-# Mosaico 0.2.17 — Manual funcional completo
+# Mosaico 0.2.19 — Manual funcional completo
 
 Fecha de verificación: 31 de julio de 2026.
 
@@ -8,7 +8,7 @@ Este manual describe exclusivamente funciones disponibles en la aplicación actu
 
 ### Instalador personalizado
 
-El archivo de distribución es `mosaico-setup-0.2.17.exe`.
+El archivo de distribución es `mosaico-setup-0.2.19.exe`.
 
 1. Ejecuta el instalador.
 2. Elige si quieres crear un acceso directo en el escritorio.

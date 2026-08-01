@@ -135,6 +135,14 @@ const connectionMessages: Record<DemoGraphError, string> = {
 
 const PIPELINE_ASSET_DRAG_MIME = 'application/x-mosaico-asset-id'
 
+function hasPipelineAssetDrag(event: React.DragEvent<HTMLElement>): boolean {
+  return Array.from(event.dataTransfer.types).some((type) => type === PIPELINE_ASSET_DRAG_MIME || type === 'text/plain')
+}
+
+function getPipelineAssetDragId(event: React.DragEvent<HTMLElement>): string {
+  return event.dataTransfer.getData(PIPELINE_ASSET_DRAG_MIME) || event.dataTransfer.getData('text/plain')
+}
+
 interface FlowActions {
   fitView: () => void
   zoomIn: () => void
@@ -283,8 +291,9 @@ const PipelineFlowNode = memo(function PipelineFlowNode({ data, selected }: Node
     onClick={(event) => actions.onSelect(demo.id, event.shiftKey)}
     onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); actions.onContextMenu(demo.id, event.clientX, event.clientY) }}
     onKeyDown={handleKeyDown}
-    onDragOver={(event) => { if (event.dataTransfer.types.includes(PIPELINE_ASSET_DRAG_MIME)) event.preventDefault() }}
-    onDrop={(event) => { const assetId = event.dataTransfer.getData(PIPELINE_ASSET_DRAG_MIME); if (assetId && demo.kind === 'asset') { event.preventDefault(); actions.onAttachAsset(demo.id, assetId) } }}
+    onDragEnter={(event) => { if (demo.kind === 'asset' && hasPipelineAssetDrag(event)) { event.preventDefault(); event.stopPropagation() } }}
+    onDragOver={(event) => { if (demo.kind === 'asset' && hasPipelineAssetDrag(event)) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'copy' } }}
+    onDrop={(event) => { const assetId = getPipelineAssetDragId(event); if (assetId && demo.kind === 'asset') { event.preventDefault(); event.stopPropagation(); actions.onAttachAsset(demo.id, assetId) } }}
   >
     <div className="pipeline-node-header">
       <span className={'pipeline-kind-mark ' + demo.kind} aria-hidden="true" />
@@ -359,9 +368,9 @@ function PipelineFlow({
 
   return <PipelineNodeOutputsContext.Provider value={nodeOutputs}>
     <PipelineNodeActionsContext.Provider value={nodeActions}>
-    <div className="pipeline-flow-dropzone" onDoubleClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); const screen = { x: event.clientX - rect.left, y: event.clientY - rect.top }; onOpenPalette(screenToFlowPosition({ x: event.clientX, y: event.clientY }), screen) }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
+    <div className="pipeline-flow-dropzone" onDoubleClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); const screen = { x: event.clientX - rect.left, y: event.clientY - rect.top }; onOpenPalette(screenToFlowPosition({ x: event.clientX, y: event.clientY }), screen) }} onDragEnter={(event) => { if (hasPipelineAssetDrag(event) || event.dataTransfer.types.includes('Files')) event.preventDefault() }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' }} onDrop={(event) => {
       event.preventDefault()
-      const assetId = event.dataTransfer.getData(PIPELINE_ASSET_DRAG_MIME) || undefined
+      const assetId = getPipelineAssetDragId(event) || undefined
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
       onDropAsset(assetId, position, [...event.dataTransfer.files])
     }}>
@@ -442,11 +451,13 @@ export function PipelineInspector({
         data-pipeline-asset-drop-target={selectedNode.id}
         role="region"
         aria-label="Soltar Asset en el nodo seleccionado"
-        onDragOver={(event) => { if (event.dataTransfer.types.includes(PIPELINE_ASSET_DRAG_MIME)) event.preventDefault() }}
+        onDragEnter={(event) => { if (hasPipelineAssetDrag(event)) { event.preventDefault(); event.stopPropagation() } }}
+        onDragOver={(event) => { if (hasPipelineAssetDrag(event)) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'copy' } }}
         onDrop={(event) => {
-          const assetId = event.dataTransfer.getData(PIPELINE_ASSET_DRAG_MIME)
+          const assetId = getPipelineAssetDragId(event)
           if (!assetId) return
           event.preventDefault()
+          event.stopPropagation()
           onAttachAsset(selectedNode.id, assetId)
         }}
       >
