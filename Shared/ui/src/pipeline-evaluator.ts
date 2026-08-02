@@ -136,11 +136,11 @@ function solid(color: readonly [number, number, number, number], width: number, 
   return output
 }
 
-function gradient(from: readonly [number, number, number, number], to: readonly [number, number, number, number], direction: string, width: number, height: number): PipelineSurface {
+function gradient(from: readonly [number, number, number, number], to: readonly [number, number, number, number], direction: string, width: number, height: number, offsetX = 0, offsetY = 0): PipelineSurface {
   const output = createSurface(width, height)
   for (let y = 0; y < output.height; y += 1) for (let x = 0; x < output.width; x += 1) {
     const denominator = direction === 'Vertical' ? output.height - 1 : direction === 'Diagonal' ? output.width + output.height - 2 : output.width - 1
-    const numerator = direction === 'Vertical' ? y : direction === 'Diagonal' ? x + y : x
+    const numerator = direction === 'Vertical' ? y + offsetY : direction === 'Diagonal' ? x + offsetX + y + offsetY : x + offsetX
     const t = denominator <= 0 ? 0 : numerator / denominator
     const offset = indexOf(output, x, y)
     for (let channel = 0; channel < 4; channel += 1) output.pixels[offset + channel] = Math.round(from[channel]! + (to[channel]! - from[channel]!) * t)
@@ -148,19 +148,19 @@ function gradient(from: readonly [number, number, number, number], to: readonly 
   return output
 }
 
-function radialGradient(from: readonly [number, number, number, number], to: readonly [number, number, number, number], width: number, height: number): PipelineSurface {
+function radialGradient(from: readonly [number, number, number, number], to: readonly [number, number, number, number], width: number, height: number, offsetX = 0, offsetY = 0): PipelineSurface {
   const output = createSurface(width, height); const centerX = (output.width - 1) / 2; const centerY = (output.height - 1) / 2; const radius = Math.max(1, Math.hypot(centerX, centerY))
   for (let y = 0; y < output.height; y += 1) for (let x = 0; x < output.width; x += 1) {
-    const t = clamp01(Math.hypot(x - centerX, y - centerY) / radius); const offset = indexOf(output, x, y)
+    const t = clamp01(Math.hypot(x + offsetX - centerX, y + offsetY - centerY) / radius); const offset = indexOf(output, x, y)
     for (let channel = 0; channel < 4; channel += 1) output.pixels[offset + channel] = Math.round(from[channel]! + (to[channel]! - from[channel]!) * t)
   }
   return output
 }
 
-function bilinearGradient(colors: readonly [readonly [number, number, number, number], readonly [number, number, number, number], readonly [number, number, number, number], readonly [number, number, number, number]], width: number, height: number): PipelineSurface {
+function bilinearGradient(colors: readonly [readonly [number, number, number, number], readonly [number, number, number, number], readonly [number, number, number, number], readonly [number, number, number, number]], width: number, height: number, offsetX = 0, offsetY = 0): PipelineSurface {
   const output = createSurface(width, height)
   for (let y = 0; y < output.height; y += 1) for (let x = 0; x < output.width; x += 1) {
-    const tx = output.width <= 1 ? 0 : x / (output.width - 1); const ty = output.height <= 1 ? 0 : y / (output.height - 1); const offset = indexOf(output, x, y)
+    const tx = output.width <= 1 ? 0 : (x + offsetX) / (output.width - 1); const ty = output.height <= 1 ? 0 : (y + offsetY) / (output.height - 1); const offset = indexOf(output, x, y)
     for (let channel = 0; channel < 4; channel += 1) {
       const top = colors[0]![channel]! + (colors[1]![channel]! - colors[0]![channel]!) * tx; const bottom = colors[2]![channel]! + (colors[3]![channel]! - colors[2]![channel]!) * tx
       output.pixels[offset + channel] = Math.round(top + (bottom - top) * ty)
@@ -169,16 +169,16 @@ function bilinearGradient(colors: readonly [readonly [number, number, number, nu
   return output
 }
 
-function normalizedGradient(width: number, height: number): PipelineSurface {
+function normalizedGradient(width: number, height: number, offsetX = 0, offsetY = 0): PipelineSurface {
   const output = createSurface(width, height)
-  for (let y = 0; y < output.height; y += 1) for (let x = 0; x < output.width; x += 1) { const offset = indexOf(output, x, y); output.pixels[offset] = output.width <= 1 ? 0 : Math.round(x * 255 / (output.width - 1)); output.pixels[offset + 1] = output.height <= 1 ? 0 : Math.round(y * 255 / (output.height - 1)); output.pixels[offset + 2] = 255; output.pixels[offset + 3] = 255 }
+  for (let y = 0; y < output.height; y += 1) for (let x = 0; x < output.width; x += 1) { const offset = indexOf(output, x, y); output.pixels[offset] = output.width <= 1 ? 0 : Math.round((x + offsetX) * 255 / (output.width - 1)); output.pixels[offset + 1] = output.height <= 1 ? 0 : Math.round((y + offsetY) * 255 / (output.height - 1)); output.pixels[offset + 2] = 255; output.pixels[offset + 3] = 255 }
   return output
 }
 
-function patternedSurface(width: number, height: number, cell: number, first: readonly [number, number, number, number], second: readonly [number, number, number, number], mode: 'checker' | 'stripe' | 'grid' | 'triangular'): PipelineSurface {
+function patternedSurface(width: number, height: number, cell: number, first: readonly [number, number, number, number], second: readonly [number, number, number, number], mode: 'checker' | 'stripe' | 'grid' | 'triangular', offsetX = 0, offsetY = 0): PipelineSurface {
   const output = createSurface(width, height); const size = Math.max(1, Math.round(cell))
   for (let y = 0; y < output.height; y += 1) for (let x = 0; x < output.width; x += 1) {
-    const line = x % size === 0 || y % size === 0; const triangle = Math.floor(x / size) % 2 === Math.floor(y / size) % 2; const active = mode === 'checker' ? triangle : mode === 'stripe' ? Math.floor(x / size) % 2 === 0 : mode === 'triangular' ? line || ((x + y) % size === 0) : line
+    const sampleX = x + Math.round(offsetX); const sampleY = y + Math.round(offsetY); const line = sampleX % size === 0 || sampleY % size === 0; const triangle = Math.floor(sampleX / size) % 2 === Math.floor(sampleY / size) % 2; const active = mode === 'checker' ? triangle : mode === 'stripe' ? Math.floor(sampleX / size) % 2 === 0 : mode === 'triangular' ? line || ((sampleX + sampleY) % size === 0) : line
     output.pixels.set(active ? (mode === 'grid' || mode === 'triangular' ? second : first) : second, indexOf(output, x, y))
   }
   return output
@@ -197,8 +197,8 @@ function drawShape(width: number, height: number, shape: string, color: readonly
   return output
 }
 
-function drawPoints(width: number, height: number, points: readonly number[], color: readonly [number, number, number, number]): PipelineSurface {
-  const output = createSurface(width, height); for (let index = 0; index + 3 < points.length; index += 2) drawLine(output, points[index]!, points[index + 1]!, points[index + 2]!, points[index + 3]!, color); return output
+function drawPoints(width: number, height: number, points: readonly number[], color: readonly [number, number, number, number], offsetX = 0, offsetY = 0): PipelineSurface {
+  const output = createSurface(width, height); for (let index = 0; index + 3 < points.length; index += 2) drawLine(output, points[index]! + offsetX, points[index + 1]! + offsetY, points[index + 2]! + offsetX, points[index + 3]! + offsetY, color); return output
 }
 
 const bitmapGlyphs: Readonly<Record<string, readonly string[]>> = { M: ['10001', '11011', '10101', '10101', '10001'], O: ['01110', '10001', '10001', '10001', '01110'], S: ['01111', '10000', '01110', '00001', '11110'], A: ['01110', '10001', '11111', '10001', '10001'], I: ['11111', '00100', '00100', '00100', '11111'], C: ['01111', '10000', '10000', '10000', '01111'] }
@@ -354,11 +354,11 @@ function fractalNoise(sample: NoiseSampler, x: number, y: number, seed: number, 
   return weight ? clamp01(total / weight) : 0
 }
 
-function proceduralNoise(kind: DemoNode['kind'], width: number, height: number, scale: number, seed: number, octaves: number, roughness: number, levels: number): PipelineSurface {
+function proceduralNoise(kind: DemoNode['kind'], width: number, height: number, scale: number, seed: number, octaves: number, roughness: number, levels: number, offsetX = 0, offsetY = 0): PipelineSurface {
   const sample: NoiseSampler = kind === 'cellular-noise' || kind === 'worley-noise' || kind === 'voronoi-noise' ? cellularNoise : kind === 'perlin' ? perlinNoise : kind === 'simplex' ? simplexNoise : kind === 'white-noise' ? random2 : kind === 'blue-noise' ? (x, y, currentSeed) => Math.abs(random2(x, y, currentSeed) - random2(x + 1.7, y + 1.7, currentSeed)) : kind === 'gaussian-noise' ? (x, y, currentSeed) => clamp01((random2(x, y, currentSeed) + random2(x + 3, y + 7, currentSeed) + random2(x + 11, y + 13, currentSeed) - 1.5) / 1.5 + 0.5) : kind === 'impulse-noise' ? (x, y, currentSeed) => random2(x, y, currentSeed) > 0.96 ? 1 : 0 : kind === 'pink-noise' ? (x, y, currentSeed) => (valueNoise(x, y, currentSeed) + valueNoise(x * 0.5, y * 0.5, currentSeed + 7)) / 2 : kind === 'brown-noise' ? (x, y, currentSeed) => valueNoise(x * 0.25, y * 0.25, currentSeed) : kind === 'rings-noise' ? (x, y) => (Math.sin(Math.hypot(x, y) * Math.PI * 2) + 1) / 2 : kind === 'rays-noise' ? (x, y) => (Math.sin(Math.atan2(y, x) * 12) + 1) / 2 : kind === 'euclidean-noise' ? (x, y) => fract(Math.hypot(x, y)) : kind === 'manhattan-noise' ? (x, y) => fract(Math.abs(x) + Math.abs(y)) : kind === 'chebyshev-noise' ? (x, y) => fract(Math.max(Math.abs(x), Math.abs(y))) : kind === 'discrete-noise' ? (x, y, currentSeed) => Math.round(random2(Math.floor(x), Math.floor(y), currentSeed) * 4) / 4 : kind === 'seamless-noise' ? (x, y, currentSeed) => valueNoise(Math.sin(x) * 4, Math.cos(y) * 4, currentSeed) : kind === 'spots-noise' ? (x, y, currentSeed) => Math.pow(cellularNoise(x, y, currentSeed), 3) : valueNoise
   const output = createSurface(width, height); const safeLevels = Math.max(2, Math.round(levels))
   for (let y = 0; y < output.height; y += 1) for (let x = 0; x < output.width; x += 1) {
-    const value = fractalNoise(sample, x * scale, y * scale, seed, octaves, roughness); const quantized = Math.round(value * (safeLevels - 1)) / (safeLevels - 1); const channel = Math.round(clamp01(quantized) * 255); const offset = indexOf(output, x, y)
+    const value = fractalNoise(sample, (x + offsetX) * scale, (y + offsetY) * scale, seed, octaves, roughness); const quantized = Math.round(value * (safeLevels - 1)) / (safeLevels - 1); const channel = Math.round(clamp01(quantized) * 255); const offset = indexOf(output, x, y)
     output.pixels[offset] = channel; output.pixels[offset + 1] = channel; output.pixels[offset + 2] = channel; output.pixels[offset + 3] = 255
   }
   return output
@@ -384,6 +384,11 @@ function arrayInput(incoming: ReadonlyMap<string, PipelineValue> | undefined, po
 
 function numberArray(value: PipelineValue | undefined): number[] {
   return Array.isArray(value) ? value.map((item) => Number(item)).filter((item) => Number.isFinite(item)) : []
+}
+
+function vector2Input(incoming: ReadonlyMap<string, PipelineValue> | undefined, portId = 'offset-in'): readonly [number, number] {
+  const values = numberArray(incoming?.get(portId))
+  return [values[0] ?? 0, values[1] ?? 0]
 }
 
 function defaultValue(type: DemoPortType): PipelineValue {
@@ -518,7 +523,7 @@ function particleSurface(source: PipelineSurface, seed: number, count: number, t
 
 function advancedSurfaceResult(node: DemoNode, input: PipelineSurface | undefined, second: PipelineSurface | undefined, incoming: ReadonlyMap<string, PipelineValue> | undefined, diagnostics: string[], currentTimeMs: number): PipelineSurface {
   if (!input) { diagnostics.push('MISSING_INPUT'); return transparent() }
-  const amount = numberParameter(node, 'amount', 1, incoming); const radius = numberParameter(node, 'radius', amount, incoming); const offsetX = numberParameter(node, 'offsetX', 0, incoming); const offsetY = numberParameter(node, 'offsetY', 0, incoming)
+  const amount = numberParameter(node, 'amount', 1, incoming); const radius = numberParameter(node, 'radius', amount, incoming); const legacyOffsetX = numberParameter(node, 'offsetX', 0, incoming); const legacyOffsetY = numberParameter(node, 'offsetY', 0, incoming); const [vectorOffsetX, vectorOffsetY] = vector2Input(incoming); const offsetX = incoming?.has('offset-in') ? vectorOffsetX : legacyOffsetX; const offsetY = incoming?.has('offset-in') ? vectorOffsetY : legacyOffsetY
   switch (node.kind) {
     case 'mirror': return flip(input, String(parameter(node, 'axis', incoming)?.value ?? 'Horizontal'))
     case 'move': case 'move-to': return translate(input, offsetX, offsetY, false)
@@ -714,21 +719,21 @@ function nodeOutput(node: DemoNode, incoming: ReadonlyMap<string, PipelineValue>
     output.set('color-out', [source.pixels[offset]!, source.pixels[offset + 1]!, source.pixels[offset + 2]!, source.pixels[offset + 3]!]); return output
   }
   if (node.kind === 'solid') { output.set('surface-out', solid(colorParameter(node, incoming), numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming))); return output }
-  if (node.kind === 'linear-gradient') { output.set('surface-out', gradient(parseColor(parameter(node, 'from', incoming)?.value, [0, 0, 0, 255]), parseColor(parameter(node, 'to', incoming)?.value, [255, 255, 255, 255]), String(parameter(node, 'direction', incoming)?.value ?? 'Horizontal'), numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming))); return output }
-  if (node.kind === 'radial-gradient') { output.set('surface-out', radialGradient(parseColor(parameter(node, 'from', incoming)?.value, [0, 0, 0, 255]), parseColor(parameter(node, 'to', incoming)?.value, [255, 255, 255, 255]), numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming))); return output }
-  if (node.kind === 'bilinear-gradient') { output.set('surface-out', bilinearGradient([parseColor(parameter(node, 'top-left', incoming)?.value, [0, 0, 0, 255]), parseColor(parameter(node, 'top-right', incoming)?.value, [255, 255, 255, 255]), parseColor(parameter(node, 'bottom-left', incoming)?.value, [255, 255, 255, 255]), parseColor(parameter(node, 'bottom-right', incoming)?.value, [0, 0, 0, 255])], numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming))); return output }
-  if (node.kind === 'normalized-gradient') { output.set('surface-out', normalizedGradient(numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming))); return output }
+  if (node.kind === 'linear-gradient') { const [offsetX, offsetY] = vector2Input(incoming); output.set('surface-out', gradient(parseColor(parameter(node, 'from', incoming)?.value, [0, 0, 0, 255]), parseColor(parameter(node, 'to', incoming)?.value, [255, 255, 255, 255]), String(parameter(node, 'direction', incoming)?.value ?? 'Horizontal'), numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), offsetX, offsetY)); return output }
+  if (node.kind === 'radial-gradient') { const [offsetX, offsetY] = vector2Input(incoming); output.set('surface-out', radialGradient(parseColor(parameter(node, 'from', incoming)?.value, [0, 0, 0, 255]), parseColor(parameter(node, 'to', incoming)?.value, [255, 255, 255, 255]), numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), offsetX, offsetY)); return output }
+  if (node.kind === 'bilinear-gradient') { const [offsetX, offsetY] = vector2Input(incoming); output.set('surface-out', bilinearGradient([parseColor(parameter(node, 'top-left', incoming)?.value, [0, 0, 0, 255]), parseColor(parameter(node, 'top-right', incoming)?.value, [255, 255, 255, 255]), parseColor(parameter(node, 'bottom-left', incoming)?.value, [255, 255, 255, 255]), parseColor(parameter(node, 'bottom-right', incoming)?.value, [0, 0, 0, 255])], numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), offsetX, offsetY)); return output }
+  if (node.kind === 'normalized-gradient') { const [offsetX, offsetY] = vector2Input(incoming); output.set('surface-out', normalizedGradient(numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), offsetX, offsetY)); return output }
   if (node.kind === 'checkerboard' || node.kind === 'grid' || node.kind === 'grid-triangular' || node.kind === 'stripe') {
-    const first = parseColor(parameter(node, 'a', incoming)?.value, [0, 0, 0, 255]); const second = parseColor(parameter(node, 'b', incoming)?.value ?? parameter(node, 'color', incoming)?.value, [255, 255, 255, 255]); const mode = node.kind === 'checkerboard' ? 'checker' : node.kind === 'stripe' ? 'stripe' : node.kind === 'grid-triangular' ? 'triangular' : 'grid'; output.set('surface-out', patternedSurface(numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), numberParameter(node, 'cell', 8, incoming), first, second, mode)); return output
+    const first = parseColor(parameter(node, 'a', incoming)?.value, [0, 0, 0, 255]); const second = parseColor(parameter(node, 'b', incoming)?.value ?? parameter(node, 'color', incoming)?.value, [255, 255, 255, 255]); const mode = node.kind === 'checkerboard' ? 'checker' : node.kind === 'stripe' ? 'stripe' : node.kind === 'grid-triangular' ? 'triangular' : 'grid'; const [offsetX, offsetY] = vector2Input(incoming); output.set('surface-out', patternedSurface(numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), numberParameter(node, 'cell', 8, incoming), first, second, mode, offsetX, offsetY)); return output
   }
   if (node.kind === 'draw-shape') { output.set('surface-out', drawShape(numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), String(parameter(node, 'shape', incoming)?.value ?? 'Rectangle'), colorParameter(node, incoming))); return output }
   if (node.kind === 'draw-text') { output.set('surface-out', drawText(numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), String(parameter(node, 'text', incoming)?.value ?? ''), colorParameter(node, incoming))); return output }
-  if (node.kind === 'draw-curve' || node.kind === 'draw-path') { output.set('surface-out', drawPoints(numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), numberArray(incoming?.get('points-in')), colorParameter(node, incoming))); return output }
+  if (node.kind === 'draw-curve' || node.kind === 'draw-path') { const [offsetX, offsetY] = vector2Input(incoming); output.set('surface-out', drawPoints(numberParameter(node, 'width', 64, incoming), numberParameter(node, 'height', 64, incoming), numberArray(incoming?.get('points-in')), colorParameter(node, incoming), offsetX, offsetY)); return output }
   if (node.kind === 'draw-group') { const first = surfaceInput('surface-a', incoming); const second = surfaceInput('surface-b', incoming); output.set('surface-out', first && second ? blend(first, second, 'Add') : transparent(first?.width ?? second?.width ?? 1, first?.height ?? second?.height ?? 1)); return output }
   if (node.kind === 'noise' || node.kind === 'cellular-noise' || node.kind === 'perlin' || node.kind === 'simplex' || node.kind.endsWith('-noise') || node.kind === 'fbm') {
-    const width = numberParameter(node, 'width', 64, incoming); const height = numberParameter(node, 'height', 64, incoming); const scale = numberParameter(node, 'scale', 0.08, incoming); const seed = Math.trunc(scalarIncoming(incoming, parameterPortId('seed'), numberParameter(node, 'seed', 1, incoming))); const roughness = clamp01(scalarIncoming(incoming, parameterPortId('roughness'), numberParameter(node, 'roughness', 0.5, incoming))); const octaves = numberParameter(node, 'octaves', 1, incoming); const levels = numberParameter(node, 'levels', 8, incoming)
+    const width = numberParameter(node, 'width', 64, incoming); const height = numberParameter(node, 'height', 64, incoming); const scale = numberParameter(node, 'scale', 0.08, incoming); const seed = Math.trunc(scalarIncoming(incoming, parameterPortId('seed'), numberParameter(node, 'seed', 1, incoming))); const roughness = clamp01(scalarIncoming(incoming, parameterPortId('roughness'), numberParameter(node, 'roughness', 0.5, incoming))); const octaves = numberParameter(node, 'octaves', 1, incoming); const levels = numberParameter(node, 'levels', 8, incoming); const [offsetX, offsetY] = vector2Input(incoming)
     if (scale <= 0 || scale > 4 || width < 1 || width > 512 || height < 1 || height > 512) { diagnostics.push('PARAMETER_OUT_OF_RANGE'); output.set('surface-out', transparent()); return output }
-    output.set('surface-out', proceduralNoise(node.kind, width, height, scale, seed, octaves, roughness, levels)); return output
+    output.set('surface-out', proceduralNoise(node.kind, width, height, scale, seed, octaves, roughness, levels, offsetX, offsetY)); return output
   }
   if (node.kind === 'add' || node.kind === 'subtract' || node.kind === 'multiply' || node.kind === 'divide') {
     const a = binaryParameterValue(node, 'a', incoming, 0); const b = binaryParameterValue(node, 'b', incoming, node.kind === 'multiply' || node.kind === 'divide' ? 1 : 0)
@@ -779,7 +784,9 @@ function nodeOutput(node: DemoNode, incoming: ReadonlyMap<string, PipelineValue>
   if (node.kind === 'rotation') {
     const angle = numberParameter(node, 'angle', 0, incoming)
     if (angle < 0 || angle > 359.99) { diagnostics.push('PARAMETER_OUT_OF_RANGE'); output.set('surface-out', transparent()); return output }
-    output.set('surface-out', rotate(input ?? transparent(), angle, String(parameter(node, 'direction', incoming)?.value ?? 'Clockwise'), String(parameter(node, 'anchor', incoming)?.value ?? 'Center'), numberParameter(node, 'offsetX', 0, incoming), numberParameter(node, 'offsetY', 0, incoming))); return output
+    const legacyOffsetX = numberParameter(node, 'offsetX', 0, incoming); const legacyOffsetY = numberParameter(node, 'offsetY', 0, incoming)
+    const [offsetX, offsetY] = incoming?.has('offset-in') ? vector2Input(incoming) : [legacyOffsetX, legacyOffsetY]
+    output.set('surface-out', rotate(input ?? transparent(), angle, String(parameter(node, 'direction', incoming)?.value ?? 'Clockwise'), String(parameter(node, 'anchor', incoming)?.value ?? 'Center'), offsetX, offsetY)); return output
   }
   if (node.kind === 'zoom') {
     const scale = numberParameter(node, 'scale', 1, incoming)

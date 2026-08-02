@@ -13,6 +13,8 @@ test('desktop launcher opens the compiled binary without rebuilding', () => {
   assert.match(silentLauncher, /app\\dist\\index\.html/i)
   assert.match(desktopStarter, /mosaico-desktop\.exe/i)
   assert.match(desktopStarter, /buildMarker/i)
+  assert.doesNotMatch(silentLauncher, /DateLastModified|desactualizada/i)
+  assert.doesNotMatch(desktopStarter, /LastWriteTimeUtc|desactualizado/i)
   assert.doesNotMatch(launcher, /powershell|tauri build/i)
   assert.doesNotMatch(silentLauncher, /powershell|tauri build/i)
   assert.doesNotMatch(desktopStarter, /tauri build/i)

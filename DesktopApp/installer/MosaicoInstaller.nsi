@@ -24,7 +24,7 @@ SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME "Mosaico"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "0.2.19"
+  !define PRODUCT_VERSION "0.2.20"
 !endif
 !define APP_EXE "$LOCALAPPDATA\Mosaico\mosaico-desktop.exe"
 

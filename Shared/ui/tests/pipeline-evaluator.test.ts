@@ -132,6 +132,15 @@ describe('pipeline evaluator', () => {
     expect((moved.outputs.get('movement')?.get('surface-out') as PipelineSurface).pixels).toEqual(new Uint8ClampedArray([0, 0, 0, 0, 255, 0, 0, 255]))
   })
 
+  it('applies generator Offset as a Vector2 input', () => {
+    const base = createDemoNode('white-noise', 'base', { x: 0, y: 0 })
+    const offset = createDemoNode('white-noise', 'offset', { x: 0, y: 0 })
+    const sourceBase = createDemoNode('vector2', 'source', { x: 0, y: 0 })
+    const source = { ...sourceBase, parameters: sourceBase.parameters.map((parameter) => parameter.id === 'x' ? { ...parameter, value: 3 } : parameter.id === 'y' ? { ...parameter, value: 2 } : parameter) }
+    const result = evaluatePipeline({ nodes: [base, offset, source], edges: [{ sourceNodeId: 'source', sourcePortId: 'value-out', targetNodeId: 'offset', targetPortId: 'offset-in' }] }, new Map())
+    expect((result.outputs.get('offset')?.get('surface-out') as PipelineSurface).pixels).not.toEqual((result.outputs.get('base')?.get('surface-out') as PipelineSurface).pixels)
+  })
+
   it('normalizes rotation and reports cycles without producing opaque pixels', () => {
     const rotation = createDemoNode('rotation', 'rotation', { x: 0, y: 0 })
     const parameter = rotation.parameters.find((item) => item.id === 'angle')!

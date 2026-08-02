@@ -16,6 +16,8 @@ export interface DemoPort {
   readonly direction: DemoPortDirection
 }
 
+const generatorOffsetInput: DemoPort = { id: 'offset-in', label: 'Offset', type: 'vector2', direction: 'input' }
+
 export interface DemoParameter {
   readonly id: string
   readonly label: string
@@ -222,7 +224,7 @@ const baseKindDetails: Readonly<Record<Extract<DemoNodeKind, 'asset' | 'resize' 
     kind: 'gradient',
     family: 'VFX / Color',
     title: 'Gradient',
-    inputs: [],
+    inputs: [generatorOffsetInput],
     outputs: [{ id: 'surface-out', label: 'Surface', type: 'surface', direction: 'output' }],
     parameters: [
       { id: 'from', label: 'Desde', kind: 'color', value: '#000000ff' },
@@ -279,7 +281,7 @@ const baseKindDetails: Readonly<Record<Extract<DemoNodeKind, 'asset' | 'resize' 
     kind: 'rotation',
     family: 'Transformación',
     title: 'Rotation',
-    inputs: [{ id: 'surface-in', label: 'Surface', type: 'surface', direction: 'input' }],
+    inputs: [{ id: 'surface-in', label: 'Surface', type: 'surface', direction: 'input' }, generatorOffsetInput],
     outputs: [{ id: 'surface-out', label: 'Surface', type: 'surface', direction: 'output' }],
     parameters: [{ id: 'angle', label: 'Ángulo', kind: 'float', value: 0, min: 0, max: 359.99, step: 0.01, unit: '°' }],
   },
@@ -335,7 +337,7 @@ const baseKindDetails: Readonly<Record<Extract<DemoNodeKind, 'asset' | 'resize' 
     kind: 'noise',
     family: 'VFX / Ruido',
     title: 'Noise',
-    inputs: [],
+    inputs: [generatorOffsetInput],
     outputs: [{ id: 'surface-out', label: 'Surface', type: 'surface', direction: 'output' }],
     parameters: [
       { id: 'width', label: 'Ancho', kind: 'number', value: 64, min: 1, max: 512, step: 1 },
@@ -351,7 +353,7 @@ const baseKindDetails: Readonly<Record<Extract<DemoNodeKind, 'asset' | 'resize' 
     kind: 'cellular-noise',
     family: 'VFX / Ruido',
     title: 'Cellular Noise',
-    inputs: [],
+    inputs: [generatorOffsetInput],
     outputs: [{ id: 'surface-out', label: 'Surface', type: 'surface', direction: 'output' }],
     parameters: [
       { id: 'width', label: 'Ancho', kind: 'number', value: 64, min: 1, max: 512, step: 1 },
@@ -366,7 +368,7 @@ const baseKindDetails: Readonly<Record<Extract<DemoNodeKind, 'asset' | 'resize' 
     kind: 'perlin',
     family: 'VFX / Ruido',
     title: 'Perlin Noise',
-    inputs: [],
+    inputs: [generatorOffsetInput],
     outputs: [{ id: 'surface-out', label: 'Surface', type: 'surface', direction: 'output' }],
     parameters: [
       { id: 'width', label: 'Ancho', kind: 'number', value: 64, min: 1, max: 512, step: 1 },
@@ -382,7 +384,7 @@ const baseKindDetails: Readonly<Record<Extract<DemoNodeKind, 'asset' | 'resize' 
     kind: 'simplex',
     family: 'VFX / Ruido',
     title: 'Simplex Noise',
-    inputs: [],
+    inputs: [generatorOffsetInput],
     outputs: [{ id: 'surface-out', label: 'Surface', type: 'surface', direction: 'output' }],
     parameters: [
       { id: 'width', label: 'Ancho', kind: 'number', value: 64, min: 1, max: 512, step: 1 },
@@ -416,7 +418,7 @@ const baseKindDetails: Readonly<Record<Extract<DemoNodeKind, 'asset' | 'resize' 
     title: 'Movement',
     inputs: [{ id: 'surface-in', label: 'Surface', type: 'surface', direction: 'input' }, { id: 'offset-in', label: 'Offset', type: 'vector2', direction: 'input' }],
     outputs: [{ id: 'surface-out', label: 'Surface', type: 'surface', direction: 'output' }],
-    parameters: [{ id: 'x', label: 'X', kind: 'float', value: 0, step: 1 }, { id: 'y', label: 'Y', kind: 'float', value: 0, step: 1 }, { id: 'wrap', label: 'Borde', kind: 'select', value: 'Transparent', options: ['Transparent', 'Wrap'] }],
+    parameters: [{ id: 'x', label: 'X', kind: 'float', value: 0, step: 1, showInNode: false }, { id: 'y', label: 'Y', kind: 'float', value: 0, step: 1, showInNode: false }, { id: 'wrap', label: 'Borde', kind: 'select', value: 'Transparent', options: ['Transparent', 'Wrap'] }],
   },
   direction: {
     kind: 'direction',
@@ -560,6 +562,7 @@ const generatorParameters = (): DemoParameter[] => [
   { id: 'width', label: 'Width', kind: 'number', value: 64, min: 1, max: 512, step: 1 },
   { id: 'height', label: 'Height', kind: 'number', value: 64, min: 1, max: 512, step: 1 },
 ]
+const generatorInputs = (): DemoPort[] => [generatorOffsetInput]
 const noiseParameters = (): DemoParameter[] => [...generatorParameters(), { id: 'scale', label: 'Scale', kind: 'float', value: 0.08, min: 0.005, max: 4, step: 0.005 }, { id: 'seed', label: 'Seed', kind: 'number', value: 1, min: -2147483648, max: 2147483647, step: 1 }, { id: 'roughness', label: 'Roughness', kind: 'range', value: 0.5, min: 0, max: 1, step: 0.01 }, { id: 'octaves', label: 'Octaves', kind: 'number', value: 4, min: 1, max: 8, step: 1 }, { id: 'levels', label: 'Levels', kind: 'number', value: 8, min: 2, max: 64, step: 1 }]
 const generatedKindDetails: Record<string, NodeDetails> = {
   number: valueNode('number', 'Number', [], [numericParameter('value', 'Value', 0, -100000, 100000, 0.01)]),
@@ -596,24 +599,24 @@ const generatedKindDetails: Record<string, NodeDetails> = {
   'array-sort': arrayNode('array-sort', 'Array Sort'),
   'array-split': arrayNode('array-split', 'Array Split', [valueInput('array-in', 'Array', 'array'), valueInput('size', 'Size', 'int')], [valueOutput('array-out', 'Array', 'array')]),
   'array-zip': arrayNode('array-zip', 'Array Zip', [valueInput('a', 'A', 'array'), valueInput('b', 'B', 'array')]),
-  solid: { kind: 'solid', family: 'Generators', title: 'Solid', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
-  'linear-gradient': { kind: 'linear-gradient', family: 'Generators', title: 'Linear Gradient', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'from', label: 'From', kind: 'color', value: '#000000ff' }, { id: 'to', label: 'To', kind: 'color', value: '#ffffffff' }, { id: 'direction', label: 'Direction', kind: 'select', value: 'Horizontal', options: ['Horizontal', 'Vertical', 'Diagonal'] }] },
-  'radial-gradient': { kind: 'radial-gradient', family: 'Generators', title: 'Radial Gradient', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'from', label: 'From', kind: 'color', value: '#000000ff' }, { id: 'to', label: 'To', kind: 'color', value: '#ffffffff' }] },
-  'bilinear-gradient': { kind: 'bilinear-gradient', family: 'Generators', title: 'Bilinear Gradient', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'top-left', label: 'Top Left', kind: 'color', value: '#000000ff' }, { id: 'top-right', label: 'Top Right', kind: 'color', value: '#ffffffff' }, { id: 'bottom-left', label: 'Bottom Left', kind: 'color', value: '#ffffffff' }, { id: 'bottom-right', label: 'Bottom Right', kind: 'color', value: '#000000ff' }] },
-  'normalized-gradient': { kind: 'normalized-gradient', family: 'Generators', title: 'Normalized Gradient', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters()] },
-  checkerboard: { kind: 'checkerboard', family: 'Generators', title: 'Checkerboard', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'cell', label: 'Cell', kind: 'number', value: 8, min: 1, max: 128, step: 1 }, { id: 'a', label: 'Color A', kind: 'color', value: '#000000ff' }, { id: 'b', label: 'Color B', kind: 'color', value: '#ffffffff' }] },
-  grid: { kind: 'grid', family: 'Generators', title: 'Grid', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'cell', label: 'Cell', kind: 'number', value: 8, min: 1, max: 128, step: 1 }, { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
-  'grid-triangular': { kind: 'grid-triangular', family: 'Generators', title: 'Grid Triangular', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'cell', label: 'Cell', kind: 'number', value: 8, min: 1, max: 128, step: 1 }, { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
-  stripe: { kind: 'stripe', family: 'Generators', title: 'Stripe', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'width', label: 'Stripe Width', kind: 'number', value: 4, min: 1, max: 128, step: 1 }, { id: 'a', label: 'Color A', kind: 'color', value: '#000000ff' }, { id: 'b', label: 'Color B', kind: 'color', value: '#ffffffff' }] },
-  'draw-curve': { kind: 'draw-curve', family: 'Generators', title: 'Draw Curve', inputs: [valueInput('points-in', 'Points', 'array')], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
-  'draw-path': { kind: 'draw-path', family: 'Generators', title: 'Draw Path', inputs: [valueInput('points-in', 'Points', 'array')], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
-  'draw-shape': { kind: 'draw-shape', family: 'Generators', title: 'Draw Shape', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'shape', label: 'Shape', kind: 'select', value: 'Rectangle', options: ['Rectangle', 'Circle', 'Line'] }, { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
-  'draw-group': { kind: 'draw-group', family: 'Generators', title: 'Draw Group', inputs: [{ id: 'surface-a', label: 'A', type: 'surface', direction: 'input' }, { id: 'surface-b', label: 'B', type: 'surface', direction: 'input' }], outputs: [surfaceOutput()], parameters: [] },
-  'draw-text': { kind: 'draw-text', family: 'Generators', title: 'Draw Text', inputs: [], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'text', label: 'Text', kind: 'text', value: 'M' }, { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
+  solid: { kind: 'solid', family: 'Generators', title: 'Solid', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
+  'linear-gradient': { kind: 'linear-gradient', family: 'Generators', title: 'Linear Gradient', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'from', label: 'From', kind: 'color', value: '#000000ff' }, { id: 'to', label: 'To', kind: 'color', value: '#ffffffff' }, { id: 'direction', label: 'Direction', kind: 'select', value: 'Horizontal', options: ['Horizontal', 'Vertical', 'Diagonal'] }] },
+  'radial-gradient': { kind: 'radial-gradient', family: 'Generators', title: 'Radial Gradient', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'from', label: 'From', kind: 'color', value: '#000000ff' }, { id: 'to', label: 'To', kind: 'color', value: '#ffffffff' }] },
+  'bilinear-gradient': { kind: 'bilinear-gradient', family: 'Generators', title: 'Bilinear Gradient', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'top-left', label: 'Top Left', kind: 'color', value: '#000000ff' }, { id: 'top-right', label: 'Top Right', kind: 'color', value: '#ffffffff' }, { id: 'bottom-left', label: 'Bottom Left', kind: 'color', value: '#ffffffff' }, { id: 'bottom-right', label: 'Bottom Right', kind: 'color', value: '#000000ff' }] },
+  'normalized-gradient': { kind: 'normalized-gradient', family: 'Generators', title: 'Normalized Gradient', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters()] },
+  checkerboard: { kind: 'checkerboard', family: 'Generators', title: 'Checkerboard', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'cell', label: 'Cell', kind: 'number', value: 8, min: 1, max: 128, step: 1 }, { id: 'a', label: 'Color A', kind: 'color', value: '#000000ff' }, { id: 'b', label: 'Color B', kind: 'color', value: '#ffffffff' }] },
+  grid: { kind: 'grid', family: 'Generators', title: 'Grid', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'cell', label: 'Cell', kind: 'number', value: 8, min: 1, max: 128, step: 1 }, { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
+  'grid-triangular': { kind: 'grid-triangular', family: 'Generators', title: 'Grid Triangular', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'cell', label: 'Cell', kind: 'number', value: 8, min: 1, max: 128, step: 1 }, { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
+  stripe: { kind: 'stripe', family: 'Generators', title: 'Stripe', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'width', label: 'Stripe Width', kind: 'number', value: 4, min: 1, max: 128, step: 1 }, { id: 'a', label: 'Color A', kind: 'color', value: '#000000ff' }, { id: 'b', label: 'Color B', kind: 'color', value: '#ffffffff' }] },
+  'draw-curve': { kind: 'draw-curve', family: 'Generators', title: 'Draw Curve', inputs: [...generatorInputs(), valueInput('points-in', 'Points', 'array')], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
+  'draw-path': { kind: 'draw-path', family: 'Generators', title: 'Draw Path', inputs: [...generatorInputs(), valueInput('points-in', 'Points', 'array')], outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
+  'draw-shape': { kind: 'draw-shape', family: 'Generators', title: 'Draw Shape', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'shape', label: 'Shape', kind: 'select', value: 'Rectangle', options: ['Rectangle', 'Circle', 'Line'] }, { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
+  'draw-group': { kind: 'draw-group', family: 'Generators', title: 'Draw Group', inputs: [...generatorInputs(), { id: 'surface-a', label: 'A', type: 'surface', direction: 'input' }, { id: 'surface-b', label: 'B', type: 'surface', direction: 'input' }], outputs: [surfaceOutput()], parameters: [] },
+  'draw-text': { kind: 'draw-text', family: 'Generators', title: 'Draw Text', inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: [...generatorParameters(), { id: 'text', label: 'Text', kind: 'text', value: 'M' }, { id: 'color', label: 'Color', kind: 'color', value: '#ffffffff' }] },
 }
 
 for (const kind of ['white-noise', 'blue-noise', 'gaussian-noise', 'impulse-noise', 'pink-noise', 'brown-noise', 'fbm', 'turbulent-noise', 'rings-noise', 'rays-noise', 'euclidean-noise', 'voronoi-noise', 'manhattan-noise', 'chebyshev-noise', 'worley-noise', 'tricubic-noise', 'discrete-noise', 'seamless-noise', 'spots-noise']) {
-  generatedKindDetails[kind] = { kind: kind as DemoNodeKind, family: 'Generators / Noise', title: kind.split('-').map((part) => part[0]!.toUpperCase() + part.slice(1)).join(' '), inputs: [valueInput('seed-in', 'Seed', 'int'), valueInput('roughness-in', 'Roughness', 'float')], outputs: [surfaceOutput()], parameters: noiseParameters() }
+  generatedKindDetails[kind] = { kind: kind as DemoNodeKind, family: 'Generators / Noise', title: kind.split('-').map((part) => part[0]!.toUpperCase() + part.slice(1)).join(' '), inputs: generatorInputs(), outputs: [surfaceOutput()], parameters: noiseParameters() }
 }
 
 const advancedSurfaceUnary = ['atlas', 'corner-warp', 'crop', 'deform', 'displace', 'lattice-warp', 'mirror', 'move', 'move-to', 'nine-slice', 'padding', 'pivot', 'polar-distance', 'repeat', 'scale', 'skew', 'tile', 'transform', 'alpha-cut', 'blur', 'blur-directional', 'blur-gaussian', 'brightness-contrast', 'color-adjust', 'color-replace', 'colorize', 'dither', 'dither-bayer', 'dither-cluster', 'edge-detect', 'glow', 'hue-saturation-value', 'level', 'palette-apply', 'match-palette', 'pixelate', 'posterize', 'shadow', 'shading', 'sharpen', 'threshold', 'alpha-to-color', 'clean-edge', 'half-tone', 'mask', 'mix', 'remap', 'stack', 'get-pixel', 'isolate-color', 'frame-blend', 'frame-bypass', 'resource-loader', 'region-system', 'uv-workflow', 'condition', 'delay', 'feedback', 'iteration', 'loop', 'loop-start', 'loop-end', 'script', 'bloom', 'godray', 'mk-godray', 'particle', 'particle-spawn', 'pixel-cloud', 'trail', 'vfx'] as const
@@ -623,12 +626,13 @@ const advancedTitle = (kind: string): string => kind.split('-').map((part) => pa
 const effectParameters = (kind: string): DemoParameter[] => {
   const parameters: DemoParameter[] = [{ id: 'amount', label: 'Amount', kind: 'range', value: 1, min: 0, max: 4, step: 0.01 }]
   if (['blur', 'blur-directional', 'blur-gaussian', 'glow', 'shadow', 'bloom', 'godray', 'mk-godray'].includes(kind)) parameters.push({ id: 'radius', label: 'Radius', kind: 'number', value: 1, min: 0, max: 32, step: 1 })
-  if (['move', 'move-to', 'displace', 'deform', 'corner-warp', 'lattice-warp', 'padding', 'pivot', 'skew', 'transform'].includes(kind)) parameters.push({ id: 'offsetX', label: 'Offset X', kind: 'float', value: 0, min: -2048, max: 2048, step: 0.01 }, { id: 'offsetY', label: 'Offset Y', kind: 'float', value: 0, min: -2048, max: 2048, step: 0.01 })
+  if (['move', 'move-to', 'displace', 'deform', 'corner-warp', 'lattice-warp', 'padding', 'pivot', 'skew', 'transform'].includes(kind)) parameters.push({ id: 'offsetX', label: 'Offset X', kind: 'float', value: 0, min: -2048, max: 2048, step: 0.01, showInNode: false }, { id: 'offsetY', label: 'Offset Y', kind: 'float', value: 0, min: -2048, max: 2048, step: 0.01, showInNode: false })
   if (['particle', 'particle-spawn', 'pixel-cloud', 'trail', 'vfx'].includes(kind)) parameters.push({ id: 'seed', label: 'Seed', kind: 'number', value: 1, min: -2147483648, max: 2147483647, step: 1 }, { id: 'count', label: 'Count', kind: 'number', value: 16, min: 1, max: 512, step: 1 })
   return parameters
 }
 for (const kind of advancedSurfaceUnary) {
   const inputs: DemoPort[] = [{ id: 'surface-in', label: 'Surface', type: 'surface', direction: 'input' }]
+  if (['move', 'move-to', 'displace', 'deform', 'corner-warp', 'lattice-warp', 'padding', 'pivot', 'skew', 'transform'].includes(kind)) inputs.push(generatorOffsetInput)
   const outputs: DemoPort[] = [{ id: 'surface-out', label: 'Surface', type: 'surface', direction: 'output' }]
   generatedKindDetails[kind] = { kind: kind as DemoNodeKind, family: kind.startsWith('alpha-') || ['blur', 'glow', 'invert', 'outline', 'sharpen', 'threshold'].includes(kind) ? 'Filter' : kind.startsWith('array-') ? 'Array' : ['mask', 'mix', 'remap', 'stack', 'frame-blend', 'frame-bypass'].includes(kind) ? 'Compose' : ['resource-loader', 'get-pixel', 'region-system', 'uv-workflow', 'script'].includes(kind) ? 'I/O' : ['particle', 'particle-spawn', 'pixel-cloud', 'trail', 'vfx', 'bloom', 'godray', 'mk-godray'].includes(kind) ? 'Generator' : 'Transform', title: advancedTitle(kind), inputs, outputs, parameters: effectParameters(kind) }
 }
@@ -643,7 +647,7 @@ generatedKindDetails['get-pixel'] = {
   title: 'Get Pixel',
   inputs: [{ id: 'surface-in', label: 'Surface', type: 'surface', direction: 'input' }, { id: 'point-in', label: 'Point', type: 'vector2', direction: 'input' }],
   outputs: [{ id: 'color-out', label: 'Color', type: 'color', direction: 'output' }],
-  parameters: [{ id: 'x', label: 'X', kind: 'number', value: 0, min: 0, max: 2048, step: 1 }, { id: 'y', label: 'Y', kind: 'number', value: 0, min: 0, max: 2048, step: 1 }],
+  parameters: [{ id: 'x', label: 'X', kind: 'number', value: 0, min: 0, max: 2048, step: 1, showInNode: false }, { id: 'y', label: 'Y', kind: 'number', value: 0, min: 0, max: 2048, step: 1, showInNode: false }],
 }
 
 generatedKindDetails['array-randomizer'] = arrayNode('array-randomizer', 'Array Randomizer', [valueInput('array-in', 'Array', 'array')], [valueOutput('array-out', 'Array', 'array')], [{ id: 'seed', label: 'Seed', kind: 'number', value: 1, step: 1 }])
@@ -662,6 +666,7 @@ function compatiblePortTypes(source: DemoPortType, target: DemoPortType): boolea
   if (source === 'bool' || target === 'bool') return source === 'bool' && target === 'bool'
   const vector = new Set<DemoPortType>(['vector2', 'vector3', 'vector4'])
   if (numeric.has(source) && numeric.has(target)) return true
+  if (vector.has(source) && vector.has(target)) return true
   return (source === 'value' && vector.has(target)) || (target === 'value' && vector.has(source))
 }
 
@@ -688,7 +693,7 @@ export function createDemoNode(kind: DemoNodeKind, id: string, position: DemoPos
   const details = kindDetails[kind]
   if (!details) throw new Error('PIPELINE_NODE_KIND_UNSUPPORTED')
   const parameters = kind === 'rotation'
-    ? [...details.parameters, { id: 'direction', label: 'Direction', kind: 'select' as const, value: 'Clockwise', options: ['Clockwise', 'Counterclockwise'] }, { id: 'anchor', label: 'Anchor', kind: 'select' as const, value: 'Center', options: ['Center', 'TopLeft', 'Top', 'TopRight', 'Right', 'BottomRight', 'Bottom', 'BottomLeft', 'Left'] }, { id: 'offsetX', label: 'Offset X', kind: 'float' as const, value: 0, step: 0.01 }, { id: 'offsetY', label: 'Offset Y', kind: 'float' as const, value: 0, step: 0.01 }]
+    ? [...details.parameters, { id: 'direction', label: 'Direction', kind: 'select' as const, value: 'Clockwise', options: ['Clockwise', 'Counterclockwise'] }, { id: 'anchor', label: 'Anchor', kind: 'select' as const, value: 'Center', options: ['Center', 'TopLeft', 'Top', 'TopRight', 'Right', 'BottomRight', 'Bottom', 'BottomLeft', 'Left'] }, { id: 'offsetX', label: 'Offset X', kind: 'float' as const, value: 0, step: 0.01, showInNode: false }, { id: 'offsetY', label: 'Offset Y', kind: 'float' as const, value: 0, step: 0.01, showInNode: false }]
     : details.parameters
   const dynamic = dynamicPorts(kind, parameters)
   const node: DemoNode = {

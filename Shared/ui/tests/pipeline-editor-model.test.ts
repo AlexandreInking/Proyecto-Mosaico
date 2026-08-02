@@ -76,6 +76,8 @@ describe('pipeline editor demo graph', () => {
     const gradient = createDemoNode('gradient', 'gradient-1', { x: 0, y: 0 })
     const int = createDemoNode('int', 'int-1', { x: 0, y: 0 })
     const vector4 = createDemoNode('vector4', 'vector4-1', { x: 0, y: 0 })
+    const vector3 = createDemoNode('vector3', 'vector3-1', { x: 0, y: 0 })
+    const noise = createDemoNode('white-noise', 'white-noise-1', { x: 0, y: 0 })
 
     expect(multiply.inputs.filter((port) => port.id.startsWith('parameter:') && port.type === 'surface-or-value')).toHaveLength(2)
     expect(color.outputs[0]?.type).toBe('surface')
@@ -87,6 +89,12 @@ describe('pipeline editor demo graph', () => {
     }).error).toBeUndefined()
     expect(connectDemoPorts({ nodes: [vector4, multiply], edges: [] }, {
       sourceNodeId: 'vector4-1', sourcePortId: 'value-out', targetNodeId: 'multiply-1', targetPortId: 'value-a',
+    }).error).toBeUndefined()
+    expect(connectDemoPorts({ nodes: [vector3, noise], edges: [] }, {
+      sourceNodeId: 'vector3-1', sourcePortId: 'value-out', targetNodeId: 'white-noise-1', targetPortId: 'offset-in',
+    }).error).toBeUndefined()
+    expect(connectDemoPorts({ nodes: [vector4, noise], edges: [] }, {
+      sourceNodeId: 'vector4-1', sourcePortId: 'value-out', targetNodeId: 'white-noise-1', targetPortId: 'offset-in',
     }).error).toBeUndefined()
   })
 
@@ -112,6 +120,15 @@ describe('pipeline editor demo graph', () => {
       expect(inputIds.filter((id) => id === 'parameter:roughness')).toHaveLength(1)
       expect(node.parameters.filter((parameter) => parameter.id === 'seed')).toHaveLength(1)
       expect(node.parameters.filter((parameter) => parameter.id === 'roughness')).toHaveLength(1)
+      expect(node.inputs.some((port) => port.id === 'offset-in' && port.type === 'vector2')).toBe(true)
+    }
+  })
+
+  it('adds one typed Offset input to coordinate generators', () => {
+    for (const kind of ['solid', 'linear-gradient', 'radial-gradient', 'bilinear-gradient', 'checkerboard', 'grid', 'stripe', 'draw-shape', 'draw-text'] as const) {
+      const node = createDemoNode(kind, `${kind}-offset`, { x: 0, y: 0 })
+      expect(node.inputs.filter((port) => port.id === 'offset-in')).toHaveLength(1)
+      expect(node.inputs.find((port) => port.id === 'offset-in')?.type).toBe('vector2')
     }
   })
 
@@ -139,6 +156,7 @@ describe('pipeline editor demo graph', () => {
     const invalidConnection = connectDemoPorts({ nodes: [bool, rotation], edges: [] }, { sourceNodeId: 'bool', sourcePortId: 'value-out', targetNodeId: 'rotation-ports', targetPortId: 'parameter:angle' })
 
     expect(rotation.inputs.some((port) => port.id === 'parameter:angle' && port.type === 'float')).toBe(true)
+    expect(rotation.inputs.some((port) => port.id === 'offset-in' && port.type === 'vector2')).toBe(true)
     expect(time.outputs[0]?.type).toBe('float')
     expect(bool.outputs[0]?.type).toBe('bool')
     expect(rotateConnection.error).toBeUndefined()

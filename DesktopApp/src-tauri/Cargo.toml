@@ -1,6 +1,6 @@
 [package]
 name = "mosaico-desktop"
-version = "0.2.19"
+version = "0.2.20"
 description = "Mosaico desktop shell"
 authors = ["Proyecto Mosaico"]
 edition = "2024"
