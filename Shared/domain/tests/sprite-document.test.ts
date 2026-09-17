@@ -29,6 +29,7 @@ const layerId = '00000000-0000-4000-8000-000000000011'
 const frameId = '00000000-0000-4000-8000-000000000012'
 const red: RgbaColor = { r: 255, g: 0, b: 0, a: 255 }
 const blue: RgbaColor = { r: 0, g: 64, b: 255, a: 255 }
+const green: RgbaColor = { r: 0, g: 160, b: 0, a: 255 }
 const transparent: RgbaColor = { r: 0, g: 0, b: 0, a: 0 }
 
 function createDocument(): SpriteDocument {
@@ -84,6 +85,35 @@ describe('pixel sprite domain', () => {
     expect(getPixel(filled, layerId, frameId, { x: 1, y: 2 })).toEqual(red)
     expect(getPixel(filled, layerId, frameId, { x: 2, y: 2 })).toEqual(blue)
     expect(getPixel(filled, layerId, frameId, { x: 3, y: 2 })).toEqual(transparent)
+  })
+
+  it('respects tolerance and diagonal connectivity options', () => {
+    const nearRed = { r: 250, g: 0, b: 0, a: 255 }
+    let document = createDocument()
+    document = setPixel(document, layerId, frameId, { x: 1, y: 0 }, red)
+    document = setPixel(document, layerId, frameId, { x: 2, y: 0 }, nearRed)
+
+    const strict = fillPixels(document, layerId, frameId, { x: 1, y: 0 }, green)
+    expect(getPixel(strict, layerId, frameId, { x: 1, y: 0 })).toEqual(green)
+    expect(getPixel(strict, layerId, frameId, { x: 2, y: 0 })).toEqual(nearRed)
+
+    const tolerant = fillPixels(document, layerId, frameId, { x: 1, y: 0 }, green, { tolerance: 8 })
+    expect(getPixel(tolerant, layerId, frameId, { x: 2, y: 0 })).toEqual(green)
+    expect(getPixel(tolerant, layerId, frameId, { x: 3, y: 0 })).toEqual(transparent)
+
+    const nanSafe = fillPixels(document, layerId, frameId, { x: 1, y: 0 }, green, { tolerance: Number.NaN })
+    expect(getPixel(nanSafe, layerId, frameId, { x: 2, y: 0 })).toEqual(nearRed)
+  })
+
+  it('bridges diagonal gaps only with 8-connectivity', () => {
+    let document = createDocument()
+    for (const point of [{ x: 1, y: 1 }, { x: 2, y: 2 }]) document = setPixel(document, layerId, frameId, point, red)
+
+    const fourWay = fillPixels(document, layerId, frameId, { x: 1, y: 1 }, green)
+    expect(getPixel(fourWay, layerId, frameId, { x: 2, y: 2 })).toEqual(red)
+
+    const eightWay = fillPixels(document, layerId, frameId, { x: 1, y: 1 }, green, { connectivity: 8 })
+    expect(getPixel(eightWay, layerId, frameId, { x: 2, y: 2 })).toEqual(green)
   })
 
   it('preserves one raster layer and selects another after deletion', () => {

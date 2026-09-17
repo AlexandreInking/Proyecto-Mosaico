@@ -17,7 +17,7 @@ export interface TileReference {
   readonly flipY?: boolean
   readonly rotation?: 0 | 90 | 180 | 270
   readonly autotileSetId?: string
-  readonly autotileProfile?: 'terrain' | 'contour'
+  readonly autotileProfile?: AutotileProfile
   readonly animationId?: string
   readonly animationFrame?: number
   readonly animationDurationMs?: number
@@ -35,6 +35,10 @@ export type TerrainRole =
   | 'outerTopLeft' | 'outerTopRight' | 'outerBottomRight' | 'outerBottomLeft'
   | 'innerTopLeft' | 'innerTopRight' | 'innerBottomRight' | 'innerBottomLeft'
 
+/** Formatos de paleta de autotile según número de piezas. */
+export type AutotileLayout = 'tiles5' | 'tiles16' | 'tiles47' | 'tiles48'
+export type AutotileProfile = 'terrain' | 'contour' | 'blob'
+
 export interface AutotileSet {
   readonly id: string
   readonly name: string
@@ -42,12 +46,16 @@ export interface AutotileSet {
   readonly centerTileId: number
   readonly terrain: Readonly<Partial<Record<TerrainRole, number>>>
   readonly contour: Readonly<Record<string, number>>
+  readonly blob?: Readonly<Record<string, number>>
+  readonly layout?: AutotileLayout
 }
+
+export type MapLayerKind = 'tile' | 'autotile'
 
 export interface MapLayer {
   readonly id: string
   readonly name: string
-  readonly kind: 'tile'
+  readonly kind: MapLayerKind
   readonly visible: boolean
   readonly locked: boolean
   readonly opacity: number
@@ -55,6 +63,7 @@ export interface MapLayer {
   readonly isFolder?: boolean
   readonly parentId?: string
   readonly collapsed?: boolean
+  readonly autotileSetId?: string
 }
 
 export interface MapDocument {
@@ -167,6 +176,13 @@ function validateTileForPaint(document: MapDocument, tile: TileReference): void 
   }
 }
 
+export function validateTileForLayer(layer: MapLayer, tile: TileReference): void {
+  if (layer.kind !== 'autotile') return
+  if (!tile.autotileSetId || (layer.autotileSetId && tile.autotileSetId !== layer.autotileSetId)) {
+    throw new Error('MAP_AUTOTILE_LAYER_REQUIRES_SET_TILE')
+  }
+}
+
 function validateTilesetGeometry(tileset: TilesetContract): void {
   const originX = (tileset.offsetX ?? 0) + tileset.marginX
   const originY = (tileset.offsetY ?? 0) + tileset.marginY
@@ -193,7 +209,7 @@ export function createMapDocument(input: CreateMapDocumentInput): MapDocument {
   const tileCounts = new Map(tilesets.map((tileset) => [tileset.id, tileset.tileCount]))
   for (const set of autotileSets) {
     const count = tileCounts.get(set.tilesetId)
-    if (!count || [set.centerTileId, ...Object.values(set.terrain), ...Object.values(set.contour)].some((id) => !Number.isInteger(id) || id! < 0 || id! >= count)) throw new Error('MAP_AUTOTILE_INVALID')
+    if (!count || [set.centerTileId, ...Object.values(set.terrain), ...Object.values(set.contour), ...Object.values(set.blob ?? {})].some((id) => !Number.isInteger(id) || id! < 0 || id! >= count)) throw new Error('MAP_AUTOTILE_INVALID')
   }
   return {
     format: 'mosaico-map',
@@ -230,8 +246,9 @@ export function getTile(document: MapDocument, layerId: string, coordinate: Grid
 
 export function setTile(document: MapDocument, layerId: string, coordinate: GridCoordinate, tile: TileReference): MapDocument {
   assertCoordinate(document, coordinate)
-  validateTileForPaint(document, tile)
   const layer = requireEditableLayer(document, layerId)
+  validateTileForPaint(document, tile)
+  validateTileForLayer(layer, tile)
   const key = coordinateKey(coordinate)
   if (tileReferencesEqual(layer.cells.get(key), tile)) return document
   if (!layer.cells.has(key) && occupiedCellCount(document) >= MAXIMUM_OCCUPIED_CELLS) {
@@ -275,6 +292,7 @@ export function applyMapCells(document: MapDocument, layerId: string, changes: r
       continue
     }
     validateTileForPaint(document, change.tile)
+    validateTileForLayer(layer, change.tile)
     if (tileReferencesEqual(previous, change.tile)) continue
     if (!previous && ++occupied > MAXIMUM_OCCUPIED_CELLS) throw new RangeError('MAP_OCCUPIED_CELL_LIMIT')
     cells.set(key, { ...change.tile })
@@ -297,8 +315,9 @@ export function transformTile(
 
 export function fillTiles(document: MapDocument, layerId: string, origin: GridCoordinate, replacement: TileReference): MapDocument {
   assertCoordinate(document, origin)
-  validateTileForPaint(document, replacement)
   const layer = requireEditableLayer(document, layerId)
+  validateTileForPaint(document, replacement)
+  validateTileForLayer(layer, replacement)
   const target = layer.cells.get(coordinateKey(origin))
   if (tileReferencesEqual(target, replacement)) return document
 
@@ -391,8 +410,9 @@ export async function connectedTileRegionAsync(document: MapDocument, layerId: s
 }
 
 export async function fillTilesAsync(document: MapDocument, layerId: string, origin: GridCoordinate, replacement: TileReference, options: CooperativeMapOptions = {}): Promise<MapDocument> {
+  const layer = requireEditableLayer(document, layerId)
   validateTileForPaint(document, replacement)
-  requireEditableLayer(document, layerId)
+  validateTileForLayer(layer, replacement)
   const region = await connectedTileRegionAsync(document, layerId, origin, options)
   return applyMapCells(document, layerId, region.map((coordinate) => ({ ...coordinate, tile: replacement })))
 }
@@ -420,22 +440,25 @@ export function addMapFolder(document: MapDocument, input: { readonly id: string
   return { ...document, revision: document.revision + 1, layers: [...document.layers, layer] }
 }
 
-export function addMapLayer(document: MapDocument, input: { readonly id: string; readonly name: string; readonly parentId?: string }): MapDocument {
+export function addMapLayer(document: MapDocument, input: { readonly id: string; readonly name: string; readonly parentId?: string; readonly kind?: MapLayerKind; readonly autotileSetId?: string }): MapDocument {
   if (document.layers.length >= MAXIMUM_MAP_LAYERS) throw new RangeError('MAP_LAYER_LIMIT')
   if (!input.id || !input.name.trim()) throw new Error('MAP_REQUIRED_FIELD')
   if (document.layers.some((layer) => layer.id === input.id)
     || document.tilesets.some((tileset) => tileset.id === input.id)
     || document.autotileSets.some((set) => set.id === input.id)) throw new Error('MAP_DUPLICATE_ID')
   validateMapParent(document, input.id, input.parentId)
+  const kind: MapLayerKind = input.kind ?? 'tile'
+  if (input.autotileSetId && !document.autotileSets.some((set) => set.id === input.autotileSetId)) throw new Error('MAP_AUTOTILE_SET_NOT_FOUND')
   const layer: MapLayer = {
     id: input.id,
     name: input.name.trim(),
-    kind: 'tile',
+    kind,
     visible: true,
     locked: false,
     opacity: 1,
     cells: new Map(),
     parentId: input.parentId,
+    ...(kind === 'autotile' && input.autotileSetId ? { autotileSetId: input.autotileSetId } : {}),
   }
   return { ...document, revision: document.revision + 1, activeLayerId: layer.id, layers: [...document.layers, layer] }
 }
@@ -455,7 +478,7 @@ export function removeMapLayer(document: MapDocument, layerId: string): MapDocum
 export function updateMapLayer(
   document: MapDocument,
   layerId: string,
-  patch: { readonly name?: string; readonly visible?: boolean; readonly locked?: boolean; readonly opacity?: number; readonly parentId?: string; readonly collapsed?: boolean },
+  patch: { readonly name?: string; readonly visible?: boolean; readonly locked?: boolean; readonly opacity?: number; readonly parentId?: string; readonly collapsed?: boolean; readonly autotileSetId?: string },
 ): MapDocument {
   const layer = requireLayer(document, layerId)
   const name = patch.name === undefined ? layer.name : patch.name.trim()
@@ -463,8 +486,9 @@ export function updateMapLayer(
   if (!name) throw new Error('MAP_REQUIRED_FIELD')
   if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new RangeError('MAP_LAYER_OPACITY_INVALID')
   if ('parentId' in patch) validateMapParent(document, layerId, patch.parentId)
+  if (patch.autotileSetId && !document.autotileSets.some((set) => set.id === patch.autotileSetId)) throw new Error('MAP_AUTOTILE_SET_NOT_FOUND')
   const next = { ...layer, ...patch, name, opacity }
-  if (next.name === layer.name && next.visible === layer.visible && next.locked === layer.locked && next.opacity === layer.opacity && next.parentId === layer.parentId && next.collapsed === layer.collapsed) return document
+  if (next.name === layer.name && next.visible === layer.visible && next.locked === layer.locked && next.opacity === layer.opacity && next.parentId === layer.parentId && next.collapsed === layer.collapsed && next.autotileSetId === layer.autotileSetId) return document
   return replaceLayer(document, next)
 }
 
@@ -550,11 +574,14 @@ export function addTileset(document: MapDocument, tileset: TilesetContract): Map
 
 export function removeTileset(document: MapDocument, tilesetId: string): MapDocument {
   if (!document.tilesets.some((tileset) => tileset.id === tilesetId)) throw new Error('MAP_TILESET_NOT_FOUND')
+  const remainingSets = document.autotileSets.filter((set) => set.tilesetId !== tilesetId)
+  const remainingIds = new Set(remainingSets.map((set) => set.id))
   return {
     ...document,
     revision: document.revision + 1,
     tilesets: document.tilesets.filter((tileset) => tileset.id !== tilesetId),
-    autotileSets: document.autotileSets.filter((set) => set.tilesetId !== tilesetId),
+    autotileSets: remainingSets,
+    layers: document.layers.map((layer) => layer.autotileSetId && !remainingIds.has(layer.autotileSetId) ? { ...layer, autotileSetId: undefined } : layer),
   }
 }
 
@@ -620,10 +647,10 @@ export function mapSemanticFingerprint(document: MapDocument): string {
   lines.push(`B|${document.background.kind}|${document.background.kind === 'color' ? document.background.color : ''}`)
   lines.push(`G|${document.grid.visible}|${document.grid.color}`)
   for (const set of [...document.autotileSets].sort((left, right) => left.id.localeCompare(right.id))) {
-    lines.push(`A|${set.id}|${set.name}|${set.tilesetId}|${set.centerTileId}|${JSON.stringify(set.terrain)}|${JSON.stringify(set.contour)}`)
+    lines.push(`A|${set.id}|${set.name}|${set.tilesetId}|${set.centerTileId}|${set.layout ?? ''}|${JSON.stringify(set.terrain)}|${JSON.stringify(set.contour)}|${JSON.stringify(set.blob ?? {})}`)
   }
   for (const layer of document.layers) {
-    lines.push(`L|${layer.id}|${layer.name}|${layer.visible}|${layer.locked}|${layer.opacity}`)
+    lines.push(`L|${layer.id}|${layer.name}|${layer.kind}|${layer.autotileSetId ?? ''}|${layer.visible}|${layer.locked}|${layer.opacity}`)
     const cells = [...layer.cells.entries()].map(([key, tile]) => ({ ...parseCoordinate(key), tile }))
       .sort((left, right) => left.y - right.y || left.x - right.x)
     for (const cell of cells) lines.push(`C|${cell.x}|${cell.y}|${cell.tile.tilesetId}|${cell.tile.tileId}|${!!cell.tile.flipX}|${!!cell.tile.flipY}|${cell.tile.rotation ?? 0}|${cell.tile.autotileSetId ?? ''}|${cell.tile.autotileProfile ?? ''}`)

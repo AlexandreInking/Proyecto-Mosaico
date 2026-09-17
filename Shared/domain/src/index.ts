@@ -1,4 +1,6 @@
 export * from './map-document.js'
+export * from './map-rules.js'
+export * from './wfc.js'
 export * from './sprite-document.js'
 export * from './commands.js'
 export * from './serialization.js'

@@ -1,8 +1,8 @@
 # Mosaico 0.2.20 — Manual funcional completo
 
-Fecha de verificación: 31 de julio de 2026.
+Fecha de verificación: 3 de agosto de 2026.
 
-Este manual describe exclusivamente funciones disponibles en la aplicación actual. La versión Desktop instalada muestra cuatro áreas: **Assets**, **Editor**, **Pipelines** y **Maps**. Todas comparten el mismo workspace y el mismo catálogo de imágenes.
+Este manual describe exclusivamente funciones disponibles en la aplicación Desktop Windows actual. La versión instalada muestra cuatro áreas: **Assets**, **Editor**, **Pipelines** y **Maps**. Todas comparten el mismo workspace y el mismo catálogo de imágenes. `WebApp` no es requisito de instalación, ejecución ni distribución.
 
 ## 1. Instalación y apertura
 

@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent } from 'react'
 import {
-  addAutotileSet, addMapFolder, addMapLayer, addTileset, applyAutotileCells, applyMapCells, autotileDiagnostics, connectedTileRegionAsync, createMapDocument,
-  ellipsePixels, eraseAutotileCells, fillTilesAsync, linePixels, rectanglePixels, removeMapLayer, removeTileset, reorderMapLayer,
+  BLOB_CLASSES, addAutotileSet, addMapFolder, addMapLayer, addTileset, applyAutotileCells, applyMapCells, applyMapRulePass, applyWfcToRegion, autotileDiagnostics, connectedTileRegionAsync, createMapDocument, duplicateMapLayer,
+  ellipsePixels, eraseAutotileCells, fillTilesAsync, linePixels, mapRuleDiagnostics, rectanglePixels, removeAutotileSet, removeMapLayer, removeTileset, reorderMapLayer, ruleNeighbors,
   applyMapDocumentDelta, createMapDocumentDelta, deserializeMapDocument, orphanTileDiagnostics, resizeMapDocument, selectMapLayer, serializeMapDocument, setMapLayerParent, sliceTileset, updateAutotileSet, updateMapLayer, updateTileset,
-  type AutotileSet, type GridCoordinate, type MapDocument, type MapDocumentDelta, type MapLayer, type ResizeAnchor, type TerrainRole, type TileReference,
+  type AutotileLayout, type AutotileProfile, type AutotileSet, type GridCoordinate, type MapDocument, type MapDocumentDelta, type MapLayer, type MapPatternRule, type MapRuleGroup, type ResizeAnchor, type RuleCellPredicate, type RuleNeighborKey, type TerrainRole, type TileReference,
 } from '@mosaico/domain'
 import { createViewport, OrthogonalPixiViewport, panViewport, pickOrthogonalCell, resizeViewport, screenToWorld, zoomViewportAt, type Point, type ViewportState } from '@mosaico/canvas'
 import { importImage, loadImages, saveImage } from '@mosaico/pipeline'
 import { Rectangle as PixiRectangle, Texture } from 'pixi.js'
 import {
-  BoxSelect, Circle, Eraser, Eye, EyeOff, FlipHorizontal2, FlipVertical2, Hand,
-  Lock, PaintBucket, Pencil, Pipette, Redo2, RotateCw, Save, Slash, Square, Trash2, Undo2, Unlock, Upload, X,
+  ArrowDown, ArrowUp, BoxSelect, Circle, Copy, Crosshair, Eraser, Eye, EyeOff, FlipHorizontal2, FlipVertical2, FolderPlus, Hand,
+  Lock, PaintBucket, Pencil, Pipette, Play, Plus, Redo2, RotateCw, Save, Shapes, Slash, SlidersHorizontal, Square, SquarePlus, Trash2, Undo2, Unlock, Upload, Wand2, X,
   type LucideIcon,
 } from 'lucide-react'
 import { saveBlob } from './pixel-media.js'
@@ -43,6 +43,101 @@ const createMapViewport = () => createViewport({ width: 1, height: 1, zoom: 1, o
 const pointKey = ({ x, y }: GridCoordinate) => `${x},${y}`
 const safeName = (name: string) => name.replace(/[^a-z0-9_-]+/gi, '-') || 'map'
 const terrainRoles: readonly TerrainRole[] = ['center', 'top', 'right', 'bottom', 'left', 'outerTopLeft', 'outerTopRight', 'outerBottomRight', 'outerBottomLeft', 'innerTopLeft', 'innerTopRight', 'innerBottomRight', 'innerBottomLeft']
+const terrainRoleLabels: Record<TerrainRole, string> = {
+  center: 'Centro',
+  top: 'Borde arriba', right: 'Borde derecha', bottom: 'Borde abajo', left: 'Borde izquierda',
+  outerTopLeft: 'Esquina ext. ↖', outerTopRight: 'Esquina ext. ↗', outerBottomRight: 'Esquina ext. ↘', outerBottomLeft: 'Esquina ext. ↙',
+  innerTopLeft: 'Esquina int. ↖', innerTopRight: 'Esquina int. ↗', innerBottomRight: 'Esquina int. ↘', innerBottomLeft: 'Esquina int. ↙',
+}
+const maskArrows = (mask: number) => (((mask & 1) ? '↑' : '') + ((mask & 2) ? '→' : '') + ((mask & 4) ? '↓' : '') + ((mask & 8) ? '←' : '')) || '·'
+type AutotileTarget = { readonly kind: 'center' } | { readonly kind: 'terrain'; readonly role: TerrainRole } | { readonly kind: 'contour'; readonly mask: number } | { readonly kind: 'blob'; readonly cls: number } | { readonly kind: 'extra' }
+const autotileTargetKey = (target: AutotileTarget): string => target.kind === 'center' ? 'center' : target.kind === 'terrain' ? `terrain:${target.role}` : target.kind === 'contour' ? `contour:${target.mask}` : target.kind === 'blob' ? `blob:${target.cls}` : 'extra'
+const autotileLayoutLabels: Record<AutotileLayout, string> = { tiles5: '5 piezas', tiles16: '16 piezas', tiles47: '47 piezas', tiles48: '48 piezas' }
+const profileForLayout = (layout?: AutotileLayout): 'terrain' | 'contour' | 'blob' => layout === 'tiles16' ? 'contour' : layout === 'tiles47' || layout === 'tiles48' ? 'blob' : 'terrain'
+const autotileTargetsForLayout = (layout?: AutotileLayout): AutotileTarget[] => {
+  if (!layout) return [...terrainRoles.filter((role) => role !== 'center').map((role) => ({ kind: 'terrain' as const, role })), ...Array.from({ length: 16 }, (_, mask) => ({ kind: 'contour' as const, mask }))]
+  if (layout === 'tiles5') return [{ kind: 'terrain', role: 'top' }, { kind: 'terrain', role: 'right' }, { kind: 'terrain', role: 'bottom' }, { kind: 'terrain', role: 'left' }]
+  if (layout === 'tiles16') return Array.from({ length: 16 }, (_, mask) => ({ kind: 'contour' as const, mask }))
+  const blobTargets: AutotileTarget[] = BLOB_CLASSES.map((cls) => ({ kind: 'blob' as const, cls }))
+  return layout === 'tiles48' ? [...blobTargets, { kind: 'extra' }] : blobTargets
+}
+// Diagrama de pieza en una grilla 3×3 (índices 0-2 / 3-5 / 6-8): true = relleno, false = vacío.
+function pieceCells(target: AutotileTarget): readonly boolean[] {
+  const cells = new Array<boolean>(9).fill(false)
+  const fill = (...indexes: number[]) => indexes.forEach((index) => { cells[index] = true })
+  if (target.kind === 'center') return new Array<boolean>(9).fill(true)
+  if (target.kind === 'extra') { fill(4); return cells }
+  if (target.kind === 'contour') {
+    const m = target.mask; fill(4)
+    if (m & 1) fill(1); if (m & 2) fill(5); if (m & 4) fill(7); if (m & 8) fill(3)
+    if ((m & 1) && (m & 8)) fill(0); if ((m & 1) && (m & 2)) fill(2); if ((m & 4) && (m & 2)) fill(8); if ((m & 4) && (m & 8)) fill(6)
+    return cells
+  }
+  if (target.kind === 'blob') {
+    const m = target.cls; fill(4)
+    if (m & 1) fill(1); if (m & 2) fill(2); if (m & 4) fill(5); if (m & 8) fill(8)
+    if (m & 16) fill(7); if (m & 32) fill(6); if (m & 64) fill(3); if (m & 128) fill(0)
+    return cells
+  }
+  switch (target.role) {
+    case 'top': return [false, false, false, true, true, true, true, true, true]
+    case 'bottom': return [true, true, true, true, true, true, false, false, false]
+    case 'left': return [false, true, true, false, true, true, false, true, true]
+    case 'right': return [true, true, false, true, true, false, true, true, false]
+    case 'outerTopLeft': fill(4, 5, 7, 8); break
+    case 'outerTopRight': fill(3, 4, 6, 7); break
+    case 'outerBottomRight': fill(0, 1, 3, 4); break
+    case 'outerBottomLeft': fill(1, 2, 4, 5); break
+    case 'innerTopLeft': fill(2, 4, 5, 6, 7, 8); break
+    case 'innerTopRight': fill(0, 3, 4, 6, 7, 8); break
+    case 'innerBottomRight': fill(0, 1, 2, 3, 4, 6); break
+    case 'innerBottomLeft': fill(0, 1, 2, 4, 5, 8); break
+    default: return new Array<boolean>(9).fill(true)
+  }
+  return cells
+}
+function PieceDiagram({ cells }: { readonly cells: readonly boolean[] }) {
+  return <span className="piece-diagram" aria-hidden="true">{cells.map((filled, index) => <i key={index} className={filled ? 'filled' : 'empty'} />)}</span>
+}
+
+// ── Reglas de patrón: arrastre de tiles entre paneles ──
+const TILE_DND_MIME = 'application/x-mosaico-tile'
+const setTileDrag = (event: ReactDragEvent<HTMLElement>, tile: { readonly tilesetId: string; readonly tileId: number }): void => {
+  event.dataTransfer.setData(TILE_DND_MIME, JSON.stringify(tile))
+  event.dataTransfer.effectAllowed = 'copy'
+}
+const getTileDrag = (event: ReactDragEvent<HTMLElement>): { tilesetId: string; tileId: number } | undefined => {
+  try {
+    const parsed = JSON.parse(event.dataTransfer.getData(TILE_DND_MIME)) as { tilesetId?: string; tileId?: number }
+    return typeof parsed?.tileId === 'number' && typeof parsed?.tilesetId === 'string' ? { tilesetId: parsed.tilesetId, tileId: parsed.tileId } : undefined
+  } catch { return undefined }
+}
+
+// ── Reglas de patrón: almacenamiento local por documento (v2 con grupos de similitud) ──
+const mapRulesStorageKey = (documentId: string): string => `mosaico-map-rules-v1:${documentId}`
+const sortedPatternRules = (rules: readonly MapPatternRule[]): readonly MapPatternRule[] => [...rules].sort((left, right) => left.priority - right.priority || left.id.localeCompare(right.id))
+const RULE_GROUP_COLORS = ['#46d4a0', '#4fa3d4', '#d4a24f', '#c76fd4', '#d46f6f', '#8fd44f', '#d4d14f', '#6f9ed4'] as const
+const RULE_GRID_RADIUS = 2
+const ruleGridKeys: readonly RuleNeighborKey[] = (() => {
+  const keys: RuleNeighborKey[] = []
+  for (let y = -RULE_GRID_RADIUS; y <= RULE_GRID_RADIUS; y += 1) for (let x = -RULE_GRID_RADIUS; x <= RULE_GRID_RADIUS; x += 1) if (x !== 0 || y !== 0) keys.push(`${x},${y}`)
+  return keys
+})()
+interface StoredMapRules { version: number; seed: number; rules: MapPatternRule[]; groups?: MapRuleGroup[] }
+function migrateRuleNeighbors(neighbors?: Readonly<Record<string, RuleCellPredicate>>): Record<RuleNeighborKey, RuleCellPredicate> | undefined {
+  if (!neighbors) return undefined
+  return ruleNeighbors(neighbors as Partial<Record<string, RuleCellPredicate>>)
+}
+function loadStoredMapRules(documentId: string): { seed: number; rules: MapPatternRule[]; groups: MapRuleGroup[] } {
+  if (typeof localStorage === 'undefined') return { seed: 1, rules: [], groups: [] }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(mapRulesStorageKey(documentId)) ?? '') as StoredMapRules | undefined
+    if (!parsed || !Array.isArray(parsed.rules)) return { seed: 1, rules: [], groups: [] }
+    // v1 guardaba claves brújula ('north'); v2 usa offsets ('0,-1'). Migra al cargar.
+    const rules = parsed.rules.map((rule) => ({ ...rule, condition: { ...rule.condition, neighbors: migrateRuleNeighbors(rule.condition.neighbors) } }))
+    return { seed: Number.isFinite(parsed.seed) ? parsed.seed! : 1, rules, groups: Array.isArray(parsed.groups) ? parsed.groups : [] }
+  } catch { return { seed: 1, rules: [], groups: [] } }
+}
 const importFieldLabels: Record<keyof Omit<ImportDraft, 'zoom'>, string> = { name: 'Nombre', tileWidth: 'Ancho tile', tileHeight: 'Alto tile', marginX: 'Margen X', marginY: 'Margen Y', spacingX: 'Separación X', spacingY: 'Separación Y', offsetX: 'Offset X', offsetY: 'Offset Y' }
 const tabsStorageKey = 'mosaico-map-tabs-v3'
 
@@ -106,14 +201,27 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
   const toolBeforeSpaceRef = useRef<Tool | undefined>(undefined)
   const [filled, setFilled] = useState(false); const filledRef = useRef(filled); const [eraserSize, setEraserSize] = useState(1); const eraserSizeRef = useRef(eraserSize)
   const [activeTilesetId, setActiveTilesetId] = useState<string | undefined>(first.tilesets[0]?.id)
-  const [pattern, setPattern] = useState<TilePattern>(); const patternRef = useRef<TilePattern | undefined>(pattern); const [tileStart, setTileStart] = useState(0); const [tileEnd, setTileEnd] = useState(0); const [thumbZoom, setThumbZoom] = useState(2); const [tileScrollTop, setTileScrollTop] = useState(0)
+  const [pattern, setPattern] = useState<TilePattern>(); const patternRef = useRef<TilePattern | undefined>(pattern); const [tileStart, setTileStart] = useState(0); const [tileEnd, setTileEnd] = useState(0); const [thumbZoom, setThumbZoomState] = useState(() => {
+    if (typeof localStorage === 'undefined') return 0.5
+    const stored = Number(localStorage.getItem('mosaico-map-thumb-zoom'))
+    return Number.isFinite(stored) && stored >= 0.5 && stored <= 5 ? stored : 0.5
+  }); const setThumbZoom = (next: number): void => { setThumbZoomState(next); try { localStorage.setItem('mosaico-map-thumb-zoom', String(next)) } catch { /* almacenamiento no disponible */ } }; const [tileScrollTop, setTileScrollTop] = useState(0)
   const [selection, setSelection] = useState<TileSelection>(); const selectionRef = useRef<TileSelection | undefined>(selection); const clipboardRef = useRef<{ pattern: TilePattern; tilesets: MapDocument['tilesets'] } | undefined>(undefined); const [hoverCell, setHoverCell] = useState<GridCoordinate>()
   const [renamingLayerId, setRenamingLayerId] = useState<string>(); const [renameValue, setRenameValue] = useState('')
   const [draggingLayerId, setDraggingLayerId] = useState<string>()
   const [autotile, setAutotile] = useState(false); const autotileRef = useRef(autotile); const [autotileSetId, setAutotileSetId] = useState<string>(); const autotileSetRef = useRef<string | undefined>(autotileSetId)
-  const [autotileProfile, setAutotileProfile] = useState<'terrain' | 'contour'>('terrain'); const autotileProfileRef = useRef(autotileProfile)
+  const [autotileProfile, setAutotileProfile] = useState<AutotileProfile>('terrain'); const autotileProfileRef = useRef(autotileProfile)
   const [newDialog, setNewDialog] = useState(false); const [resizeDialog, setResizeDialog] = useState(false); const [importDialog, setImportDialog] = useState(false)
   const [autotileDialog, setAutotileDialog] = useState(false); const [autotileDraft, setAutotileDraft] = useState<AutotileSet>()
+  const [autotileTarget, setAutotileTarget] = useState<AutotileTarget>(); const [autotilePickerScroll, setAutotilePickerScroll] = useState(0)
+  const [autotileChoosingType, setAutotileChoosingType] = useState(false)
+  const [autotileManagerOpen, setAutotileManagerOpen] = useState(false); const [autotileDeleteTarget, setAutotileDeleteTarget] = useState<AutotileSet>()
+  const [rulesDialogOpen, setRulesDialogOpen] = useState(false)
+  const [rulesSourceLayerId, setRulesSourceLayerId] = useState<string>()
+  const [rulesTargetLayerId, setRulesTargetLayerId] = useState<string>()
+  const [intentView, setIntentView] = useState(false)
+  const [wfcDialogOpen, setWfcDialogOpen] = useState(false); const [wfcSeed, setWfcSeed] = useState(1); const [wfcSize, setWfcSize] = useState(2); const [wfcKeepExisting, setWfcKeepExisting] = useState(true)
+  const intentViewRef = useRef(false); const intentTintRef = useRef<ReadonlyMap<string, number>>(new Map()); const intentLayerRef = useRef<string | undefined>(undefined)
   const [animationDialog, setAnimationDialog] = useState(false); const [animationFps, setAnimationFps] = useState(8)
   const [newForm, setNewForm] = useState({ name: 'Mapa sin título', width: 64, height: 40, tileWidth: 16, tileHeight: 16, transparent: true, color: '#1a2024', grid: true })
   const [resizeForm, setResizeForm] = useState<{ width: number; height: number; anchor: ResizeAnchor }>({ width: document.width, height: document.height, anchor: 'center' })
@@ -156,15 +264,30 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
     setDocuments(remaining)
     if (item.id === documentRef.current.id) switchDocument(remaining[Math.max(0, documents.indexOf(item) - 1)]!)
   }
-  const safely = (action: () => void) => { try { action() } catch (error) { const code = error instanceof Error ? error.message : ''; setStatus(code === 'MAP_LAYER_LOCKED' ? 'Capa bloqueada' : code === 'MAP_LAYER_HIDDEN' ? 'Capa oculta: muéstrala para editar' : code.replaceAll('_', ' ') || 'Operación fallida') } }
+  const safely = (action: () => void) => { try { action() } catch (error) { const code = error instanceof Error ? error.message : ''; setStatus(code === 'MAP_LAYER_LOCKED' ? 'Capa bloqueada' : code === 'MAP_LAYER_HIDDEN' ? 'Capa oculta: muéstrala para editar' : code === 'MAP_AUTOTILE_LAYER_REQUIRES_SET_TILE' ? 'Esta capa de autotile solo acepta tiles de un sistema de autotiles' : code.replaceAll('_', ' ') || 'Operación fallida') } }
+  const autotileModeFor = (base: MapDocument): { setId: string; profile: 'terrain' | 'contour' | 'blob' } | undefined => {
+    const layer = base.layers.find((item) => item.id === base.activeLayerId)
+    const resolveProfile = (setId: string) => {
+      const set = base.autotileSets.find((candidate) => candidate.id === setId)
+      return set?.layout ? profileForLayout(set.layout) : autotileProfileRef.current
+    }
+    if (layer?.kind === 'autotile') return layer.autotileSetId ? { setId: layer.autotileSetId, profile: resolveProfile(layer.autotileSetId) } : undefined
+    return autotileRef.current && autotileSetRef.current ? { setId: autotileSetRef.current, profile: resolveProfile(autotileSetRef.current) } : undefined
+  }
+  const resolveAutotileMode = (): { setId: string; profile: 'terrain' | 'contour' | 'blob' } | undefined => autotileModeFor(documentRef.current)
+  const isAutotileLayerActive = (): boolean => documentRef.current.layers.find((item) => item.id === documentRef.current.activeLayerId)?.kind === 'autotile'
   const runFill = async (origin: GridCoordinate) => {
-    const selected = patternRef.current?.cells[0]; if (!selected || operationAbortRef.current) return
+    if (operationAbortRef.current) return
+    if (isAutotileLayerActive() && !resolveAutotileMode()) { setStatus('La capa de autotile necesita un set vinculado: usa Configurar'); return }
+    const selected = patternRef.current?.cells[0]
+    if (!selected && !resolveAutotileMode()) return
     const before = documentRef.current; const controller = new AbortController(); operationAbortRef.current = controller; setOperation({ label: 'Rellenando', progress: 0 })
     try {
       const options = { signal: controller.signal, onProgress: (progress: number) => setOperation({ label: 'Rellenando', progress }) }
-      const next = autotileRef.current && autotileSetRef.current
-        ? applyAutotileCells(before, before.activeLayerId, await connectedTileRegionAsync(before, before.activeLayerId, origin, options), autotileSetRef.current, autotileProfileRef.current)
-        : await fillTilesAsync(before, before.activeLayerId, origin, selected, options)
+      const mode = resolveAutotileMode()
+      const next = mode
+        ? applyAutotileCells(before, before.activeLayerId, await connectedTileRegionAsync(before, before.activeLayerId, origin, options), mode.setId, mode.profile)
+        : await fillTilesAsync(before, before.activeLayerId, origin, selected!, options)
       if (controller.signal.aborted) throw new DOMException('Operación cancelada', 'AbortError')
       commit(next, before); setStatus('Relleno aplicado')
     } catch (error) { setStatus(error instanceof DOMException && error.name === 'AbortError' ? 'Relleno cancelado' : error instanceof Error ? error.message : 'Relleno falló') }
@@ -175,7 +298,10 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
     if (!activeRef.current) return
     const host = hostRef.current; const renderer = rendererRef.current; if (!host || !renderer) return
     viewportRef.current = resizeViewport(viewportRef.current, Math.max(1, host.clientWidth), Math.max(1, host.clientHeight))
-    renderer.render(previewRef.current ?? documentRef.current, viewportRef.current)
+    const intentOptions = intentViewRef.current
+      ? { tintByTile: intentTintRef.current, dimUntinted: true, onlyLayerId: intentLayerRef.current }
+      : undefined
+    renderer.render(previewRef.current ?? documentRef.current, viewportRef.current, intentOptions)
   }
   const markReady = () => {
     performance.mark('mosaico:Mapas:ready')
@@ -352,8 +478,9 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
     const shapePoints = (start: GridCoordinate, end: GridCoordinate) => toolRef.current === 'line' ? linePixels(start, end) : toolRef.current === 'rectangle' ? rectanglePixels(start, end, filledRef.current) : ellipsePixels(start, end, filledRef.current)
     const applyPoints = (base: MapDocument, points: readonly GridCoordinate[]): MapDocument => {
       const bounded = points.filter((p) => p.x >= 0 && p.y >= 0 && p.x < base.width && p.y < base.height)
-      const autoTool = toolRef.current === 'rectangle' || toolRef.current === 'ellipse'
-      if (autoTool && autotileRef.current && autotileSetRef.current) return applyAutotileCells(base, base.activeLayerId, bounded, autotileSetRef.current, autotileProfileRef.current)
+      if (!bounded.length) return base
+      const mode = autotileModeFor(base)
+      if (mode) return applyAutotileCells(base, base.activeLayerId, bounded, mode.setId, mode.profile)
       const selected = patternRef.current; return selected ? applyMapCells(base, base.activeLayerId, patternChanges(base, bounded, selected).filter((change) => change.tile)) : base
     }
     const stroke = (from: GridCoordinate, to: GridCoordinate) => safely(() => {
@@ -361,7 +488,7 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
       if (toolRef.current === 'eraser') {
         const points = new Map<string, GridCoordinate>(); for (const item of line) for (const p of brushPoints(item, eraserSizeRef.current)) if (p.x >= 0 && p.y >= 0 && p.x < documentRef.current.width && p.y < documentRef.current.height) points.set(pointKey(p), p)
         const changes = [...points.values()].map((point) => ({ ...point }))
-        show(autotileRef.current
+        show(isAutotileLayerActive() || autotileRef.current
           ? eraseAutotileCells(documentRef.current, documentRef.current.activeLayerId, changes)
           : applyMapCells(documentRef.current, documentRef.current.activeLayerId, changes))
       } else show(applyPoints(documentRef.current, line))
@@ -456,11 +583,11 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
       const key = event.key.toLowerCase()
       if (event.key === 'Escape') {
         operationAbortRef.current?.abort()
-        setOpenMenu(undefined); setNewDialog(false); setResizeDialog(false); if (importDialog) closeImportDialog(); else setImportDialog(false); setAutotileDialog(false); selectTiles()
+        setOpenMenu(undefined); setNewDialog(false); setResizeDialog(false); if (importDialog) closeImportDialog(); else setImportDialog(false); setAutotileDialog(false); setAutotileManagerOpen(false); setAutotileDeleteTarget(undefined); setRulesDialogOpen(false); setWfcDialogOpen(false); selectTiles()
         const gesture = gestureRef.current; if (gesture && !gesture.panning) show(gesture.before)
         previewRef.current = undefined; gestureRef.current = undefined; render(); return
       }
-      if (newDialog || resizeDialog || importDialog || autotileDialog) return
+      if (newDialog || resizeDialog || importDialog || autotileDialog || autotileManagerOpen || rulesDialogOpen || wfcDialogOpen) return
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || (event.target instanceof HTMLElement && event.target.closest('[role="dialog"]'))) return
       const modifier = event.ctrlKey || event.metaKey
       if (modifier && key === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); return }
@@ -478,7 +605,7 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
     }
     const keyup = (event: KeyboardEvent) => { if (activeRef.current && event.code === 'Space' && toolBeforeSpaceRef.current) { setTool(toolBeforeSpaceRef.current); toolBeforeSpaceRef.current = undefined } }
     window.addEventListener('keydown', keydown); window.addEventListener('keyup', keyup); return () => { window.removeEventListener('keydown', keydown); window.removeEventListener('keyup', keyup) }
-  }, [cursor, newDialog, resizeDialog, importDialog, autotileDialog])
+  }, [cursor, newDialog, resizeDialog, importDialog, autotileDialog, autotileManagerOpen, rulesDialogOpen, wfcDialogOpen])
 
   const selectTileRange = (end: number, start = tileStart) => {
     const tileset = document.tilesets.find((item) => item.id === activeTilesetId); if (!tileset) return
@@ -545,6 +672,30 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
     safely(() => { const next = createMapDocument({ id: crypto.randomUUID(), layerId: crypto.randomUUID(), name: newForm.name, width: newForm.width, height: newForm.height, cellWidth: newForm.tileWidth, cellHeight: newForm.tileHeight, background: newForm.transparent ? { kind: 'transparent' } : { kind: 'color', color: `${newForm.color}ff` }, grid: { visible: newForm.grid, color: '#41505899' } }); openDocument(next); setNewDialog(false) })
   }
   const createFolder = () => safely(() => commit(addMapFolder(documentRef.current, { id: crypto.randomUUID(), name: `Carpeta ${documentRef.current.layers.filter((layer) => layer.isFolder).length + 1}` })))
+  const createLayer = () => {
+    const current = documentRef.current
+    safely(() => commit(addMapLayer(current, { id: crypto.randomUUID(), name: `Capa ${current.layers.filter((layer) => !layer.isFolder).length + 1}`, parentId: current.layers.find((layer) => layer.id === current.activeLayerId)?.isFolder ? current.activeLayerId : undefined })))
+  }
+  const createAutotileLayer = () => {
+    const current = documentRef.current
+    safely(() => {
+      const setId = autotileSetRef.current ?? current.autotileSets[0]?.id
+      commit(addMapLayer(current, {
+        id: crypto.randomUUID(),
+        name: `Capa autotile ${current.layers.filter((layer) => layer.kind === 'autotile').length + 1}`,
+        parentId: current.layers.find((layer) => layer.id === current.activeLayerId)?.isFolder ? current.activeLayerId : undefined,
+        kind: 'autotile',
+        ...(setId ? { autotileSetId: setId } : {}),
+      }))
+      setStatus(setId ? 'Capa de autotile creada y vinculada al set.' : 'Capa de autotile creada sin set: configura uno con Configurar.')
+    })
+  }
+  const bindActiveAutotileLayerSet = (setId: string | undefined) => {
+    const current = documentRef.current
+    const layer = current.layers.find((item) => item.id === current.activeLayerId)
+    if (layer?.kind !== 'autotile') return
+    safely(() => { commit(updateMapLayer(current, layer.id, { autotileSetId: setId }), current); setStatus(setId ? 'Set vinculado a la capa.' : 'Vínculo del set eliminado.') })
+  }
   const dropLayer = (sourceId: string, targetId?: string) => {
     if (!sourceId || sourceId === targetId) return
     safely(() => {
@@ -566,21 +717,253 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
   const confirmResize = () => {
     safely(() => { const result = resizeMapDocument(documentRef.current, resizeForm.width, resizeForm.height, resizeForm.anchor); if (result.croppedCells && !window.confirm(`Se recortarán ${result.croppedCells} tiles. ¿Continuar?`)) return; commit(result.document); setResizeDialog(false); requestAnimationFrame(fitMap) })
   }
-  const openAutotile = () => {
-    const existing = document.autotileSets.find((set) => set.id === autotileSetId)
-    const tileset = activeTileset ?? document.tilesets[0]
-    if (!existing && !tileset) { setStatus('Importa tileset primero'); return }
-    setAutotileDraft(existing ? { ...existing, terrain: { ...existing.terrain }, contour: { ...existing.contour } } : {
-      id: crypto.randomUUID(), name: 'Autotile', tilesetId: tileset!.id, centerTileId: pattern?.cells[0]?.tileId ?? 0,
-      terrain: {}, contour: {},
-    }); setAutotileDialog(true)
+  const chooseAutotileType = (layout: AutotileLayout) => {
+    if (!autotileDraft) return
+    setAutotileDraft({ ...autotileDraft, layout, terrain: {}, contour: {}, blob: {} })
+    setAutotileProfile(profileForLayout(layout))
+    setAutotileTarget(undefined); setAutotilePickerScroll(0); setAutotileChoosingType(false)
   }
   const saveAutotile = () => {
     if (!autotileDraft) return
     safely(() => {
-      const next = documentRef.current.autotileSets.some((set) => set.id === autotileDraft.id) ? updateAutotileSet(documentRef.current, autotileDraft) : addAutotileSet(documentRef.current, autotileDraft)
+      let next = documentRef.current.autotileSets.some((set) => set.id === autotileDraft.id) ? updateAutotileSet(documentRef.current, autotileDraft) : addAutotileSet(documentRef.current, autotileDraft)
+      const layer = next.layers.find((item) => item.id === next.activeLayerId)
+      if (layer?.kind === 'autotile' && (!layer.autotileSetId || layer.autotileSetId === autotileDraft.id)) next = updateMapLayer(next, layer.id, { autotileSetId: autotileDraft.id })
       commit(next); setAutotileSetId(autotileDraft.id); setAutotileDialog(false)
     })
+  }
+  const assignAutotileTile = (tileId: number) => {
+    if (!autotileDraft || !autotileTarget) { setStatus('Selecciona primero una parte del autotile'); return }
+    let next: AutotileSet
+    if (autotileTarget.kind === 'center') next = { ...autotileDraft, centerTileId: tileId }
+    else if (autotileTarget.kind === 'terrain') { const terrain = { ...autotileDraft.terrain }; terrain[autotileTarget.role] = tileId; next = { ...autotileDraft, terrain } }
+    else if (autotileTarget.kind === 'contour') { const contour = { ...autotileDraft.contour }; contour[String(autotileTarget.mask)] = tileId; next = { ...autotileDraft, contour } }
+    else { const blob = { ...autotileDraft.blob }; blob[autotileTarget.kind === 'extra' ? 'extra' : String(autotileTarget.cls)] = tileId; next = { ...autotileDraft, blob } }
+    setAutotileDraft(next)
+    const assigned = (target: AutotileTarget): boolean => {
+      if (target.kind === 'center') return true
+      if (target.kind === 'terrain') return next.terrain[target.role] !== undefined
+      if (target.kind === 'contour') return next.contour[String(target.mask)] !== undefined
+      return target.kind === 'extra' ? next.blob?.extra !== undefined : next.blob?.[String(target.cls)] !== undefined
+    }
+    const currentKey = autotileTargetKey(autotileTarget)
+    const following = autotileTargetsForLayout(autotileDraft.layout)
+    const currentIndex = following.findIndex((candidate) => autotileTargetKey(candidate) === currentKey)
+    const nextTarget = following.slice(currentIndex + 1).find((candidate) => !assigned(candidate))
+    setAutotileTarget(nextTarget)
+  }
+  const clearAutotileTarget = () => {
+    if (!autotileDraft || !autotileTarget || autotileTarget.kind === 'center') return
+    if (autotileTarget.kind === 'terrain') { const terrain = { ...autotileDraft.terrain }; delete terrain[autotileTarget.role]; setAutotileDraft({ ...autotileDraft, terrain }) }
+    else if (autotileTarget.kind === 'contour') { const contour = { ...autotileDraft.contour }; delete contour[String(autotileTarget.mask)]; setAutotileDraft({ ...autotileDraft, contour }) }
+    else { const blob = { ...autotileDraft.blob }; delete blob[autotileTarget.kind === 'extra' ? 'extra' : String(autotileTarget.cls)]; setAutotileDraft({ ...autotileDraft, blob }) }
+  }
+  const useSelectedTileForAutotile = () => {
+    const tile = patternRef.current?.cells.find(Boolean)
+    if (!tile) { setStatus('Selecciona un tile en el panel Tilesets'); return }
+    if (autotileDraft && tile.tilesetId !== autotileDraft.tilesetId) { setStatus('El tile seleccionado pertenece a otro tileset'); return }
+    if (!autotileTarget && autotileDraft) { setAutotileDraft({ ...autotileDraft, centerTileId: tile.tileId }); setStatus(`Centro asignado: tile ${tile.tileId}`); return }
+    assignAutotileTile(tile.tileId)
+  }
+  const openAutotileManager = () => { setAutotileDeleteTarget(undefined); setAutotileManagerOpen(true) }
+  const beginNewAutotile = () => {
+    const current = documentRef.current
+    const tileset = activeTileset ?? current.tilesets[0]
+    if (!tileset) { setStatus('Importa tileset primero'); return }
+    setAutotileTarget(undefined); setAutotilePickerScroll(0)
+    setAutotileDraft({ id: crypto.randomUUID(), name: 'Autotile', tilesetId: tileset.id, centerTileId: pattern?.cells[0]?.tileId ?? 0, terrain: {}, contour: {} })
+    setAutotileChoosingType(true); setAutotileManagerOpen(false); setAutotileDialog(true)
+  }
+  const beginEditAutotile = (existing: AutotileSet) => {
+    setAutotileTarget(undefined); setAutotilePickerScroll(0)
+    setAutotileDraft({ ...existing, terrain: { ...existing.terrain }, contour: { ...existing.contour }, blob: { ...existing.blob } })
+    setAutotileChoosingType(false); setAutotileManagerOpen(false); setAutotileDialog(true)
+  }
+  const requestDeleteAutotile = (target: AutotileSet) => setAutotileDeleteTarget(target)
+  const confirmDeleteAutotile = () => {
+    const target = autotileDeleteTarget; if (!target) return
+    safely(() => {
+      const next = removeAutotileSet(documentRef.current, target.id)
+      commit(next); setStatus(`Autotile «${target.name}» eliminado.`)
+      if (autotileSetId === target.id) setAutotileSetId(undefined)
+      setAutotileDeleteTarget(undefined)
+    })
+  }
+  const autotilePaintedCellCount = (setId: string): number => document.layers.reduce((total, layer) => total + [...layer.cells.values()].filter((tile) => tile.autotileSetId === setId).length, 0)
+
+  // ── Reglas de patrón (TRN-401 · estilo TileKit: lista ordenada, chance, variantes y grupos) ──
+  const [rulesState, setRulesState] = useState<{ seed: number; rules: MapPatternRule[]; groups: MapRuleGroup[] }>({ seed: 1, rules: [], groups: [] })
+  const [selectedRuleId, setSelectedRuleId] = useState<string>()
+  const openRulesDialog = () => {
+    const stored = loadStoredMapRules(document.id)
+    setRulesState(stored); setSelectedRuleId(stored.rules[0]?.id)
+    const paintable = document.layers.filter((layer) => !layer.isFolder)
+    const defaultLayerId = paintable[0]?.id ?? document.activeLayerId
+    setRulesSourceLayerId(defaultLayerId); setRulesTargetLayerId(defaultLayerId)
+    setRulesDialogOpen(true)
+  }
+  const persistRules = (next: { seed: number; rules: MapPatternRule[]; groups: MapRuleGroup[] }) => {
+    setRulesState(next); try { localStorage.setItem(mapRulesStorageKey(documentRef.current.id), JSON.stringify({ version: 2, ...next })) } catch { /* almacenamiento no disponible */ }
+  }
+  const updateSelectedRule = (patch: Partial<MapPatternRule>) => {
+    persistRules({ ...rulesState, rules: rulesState.rules.map((rule) => rule.id === selectedRuleId ? { ...rule, ...patch } : rule) })
+  }
+  const addPatternRule = () => {
+    const targetTileset = activeTileset ?? document.tilesets[0]
+    if (!targetTileset) { setStatus('Importa tileset primero'); return }
+    const id = crypto.randomUUID()
+    const priority = rulesState.rules.reduce((max, rule) => Math.max(max, rule.priority), 0) + 1
+    const rule: MapPatternRule = { id, name: `Regla ${rulesState.rules.length + 1}`, priority, phase: 0, weight: 1, condition: {}, outputs: [{ tilesetId: targetTileset.id, tileId: pattern?.cells.find(Boolean)?.tileId ?? 0 }] }
+    persistRules({ ...rulesState, rules: [...rulesState.rules, rule] }); setSelectedRuleId(id)
+  }
+  const duplicatePatternRule = (id: string) => {
+    const source = rulesState.rules.find((rule) => rule.id === id); if (!source) return
+    const copy: MapPatternRule = { ...source, id: crypto.randomUUID(), name: `${source.name} copia`, priority: source.priority + 0.5 }
+    persistRules({ ...rulesState, rules: [...rulesState.rules, copy] }); setSelectedRuleId(copy.id)
+  }
+  const deletePatternRule = (id: string) => {
+    persistRules({ ...rulesState, rules: rulesState.rules.filter((rule) => rule.id !== id) })
+    if (selectedRuleId === id) setSelectedRuleId(undefined)
+  }
+  const movePatternRule = (id: string, direction: -1 | 1) => {
+    const ordered = sortedPatternRules(rulesState.rules)
+    const index = ordered.findIndex((rule) => rule.id === id); const neighborIndex = index + direction
+    if (index < 0 || neighborIndex < 0 || neighborIndex >= ordered.length) return
+    const a = ordered[index]!; const b = ordered[neighborIndex]!
+    const swapped = new Map([[a.id, b.priority], [b.id, a.priority]])
+    persistRules({ ...rulesState, rules: rulesState.rules.map((rule) => swapped.has(rule.id) ? { ...rule, priority: swapped.get(rule.id)! } : rule) })
+  }
+  // Grupos de similitud: creación desde la selección actual del panel Tilesets.
+  const selectionTiles = (): readonly { tilesetId: string; tileId: number }[] =>
+    (patternRef.current?.cells.filter((tile): tile is TileReference => !!tile) ?? []).map(({ tilesetId, tileId }) => ({ tilesetId, tileId }))
+  const addGroupFromSelection = () => {
+    const members = selectionTiles()
+    if (!members.length) { setStatus('Selecciona tiles en el panel Tilesets primero'); return }
+    const id = crypto.randomUUID()
+    const group: MapRuleGroup = { id, name: `Grupo ${rulesState.groups.length + 1}`, color: RULE_GROUP_COLORS[rulesState.groups.length % RULE_GROUP_COLORS.length]!, members }
+    persistRules({ ...rulesState, groups: [...rulesState.groups, group] })
+  }
+  const paintWithGroup = (group: MapRuleGroup) => {
+    const member = group.members[0]
+    if (!member) { setStatus('El grupo no tiene tiles.'); return }
+    activateTileset(member.tilesetId); setTileStart(member.tileId); setTileEnd(member.tileId)
+    setPattern({ width: 1, height: 1, cells: [{ tilesetId: member.tilesetId, tileId: member.tileId }] })
+    setStatus(`Pintando intención «${group.name}» con tile ${member.tileId}. Activa la vista Intención para verlo como color.`)
+  }
+  const [anchorGroupId, setAnchorGroupId] = useState<string>()
+  const [floorGroupId, setFloorGroupId] = useState<string>()
+  const createAnchorRule = () => {
+    const anchor = rulesState.groups.find((group) => group.id === anchorGroupId)
+    const floor = rulesState.groups.find((group) => group.id === floorGroupId)
+    const representative = anchor?.members[0]; const floorTile = floor?.members[0]
+    if (!anchor || !floor || !representative || !floorTile) { setStatus('Elige grupo a anclar y grupo de suelo (ambos con tiles).'); return }
+    const id = crypto.randomUUID()
+    const priority = rulesState.rules.reduce((max, rule) => Math.max(max, rule.priority), 0) + 1
+    const rule: MapPatternRule = {
+      id, name: `Anclar ${anchor.name} sobre ${floor.name}`, priority, phase: 0, weight: 1,
+      condition: { tileId: representative.tileId, neighbors: ruleNeighbors({ south: { kind: 'group', groupId: floor.id, negated: true } }) },
+      outputs: [{ tilesetId: floorTile.tilesetId, tileId: floorTile.tileId }],
+    }
+    persistRules({ ...rulesState, rules: [...rulesState.rules, rule] }); setSelectedRuleId(id); setRulesDialogOpen(true)
+    setStatus(`Regla de anclaje creada: ${anchor.name} sin suelo debajo se convierte en ${floor.name}.`)
+  }
+  const appendSelectionToGroup = (groupId: string) => {
+    const members = selectionTiles()
+    if (!members.length) { setStatus('Selecciona tiles en el panel Tilesets primero'); return }
+    persistRules({ ...rulesState, groups: rulesState.groups.map((group) => {
+      if (group.id !== groupId) return group
+      const known = new Set(group.members.map((member) => `${member.tilesetId}:${member.tileId}`))
+      return { ...group, members: [...group.members, ...members.filter((member) => !known.has(`${member.tilesetId}:${member.tileId}`))] }
+    }) })
+  }
+  const deleteGroup = (groupId: string) => {
+    // Limpia predicados que referencian el grupo eliminado para no dejar diagnósticos huérfanos.
+    persistRules({
+      ...rulesState,
+      groups: rulesState.groups.filter((group) => group.id !== groupId),
+      rules: rulesState.rules.map((rule) => {
+        const neighbors = rule.condition.neighbors
+        if (!neighbors) return rule
+        const cleaned = Object.fromEntries(Object.entries(neighbors).filter(([, predicate]) => !(typeof predicate === 'object' && predicate.kind === 'group' && predicate.groupId === groupId)))
+        return { ...rule, condition: { ...rule.condition, neighbors: cleaned } }
+      }),
+    })
+  }
+  // ── WFC (TRN-403): muestra = selección o capa origen; destino = selección o mapa entero ──
+  const openWfcDialog = () => { setWfcDialogOpen(true); setStatus('WFC: la muestra y el destino usan la selección activa si la hay.') }
+  const generateWfc = () => safely(() => {
+    const before = documentRef.current
+    const selection = selectionRef.current
+    const sampleRegion = selection ?? { left: 0, top: 0, width: before.width, height: before.height }
+    const targetRegion = selection ?? { left: 0, top: 0, width: before.width, height: before.height }
+    const { document: next, result } = applyWfcToRegion(before, before.activeLayerId, before.activeLayerId, sampleRegion, targetRegion, { seed: wfcSeed, keepExisting: wfcKeepExisting, size: wfcSize })
+    const changed = next !== before
+    if (changed) commit(next, before)
+    setWfcDialogOpen(false)
+    setStatus(result.solved
+      ? `WFC: generado ${targetRegion.width}×${targetRegion.height} con patrón ${wfcSize}×${wfcSize} (${result.backtracks} retrocesos).${changed ? '' : ' (sin cambios: desactiva "Conservar tiles" o selecciona área vacía)'}`
+      : `WFC: incompleto tras ${result.backtracks} retrocesos; prueba otra semilla o una muestra más rica.`)
+  })
+  const applyPatternRules = () => safely(() => {    if (!rulesState.rules.length) { setStatus('No hay reglas que aplicar.'); return }
+    const before = documentRef.current
+    const sourceLayerId = rulesSourceLayerId ?? before.activeLayerId
+    const targetLayerId = rulesTargetLayerId ?? sourceLayerId
+    const sourceLayer = before.layers.find((layer) => layer.id === sourceLayerId)
+    const targetLayer = before.layers.find((layer) => layer.id === targetLayerId)
+    if (!sourceLayer || !targetLayer || sourceLayer.isFolder || targetLayer.isFolder) { setStatus('Elige capas origen y destino válidas (no carpetas).'); return }
+    const next = applyMapRulePass(before, sourceLayerId, rulesState.rules, { seed: rulesState.seed, groups: rulesState.groups, targetLayerId })
+    const beforeCells = before.layers.find((layer) => layer.id === targetLayerId)?.cells
+    const afterCells = next.layers.find((layer) => layer.id === targetLayerId)?.cells
+    let changed = 0
+    for (const [key, tile] of afterCells ?? []) { const previous = beforeCells?.get(key); if (!previous || previous.tilesetId !== tile.tilesetId || previous.tileId !== tile.tileId) changed += 1 }
+    commit(next, before); setStatus(`Reglas aplicadas (${before.layers.find((l) => l.id === sourceLayerId)?.name} → ${next.layers.find((l) => l.id === targetLayerId)?.name}): ${changed} celda(s).`)
+  })
+  const selectedRule = rulesState.rules.find((rule) => rule.id === selectedRuleId)
+  const ruleDiagnosticsById = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const diagnostic of mapRuleDiagnostics(documentRef.current, rulesState.rules, rulesState.groups)) map.set(diagnostic.ruleId, (map.get(diagnostic.ruleId) ?? 0) + 1)
+    return map
+  }, [rulesState.rules, rulesState.groups, document.revision])
+  const useSelectionAsConditionTile = () => {
+    const tile = patternRef.current?.cells.find(Boolean)
+    if (!tile || !selectedRule) return
+    updateSelectedRule({ condition: { ...selectedRule.condition, tileId: tile.tileId } })
+  }
+  const addOutputFromSelection = () => {
+    const tile = patternRef.current?.cells.find(Boolean)
+    if (!tile || !selectedRule) { setStatus('Selecciona un tile primero'); return }
+    updateSelectedRule({ outputs: [...selectedRule.outputs, { tilesetId: tile.tilesetId, tileId: tile.tileId }] })
+  }
+  // ── Drag & drop del editor de reglas ──
+  const [dropHot, setDropHot] = useState<string>()
+  const [dragRuleId, setDragRuleId] = useState<string>()
+  const [ruleInsertBelow, setRuleInsertBelow] = useState<string>()
+  const [rulePickerScroll, setRulePickerScroll] = useState(0)
+  const appendTileToGroup = (groupId: string, tile: { tilesetId: string; tileId: number }) => {
+    persistRules({ ...rulesState, groups: rulesState.groups.map((group) => {
+      if (group.id !== groupId) return group
+      const known = new Set(group.members.map((member) => `${member.tilesetId}:${member.tileId}`))
+      return known.has(`${tile.tilesetId}:${tile.tileId}`) ? group : { ...group, members: [...group.members, tile] }
+    }) })
+  }
+  const setConditionTile = (tile: { tilesetId: string; tileId: number }) => {
+    if (!selectedRule) { setStatus('Selecciona una regla primero'); return }
+    updateSelectedRule({ condition: { ...selectedRule.condition, tileId: tile.tileId } })
+  }
+  const addOutputVariant = (tile: { tilesetId: string; tileId: number }) => {
+    if (!selectedRule) { setStatus('Selecciona una regla primero'); return }
+    updateSelectedRule({ outputs: [...selectedRule.outputs, tile] })
+  }
+  const moveRuleTo = (id: string, targetId: string, below: boolean) => {
+    if (id === targetId) return
+    const ordered = [...sortedPatternRules(rulesState.rules)]
+    const from = ordered.findIndex((rule) => rule.id === id); if (from < 0) return
+    const [item] = ordered.splice(from, 1)
+    let to = ordered.findIndex((rule) => rule.id === targetId); if (to < 0) return
+    if (below) to += 1
+    ordered.splice(to, 0, item!)
+    const resequenced = new Map(ordered.map((rule, index) => [rule.id, index + 1] as const))
+    persistRules({ ...rulesState, rules: rulesState.rules.map((rule) => ({ ...rule, priority: resequenced.get(rule.id) ?? rule.priority })) })
   }
   const openAnimation = () => { if (!patternRef.current?.cells.some(Boolean)) { setStatus('Selecciona tiles primero'); return } setAnimationDialog(true) }
   const applyAnimation = () => {
@@ -602,6 +985,41 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
 
   const activeTileset = document.tilesets.find((item) => item.id === activeTilesetId) ?? document.tilesets[0]
   const activeAsset = activeTileset ? assets.get(activeTileset.assetId) : undefined
+  const activeLayer = document.layers.find((layer) => layer.id === document.activeLayerId && !layer.isFolder)
+  const activeLayerIsAutotile = activeLayer?.kind === 'autotile'
+  const activeAutotileSet = activeLayerIsAutotile && activeLayer.autotileSetId ? document.autotileSets.find((set) => set.id === activeLayer.autotileSetId) : undefined
+  const autotileMemberTileIds = useMemo(() => {
+    if (!activeAutotileSet) return undefined
+    return new Set<number>([activeAutotileSet.centerTileId, ...Object.values(activeAutotileSet.terrain), ...Object.values(activeAutotileSet.contour), ...Object.values(activeAutotileSet.blob ?? {})])
+  }, [activeAutotileSet])
+  const autotileDraftTileset = autotileDraft ? document.tilesets.find((item) => item.id === autotileDraft.tilesetId) : undefined
+  const autotileDraftAssetUrl = autotileDraftTileset ? assets.get(autotileDraftTileset.assetId)?.url : undefined
+  const autotilePickerZoom = 2
+  const autotilePickerColumns = 6
+  const autotilePickerColumnsInSheet = autotileDraftTileset ? Math.max(1, Math.floor((autotileDraftTileset.imageWidth - (autotileDraftTileset.offsetX ?? 0) - autotileDraftTileset.marginX * 2 + autotileDraftTileset.spacingX) / (autotileDraftTileset.tileWidth + autotileDraftTileset.spacingX))) : 1
+  const autotilePickerCellW = (autotileDraftTileset?.tileWidth ?? 16) * autotilePickerZoom + 2
+  const autotilePickerCellH = (autotileDraftTileset?.tileHeight ?? 16) * autotilePickerZoom + 2
+  const autotilePickerRows = autotileDraftTileset ? Math.ceil(autotileDraftTileset.tileCount / autotilePickerColumns) : 0
+  const autotilePickerFirstRow = Math.max(0, Math.floor(autotilePickerScroll / autotilePickerCellH) - 2)
+  const autotilePickerLastRow = Math.min(autotilePickerRows, autotilePickerFirstRow + 18)
+  const autotilePickerTileIds = autotileDraftTileset ? Array.from({ length: Math.max(0, (autotilePickerLastRow - autotilePickerFirstRow) * autotilePickerColumns) }, (_, index) => autotilePickerFirstRow * autotilePickerColumns + index).filter((id) => id < autotileDraftTileset.tileCount) : []
+  const autotileSlotSourceRect = (tileId: number) => {
+    const tileset = autotileDraftTileset; if (!tileset) return { x: 0, y: 0 }
+    const x = (tileset.offsetX ?? 0) + tileset.marginX + (tileId % autotilePickerColumnsInSheet) * (tileset.tileWidth + tileset.spacingX)
+    const y = (tileset.offsetY ?? 0) + tileset.marginY + Math.floor(tileId / autotilePickerColumnsInSheet) * (tileset.tileHeight + tileset.spacingY)
+    return { x: -x * autotilePickerZoom, y: -y * autotilePickerZoom }
+  }
+  // Paleta compacta del editor de reglas (fuente de arrastre hacia condición/salidas/grupos).
+  const rulePaletteTileset = activeTileset
+  const rulePaletteUrl = rulePaletteTileset ? assets.get(rulePaletteTileset.assetId)?.url : undefined
+  const rulePaletteColumns = 6
+  const RULE_PALETTE_ZOOM = 1
+  const rulePaletteCellW = (rulePaletteTileset?.tileWidth ?? 16) * RULE_PALETTE_ZOOM + 2
+  const rulePaletteCellH = (rulePaletteTileset?.tileHeight ?? 16) * RULE_PALETTE_ZOOM + 2
+  const rulePaletteRows = rulePaletteTileset ? Math.ceil(rulePaletteTileset.tileCount / rulePaletteColumns) : 0
+  const rulePaletteFirstRow = Math.max(0, Math.floor(rulePickerScroll / rulePaletteCellH) - 1)
+  const rulePaletteLastRow = Math.min(rulePaletteRows, rulePaletteFirstRow + 12)
+  const rulePaletteTileIds = rulePaletteTileset ? Array.from({ length: Math.max(0, (rulePaletteLastRow - rulePaletteFirstRow) * rulePaletteColumns) }, (_, index) => rulePaletteFirstRow * rulePaletteColumns + index).filter((id) => id < rulePaletteTileset.tileCount) : []
   const columns = activeTileset ? Math.max(1, Math.floor((activeTileset.imageWidth - (activeTileset.offsetX ?? 0) - activeTileset.marginX * 2 + activeTileset.spacingX) / (activeTileset.tileWidth + activeTileset.spacingX))) : 1
   const tileDisplayColumns = Math.min(columns, 8)
   const tileRowHeight = activeTileset ? activeTileset.tileHeight * thumbZoom + 2 : 34
@@ -610,6 +1028,26 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
   const tileLastRow = Math.min(tileRows, tileFirstRow + 43)
   const visibleTileIds = activeTileset ? Array.from({ length: Math.max(0, (tileLastRow - tileFirstRow) * tileDisplayColumns) }, (_, index) => tileFirstRow * tileDisplayColumns + index).filter((id) => id < activeTileset.tileCount) : []
   const diagnostics = useMemo(() => [...orphanTileDiagnostics(document), ...autotileDiagnostics(document)], [document])
+  const intentTintByTile = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const group of rulesState.groups) {
+      const value = Number.parseInt((group.color ?? '#888888').slice(1), 16)
+      if (!Number.isFinite(value)) continue
+      for (const member of group.members) map.set(`${member.tilesetId}:${member.tileId}`, value)
+    }
+    return map
+  }, [rulesState.groups])
+  // Al cambiar de documento: recarga sus reglas/grupos y apaga la vista intención del documento anterior.
+  useEffect(() => {
+    const stored = loadStoredMapRules(document.id)
+    setRulesState(stored); setSelectedRuleId(stored.rules[0]?.id); setIntentView(false)
+  }, [document.id])
+  useEffect(() => {
+    intentViewRef.current = intentView
+    intentTintRef.current = intentTintByTile
+    intentLayerRef.current = rulesSourceLayerId ?? document.layers.find((layer) => layer.id === document.activeLayerId && !layer.isFolder)?.id
+    render()
+  }, [intentView, intentTintByTile, rulesSourceLayerId, document])
   const layerTree = useMemo(() => mapLayerTree(document.layers), [document.layers])
   const visibleImportIndexes = importUrl && slicing ? visibleSliceIndexes({
     columns: slicing.columns, rows: slicing.rows, tileWidth: importDraft.tileWidth, tileHeight: importDraft.tileHeight,
@@ -618,6 +1056,7 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
     viewportWidth: importPreviewRef.current?.clientWidth ?? 720, viewportHeight: importPreviewRef.current?.clientHeight ?? 420,
   }) : []
   useEffect(() => { setTileScrollTop(0) }, [activeTilesetId])
+  useEffect(() => { setRulePickerScroll(0); setDropHot(undefined) }, [activeTilesetId])
   const movingSelection = gestureRef.current?.moving
   const overlaySelection = movingSelection && cursor && gestureRef.current ? { ...movingSelection, left: movingSelection.left + cursor.x - gestureRef.current.start.x, top: movingSelection.top + cursor.y - gestureRef.current.start.y } : selection
   const selectionStyle = overlaySelection ? { left: viewportRef.current.offsetX + overlaySelection.left * document.cellWidth * viewportRef.current.zoom, top: viewportRef.current.offsetY + overlaySelection.top * document.cellHeight * viewportRef.current.zoom, width: overlaySelection.width * document.cellWidth * viewportRef.current.zoom, height: overlaySelection.height * document.cellHeight * viewportRef.current.zoom } : undefined
@@ -625,18 +1064,24 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
   const menu: Record<string, MapMenuEntries> & { Mapa: MapMenuEntries; Tileset: MapMenuEntries; Vista: MapMenuEntries } = {
     Archivo: [['Nuevo mapa…', () => setNewDialog(true)], ['Abrir…', () => window.document.getElementById('map-open')?.click()], ['Guardar proyecto', () => void save()], ['Exportar JSON neutral', () => void exportJson()], ['Exportar PNG', () => void exportPng()], ['Exportar JSON + assets ZIP', () => void exportZip()]],
     Editar: [['Deshacer', undo], ['Rehacer', redo], ['Copiar', copy], ['Cortar', cut], ['Pegar', paste], ['Duplicar selección', duplicateSelected], ['Eliminar selección', deleteSelected]],
-    Mapa: [['Redimensionar…', () => { setResizeForm({ width: document.width, height: document.height, anchor: 'center' }); setResizeDialog(true) }], ['Ajustar mapa', fitMap]],
-    Tileset: [['Importar tilesheet…', () => setImportDialog(true)], ['Configurar autotile…', openAutotile, true]],
+    Mapa: [['Redimensionar…', () => { setResizeForm({ width: document.width, height: document.height, anchor: 'center' }); setResizeDialog(true) }], ['Ajustar mapa', fitMap], ['Reglas de patrón…', openRulesDialog], ['Generar con WFC…', openWfcDialog]],
+    Tileset: [['Importar tilesheet…', () => setImportDialog(true)], ['Configurar autotiles…', openAutotileManager]],
     Vista: [['Ajustar mapa', fitMap], ['Zoom 100%', () => zoomCenter(1 / viewportRef.current.zoom)], ['Acercar', () => zoomCenter(1.25)], ['Alejar', () => zoomCenter(0.8)], ['Alternar grid', () => commit({ ...documentRef.current, revision: documentRef.current.revision + 1, grid: { ...documentRef.current.grid, visible: !documentRef.current.grid.visible } })]],
   }
 
-  if (!menu.Mapa.some(([label]) => label === 'Nueva carpeta')) menu.Mapa = [...menu.Mapa, ['Nueva carpeta', createFolder]]
+  if (!menu.Mapa.some(([label]) => label === 'Nueva carpeta')) menu.Mapa = [...menu.Mapa, ['Nueva carpeta', createFolder], ['Nueva capa', createLayer], ['Nueva capa de autotile', createAutotileLayer]]
   if (!menu.Tileset.some(([label]) => label === 'Animar selección')) menu.Tileset = [...menu.Tileset, ['Animar selección', openAnimation]]
   if (!menu.Vista.some(([label]) => label === 'Guardar layout')) menu.Vista = [...menu.Vista, ['Panel de capas', () => panelLayout.update({ layersVisible: !panelLayout.layout.layersVisible })], ['Guardar layout', () => { const name = window.prompt('Nombre layout'); if (name) panelLayout.saveLayout(name) }], ['Aplicar layout', () => { const names = Object.keys(panelLayout.saved); const name = window.prompt(`Layout (${names.join(', ')})`); if (name) panelLayout.applyLayout(name) }], ['Eliminar layout', () => { const name = window.prompt('Layout a eliminar'); if (name) panelLayout.deleteLayout(name) }], ['Restablecer layout', panelLayout.reset]]
   const mapLayerTreeContent = <>
-    <div className="panel-title"><div><p className="eyebrow">Capas</p><h2>Árbol <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button title="Nueva carpeta" onPointerDown={(event) => event.stopPropagation()} onClick={createFolder}>+F</button><button title="Nueva capa" onPointerDown={(event) => event.stopPropagation()} onClick={() => safely(() => commit(addMapLayer(documentRef.current, { id: crypto.randomUUID(), name: `Capa ${document.layers.length + 1}`, parentId: document.layers.find((layer) => layer.id === document.activeLayerId)?.isFolder ? document.activeLayerId : undefined })))}>+</button></div></div>
-    <div className="layer-tree" role="tree" onPointerUp={(event) => { if (!draggingLayerId) return; const target = (event.target as Element).closest<HTMLElement>('[data-layer-id]'); dropLayer(draggingLayerId, target?.dataset.layerId); setDraggingLayerId(undefined) }}>{layerTree.map(({ layer, depth }) => <div data-layer-id={layer.id} key={layer.id} className={`tree-row ${layer.id === document.activeLayerId ? 'selected' : ''} ${layer.id === draggingLayerId ? 'layer-dragging' : ''}`} role="treeitem"><button className="tree-toggle" disabled={!layer.isFolder} aria-label={layer.isFolder ? (layer.collapsed ? 'Expandir carpeta' : 'Contraer carpeta') : 'Capa'} onClick={() => layer.isFolder && commit(updateMapLayer(documentRef.current, layer.id, { collapsed: !layer.collapsed }))}>{layer.isFolder ? (layer.collapsed ? '▶' : '▼') : '·'}</button>{renamingLayerId === layer.id ? <input className="tree-rename" autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') finishLayerRename(); if (event.key === 'Escape') setRenamingLayerId(undefined) }} onBlur={finishLayerRename} /> : <button className="tree-name" style={{ paddingLeft: `${0.15 + depth * 0.75}rem` }} onPointerDown={(event) => { if (event.button === 0) setDraggingLayerId(layer.id) }} onDoubleClick={() => beginLayerRename(layer)} onClick={() => show(selectMapLayer(documentRef.current, layer.id))}><strong>{layer.name}</strong></button>}<button title={layer.visible ? 'Ocultar' : 'Mostrar'} onPointerDown={(event) => event.stopPropagation()} onClick={() => commit(updateMapLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button title={layer.locked ? 'Desbloquear' : 'Bloquear'} onPointerDown={(event) => event.stopPropagation()} onClick={() => commit(updateMapLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button><button title="Eliminar" onPointerDown={(event) => event.stopPropagation()} onClick={() => removeLayerById(layer.id)}><Trash2 /></button></div>)}</div>
+    <div className="panel-title"><div><p className="eyebrow">Capas</p><h2>Árbol <span>{document.layers.length}</span></h2></div><div className="layer-actions"><button title="Nueva carpeta" onPointerDown={(event) => event.stopPropagation()} onClick={createFolder}><FolderPlus /></button><button title="Nueva capa de autotile" onPointerDown={(event) => event.stopPropagation()} onClick={createAutotileLayer}><Wand2 /></button><button title="Nueva capa" onPointerDown={(event) => event.stopPropagation()} onClick={createLayer}><Plus /></button><button title="Reglas de patrón" onPointerDown={(event) => event.stopPropagation()} onClick={openRulesDialog}><SlidersHorizontal /></button></div></div>
+    <div className="layer-tree" role="tree" onPointerUp={(event) => { if (!draggingLayerId) return; const target = (event.target as Element).closest<HTMLElement>('[data-layer-id]'); dropLayer(draggingLayerId, target?.dataset.layerId); setDraggingLayerId(undefined) }}>{layerTree.map(({ layer, depth }) => <div data-layer-id={layer.id} key={layer.id} className={`tree-row ${layer.id === document.activeLayerId ? 'selected' : ''} ${layer.id === draggingLayerId ? 'layer-dragging' : ''}`} role="treeitem"><button className="tree-toggle" disabled={!layer.isFolder} aria-label={layer.isFolder ? (layer.collapsed ? 'Expandir carpeta' : 'Contraer carpeta') : 'Capa'} onClick={() => layer.isFolder && commit(updateMapLayer(documentRef.current, layer.id, { collapsed: !layer.collapsed }))}>{layer.isFolder ? (layer.collapsed ? '▶' : '▼') : '·'}</button>{renamingLayerId === layer.id ? <input className="tree-rename" autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') finishLayerRename(); if (event.key === 'Escape') setRenamingLayerId(undefined) }} onBlur={finishLayerRename} /> : <button className="tree-name" style={{ paddingLeft: `${0.15 + depth * 0.75}rem` }} onPointerDown={(event) => { if (event.button === 0) setDraggingLayerId(layer.id) }} onDoubleClick={() => beginLayerRename(layer)} onClick={() => show(selectMapLayer(documentRef.current, layer.id))}><strong>{layer.name}</strong>{layer.kind === 'autotile' && !layer.isFolder && <span className="layer-kind-badge" title="Capa de autotile">AT</span>}</button>}<button title={layer.visible ? 'Ocultar' : 'Mostrar'} onPointerDown={(event) => event.stopPropagation()} onClick={() => commit(updateMapLayer(documentRef.current, layer.id, { visible: !layer.visible }))}>{layer.visible ? <Eye /> : <EyeOff />}</button><button title={layer.locked ? 'Desbloquear' : 'Bloquear'} onPointerDown={(event) => event.stopPropagation()} onClick={() => commit(updateMapLayer(documentRef.current, layer.id, { locked: !layer.locked }))}>{layer.locked ? <Lock /> : <Unlock />}</button><button title="Duplicar capa" onPointerDown={(event) => event.stopPropagation()} onClick={() => safely(() => commit(duplicateMapLayer(documentRef.current, layer.id, crypto.randomUUID())))}><Copy /></button><button title="Eliminar" onPointerDown={(event) => event.stopPropagation()} onClick={() => removeLayerById(layer.id)}><Trash2 /></button></div>)}</div>
   </>
+  const activeLayerForOpacity = document.layers.find((layer) => layer.id === document.activeLayerId && !layer.isFolder)
+  const mapLayerTreeWithOpacity = <>{mapLayerTreeContent}{activeLayerForOpacity && <div className="layer-opacity">
+    <span title={`Opacidad de ${activeLayerForOpacity.name}`}>Opacidad</span>
+    <input type="range" min="0" max="100" step="5" value={Math.round(activeLayerForOpacity.opacity * 100)} aria-label={`Opacidad de ${activeLayerForOpacity.name}`} onChange={(event) => show(updateMapLayer(documentRef.current, activeLayerForOpacity.id, { opacity: Number(event.target.value) / 100 }))} />
+    <output>{Math.round(activeLayerForOpacity.opacity * 100)}%</output>
+  </div>}</>
   const layoutStyle = { '--inspector-w': `${panelLayout.layout.inspectorWidth}px`, '--tileset-h': `${panelLayout.layout.tilesetHeight}px`, '--layers-h': `${panelLayout.layout.layersHeight}px` } as CSSProperties
   return <main className="pixel-editor map-editor" style={layoutStyle} onPointerDown={() => setOpenMenu(undefined)} onContextMenu={(event) => event.preventDefault()}>
     <nav className="pixel-menubar" onPointerDown={(event) => event.stopPropagation()}>{Object.entries(menu).map(([name, items]) => <div className="menu-root" key={name}><button onClick={() => setOpenMenu(openMenu === name ? undefined : name)}>{name}</button>{openMenu === name && <div className="menu-dropdown">{items.map(([label, action, disabled]) => <button key={label} disabled={disabled} onClick={() => { action(); setOpenMenu(undefined) }}>{label}</button>)}</div>}</div>)}</nav>
@@ -645,7 +1090,27 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
     <header className="pixel-optionsbar"><strong>{tools.find(([id]) => id === tool)?.[1]}</strong><span className="option-divider" />
       {(tool === 'rectangle' || tool === 'ellipse') && <label className="fill-control"><input type="checkbox" checked={filled} onChange={(e) => setFilled(e.target.checked)} /> Relleno</label>}
       {tool === 'eraser' && <label className="map-inline-field">Tamaño <input type="number" min="1" max="32" value={eraserSize} onChange={(e) => setEraserSize(Math.max(1, Math.min(32, Number(e.target.value))))} /></label>}
-      {(tool === 'fill' || tool === 'rectangle' || tool === 'ellipse') && <><label className="fill-control"><input type="checkbox" checked={autotile} onChange={(e) => setAutotile(e.target.checked)} /> Autotile</label>{autotile && <select value={autotileSetId ?? ''} onChange={(e) => setAutotileSetId(e.target.value || undefined)}><option value="">Set…</option>{document.autotileSets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}</select>} {autotile && <select value={autotileProfile} onChange={(e) => setAutotileProfile(e.target.value as 'terrain' | 'contour')}><option value="terrain">Terreno</option><option value="contour">Contorno</option></select>}{autotile && <button className="compact-option" disabled title="Configuración de autotile temporalmente desactivada" onClick={openAutotile}>Configurar</button>}</>}
+      {(tool === 'fill' || tool === 'rectangle' || tool === 'ellipse' || activeLayerIsAutotile) && <>
+        <label className="fill-control" title={activeLayerIsAutotile ? 'Las capas de autotile siempre pintan con autotile' : undefined}>
+          <input type="checkbox" checked={activeLayerIsAutotile ? true : autotile} disabled={activeLayerIsAutotile} onChange={(e) => setAutotile(e.target.checked)} /> Autotile{activeLayerIsAutotile ? ' · capa' : ''}
+        </label>
+        {activeLayerIsAutotile
+          ? <select aria-label="Set de la capa" value={activeLayer?.autotileSetId ?? ''} onChange={(e) => bindActiveAutotileLayerSet(e.target.value || undefined)}>
+              <option value="">Sin set…</option>
+              {document.autotileSets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}
+            </select>
+          : autotile && <select value={autotileSetId ?? ''} onChange={(e) => setAutotileSetId(e.target.value || undefined)}><option value="">Set…</option>{document.autotileSets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}</select>}
+        {(activeLayerIsAutotile || (autotile && autotileSetId)) && (() => {
+          const barSet = activeLayerIsAutotile ? activeAutotileSet : document.autotileSets.find((set) => set.id === autotileSetId)
+          const layoutProfile = barSet?.layout ? profileForLayout(barSet.layout) : undefined
+          const profileLabels = { terrain: 'Terreno', contour: 'Contorno', blob: 'Blob' } as const
+          return layoutProfile
+            ? <span className="option-hint">Perfil: {profileLabels[layoutProfile]}</span>
+            : <select aria-label="Perfil de autotile" value={autotileProfile} onChange={(e) => setAutotileProfile(e.target.value as 'terrain' | 'contour')}><option value="terrain">Terreno</option><option value="contour">Contorno</option></select>
+        })()}
+        <button className="compact-option" disabled={!rulesState.groups.length} title={intentView ? 'Vista intención activa: los grupos se muestran con su color' : 'Ver la capa origen como mapa de intención (colores de grupo)'} onClick={() => setIntentView((value) => !value)}><Shapes size={12} /> {intentView ? 'Intención ✓' : 'Intención'}</button>
+        <button className="compact-option" disabled={!document.autotileSets.length && !document.tilesets.length} title={activeAutotileSet ? `Gestor de autotiles (${document.autotileSets.length})` : 'Crea o gestiona autotiles'} onClick={openAutotileManager}><Wand2 size={12} /> Autotiles…</button>
+      </>}
       <span className="option-hint">Clic medio: pan · rueda: zoom al cursor · 0: ajustar</span>
       <div className="history-tools"><button title="Flip X" onClick={() => transformSelected('flipX')}><FlipHorizontal2 /></button><button title="Flip Y" onClick={() => transformSelected('flipY')}><FlipVertical2 /></button><button title="Rotar 90°" onClick={() => transformSelected('rotate90')}><RotateCw /></button><button title="Rotar 180°" className="rotation-label" onClick={() => transformSelected('rotate180')}>180°</button><button title="Rotar 270°" className="rotation-label" onClick={() => transformSelected('rotate270')}>270°</button><button title="Deshacer" onClick={undo}><Undo2 /></button><button title="Rehacer" onClick={redo}><Redo2 /></button></div>
     </header>
@@ -656,21 +1121,22 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
         {document.layers.some((layer) => layer.isFolder) && <section className="folder-summary"><div className="panel-title"><h3>Carpetas</h3><span>{document.layers.filter((layer) => layer.isFolder).length}</span></div>{document.layers.filter((layer) => layer.isFolder).map((folder) => <button className="panel-action" data-folder-id={folder.id} key={folder.id} onClick={() => commit(updateMapLayer(documentRef.current, folder.id, { collapsed: !folder.collapsed }))}>{folder.collapsed ? 'Mostrar' : 'Ocultar'} · {folder.name}</button>)}</section>}
         <section className="tileset-panel"><div className="panel-title"><div><p className="eyebrow">Biblioteca</p><h2>Tilesets <span>{document.tilesets.length}</span></h2></div><div className="layer-actions"><button title="Importar" onClick={() => setImportDialog(true)}><Upload /></button>{activeTileset && <button title="Eliminar tileset" onClick={deleteTileset}><Trash2 /></button>}</div></div>
           <select className="tileset-select" value={activeTileset?.id ?? ''} onChange={(e) => activateTileset(e.target.value)}><option value="">Sin tilesets</option>{document.tilesets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}</select>
-          {activeTileset && <div className="tileset-actions"><button onClick={() => { const name = window.prompt('Nombre', activeTileset.name); if (name) commit(updateTileset(documentRef.current, activeTileset.id, { name })) }}>Renombrar</button><label>Zoom <input type="range" min="0.5" max="5" step="0.5" value={thumbZoom} onChange={(e) => setThumbZoom(Number(e.target.value))} /></label></div>}
+          {activeTileset && <div className="tileset-actions"><button title="Renombrar tileset" onClick={() => { const name = window.prompt('Nombre', activeTileset.name); if (name) commit(updateTileset(documentRef.current, activeTileset.id, { name })) }}><Pencil /> Renombrar</button><label>Zoom <input type="range" min="0.5" max="5" step="0.5" value={thumbZoom} onChange={(e) => setThumbZoom(Number(e.target.value))} /></label></div>}
           <div className="tile-grid" onScroll={(event) => setTileScrollTop(event.currentTarget.scrollTop)}>{activeTileset && activeAsset && <div style={{ position: 'relative', width: tileDisplayColumns * (activeTileset.tileWidth * thumbZoom + 2), height: tileRows * tileRowHeight }}>
             {visibleTileIds.map((id) => {
               const sourceColumns = columns
               const x = (activeTileset.offsetX ?? 0) + activeTileset.marginX + (id % sourceColumns) * (activeTileset.tileWidth + activeTileset.spacingX); const y = (activeTileset.offsetY ?? 0) + activeTileset.marginY + Math.floor(id / sourceColumns) * (activeTileset.tileHeight + activeTileset.spacingY)
               const startColumn = tileStart % sourceColumns; const endColumn = tileEnd % sourceColumns; const startRow = Math.floor(tileStart / sourceColumns); const endRow = Math.floor(tileEnd / sourceColumns)
               const selected = id % sourceColumns >= Math.min(startColumn, endColumn) && id % sourceColumns <= Math.max(startColumn, endColumn) && Math.floor(id / sourceColumns) >= Math.min(startRow, endRow) && Math.floor(id / sourceColumns) <= Math.max(startRow, endRow)
-              return <button key={id} className={selected ? 'selected' : ''} title={`Tile ${id}`} style={{ position: 'absolute', left: (id % tileDisplayColumns) * (activeTileset.tileWidth * thumbZoom + 2), top: Math.floor(id / tileDisplayColumns) * tileRowHeight, width: activeTileset.tileWidth * thumbZoom, height: activeTileset.tileHeight * thumbZoom, backgroundImage: `url(${activeAsset.url})`, backgroundSize: `${activeTileset.imageWidth * thumbZoom}px ${activeTileset.imageHeight * thumbZoom}px`, backgroundPosition: `${-x * thumbZoom}px ${-y * thumbZoom}px` }} onClick={(e) => selectTileRange(id, e.shiftKey ? tileStart : id)} />
+              return <button key={id} className={`${selected ? 'selected' : ''}${autotileMemberTileIds && activeAutotileSet?.tilesetId === activeTileset.id ? (autotileMemberTileIds.has(id) ? ' autotile-member' : ' autotile-outside') : ''}`} title={`Tile ${id}`} style={{ position: 'absolute', left: (id % tileDisplayColumns) * (activeTileset.tileWidth * thumbZoom + 2), top: Math.floor(id / tileDisplayColumns) * tileRowHeight, width: activeTileset.tileWidth * thumbZoom, height: activeTileset.tileHeight * thumbZoom, backgroundImage: `url(${activeAsset.url})`, backgroundSize: `${activeTileset.imageWidth * thumbZoom}px ${activeTileset.imageHeight * thumbZoom}px`, backgroundPosition: `${-x * thumbZoom}px ${-y * thumbZoom}px` }} onClick={(e) => selectTileRange(id, e.shiftKey ? tileStart : id)} />
             })}
-          </div>}</div>
+          </div>}
+          {activeLayerIsAutotile && <p className="document-meta">Capa de autotile{activeAutotileSet ? `: solo pinta con tiles del set «${activeAutotileSet.name}»` : ': sin set vinculado, usa Configurar'}.</p>}</div>
           {pattern && <p className="document-meta">Stamp {pattern.width}×{pattern.height} · tile {tileStart}{tileStart !== tileEnd ? `–${tileEnd}` : ''}</p>}
         </section>
     <section><div className="panel-title"><div><p className="eyebrow">Mapa</p><h2>{document.name}</h2></div><button title="Guardar" onClick={() => void save()}><Save /></button></div><p className="document-meta">{document.width}×{document.height} tiles · {document.cellWidth}×{document.cellHeight}px · rev. {document.revision}</p><label className="fill-control map-grid-control"><input type="checkbox" checked={document.grid.visible} onChange={(e) => commit({ ...documentRef.current, revision: documentRef.current.revision + 1, grid: { ...documentRef.current.grid, visible: e.target.checked } })} /> Grid <ColorWheel label="Color del grid" value={document.grid.color.slice(0, 7)} onChange={(value) => show({ ...documentRef.current, grid: { ...documentRef.current.grid, color: `${value}99` } })} onChangeEnd={(value, initial) => { if (value === initial) return; const current = documentRef.current; commit({ ...current, revision: current.revision + 1, grid: { ...current.grid, color: `${value}99` } }, { ...current, grid: { ...current.grid, color: `${initial}99` } }) }} /></label><button className="panel-action" onClick={() => { setResizeForm({ width: document.width, height: document.height, anchor: 'center' }); setResizeDialog(true) }}>Redimensionar mapa</button></section>
         <section className="console-panel"><button className="console-heading" onClick={() => setConsoleOpen((value) => !value)}><span>Diagnósticos</span><strong>{diagnostics.length}</strong></button>{consoleOpen && <div className="console-body">{diagnostics.length ? diagnostics.map((diagnostic) => <div className={`diagnostic ${diagnostic.severity}`} key={diagnostic.groupKey}><code>{diagnostic.code}</code><span>{diagnostic.message}</span><strong>{diagnostic.count}</strong></div>) : <p>Sin errores</p>}</div>}</section>
-        {panelLayout.layout.layersVisible && <section className="layer-panel layer-tree-panel layer-tree-sidebar map-tree-runtime">{mapLayerTreeContent}</section>}
+        {panelLayout.layout.layersVisible && <section className="layer-panel layer-tree-panel layer-tree-sidebar map-tree-runtime">{mapLayerTreeWithOpacity}</section>}
       </aside>
     </section>
     <footer className="authoring-help"><span>{operation ? `${operation.label} ${Math.round(operation.progress * 100)}%` : status}{operation && <button className="operation-cancel" onClick={() => operationAbortRef.current?.abort()}>Cancelar</button>}</span><span>{cursor ? `${cursor.x}, ${cursor.y}` : '—'} · {Math.round(viewportRef.current.zoom * 100)}% · P/E/I/G/L/R/O/M/H · Ctrl+Z/Y/C/X/V</span></footer>
@@ -704,7 +1170,370 @@ export function MapEditor({ active = true, sharedAssets }: { readonly active?: b
       <p className={slicingError ? 'import-error' : 'document-meta'}>{slicingError || `${slicing?.columns ?? 0}×${slicing?.rows ?? 0} · ${slicing?.rectangles.length ?? 0} tiles completos · rojo: cortes, márgenes y spacing`}</p>
       <div className="modal-actions"><button onClick={() => { setImportScroll({ left: 0, top: 0 }); setImportDraft({ ...initialDraft(), zoom: fitImportZoom(importSize.width || 1, importSize.height || 1) }) }}>Reset</button><button onClick={closeImportDialog}>Cancelar</button><button className="primary" disabled={!slicing || !importDraft.name.trim()} onClick={() => void confirmImport()}>Importar</button></div>
     </div></div>}
-    {autotileDialog && autotileDraft && <div className="pixel-modal autotile-modal"><div><header><h2>Autotile básico</h2><button onClick={() => setAutotileDialog(false)}><X /></button></header><div className="map-form"><label>Nombre<input value={autotileDraft.name} onChange={(e) => setAutotileDraft({ ...autotileDraft, name: e.target.value })} /></label><label>Tileset<select value={autotileDraft.tilesetId} onChange={(e) => setAutotileDraft({ ...autotileDraft, tilesetId: e.target.value })}>{document.tilesets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}</select></label><label>Centro<input type="number" min="0" value={autotileDraft.centerTileId} onChange={(e) => setAutotileDraft({ ...autotileDraft, centerTileId: Number(e.target.value) })} /></label></div><h3>Terreno · 13 roles</h3><div className="autotile-grid">{terrainRoles.filter((role) => role !== 'center').map((role) => <label key={role}>{role}<input type="number" min="0" placeholder={`${autotileDraft.centerTileId}`} value={autotileDraft.terrain[role] ?? ''} onChange={(e) => { const terrain = { ...autotileDraft.terrain }; if (e.target.value === '') delete terrain[role]; else terrain[role] = Number(e.target.value); setAutotileDraft({ ...autotileDraft, terrain }) }} /></label>)}</div><h3>Contorno · máscaras cardinales 0–15</h3><div className="autotile-grid contour-grid">{Array.from({ length: 16 }, (_, mask) => <label key={mask}>{mask.toString(2).padStart(4, '0')}<input type="number" min="0" placeholder={`${autotileDraft.centerTileId}`} value={autotileDraft.contour[mask] ?? ''} onChange={(e) => { const contour = { ...autotileDraft.contour }; if (e.target.value === '') delete contour[mask]; else contour[mask] = Number(e.target.value); setAutotileDraft({ ...autotileDraft, contour }) }} /></label>)}</div><div className="modal-actions"><button onClick={() => setAutotileDialog(false)}>Cancelar</button><button className="primary" onClick={saveAutotile}>Guardar set</button></div></div></div>}
+    {autotileDialog && autotileDraft && (autotileChoosingType ? (() => {
+      const typeDescriptions: Record<AutotileLayout, string> = {
+        tiles5: 'Centro + 4 bordes · transición simple',
+        tiles16: 'Máscaras cardinales 4-bit · bordes y esquinas externas',
+        tiles47: 'Blob completo de 8 vecinos con esquinas internas',
+        tiles48: 'Blob completo + pieza aislada dedicada',
+      }
+      return <div className="pixel-modal autotile-modal"><div><header><h2>Nuevo autotile · elige el tipo</h2><button onClick={() => setAutotileDialog(false)} aria-label="Cerrar"><X /></button></header>
+        <p className="document-meta">Tipo de paleta según número de piezas. Después elegirás el tile de cada parte.</p>
+        <div className="autotile-type-grid">
+          {(['tiles5', 'tiles16', 'tiles47', 'tiles48'] as const).map((layout) => <button type="button" key={layout} className="autotile-type-card" onClick={() => chooseAutotileType(layout)}>
+            <strong>{autotileLayoutLabels[layout]}</strong>
+            <PieceDiagram cells={layout === 'tiles5' ? pieceCells({ kind: 'terrain', role: 'top' }) : layout === 'tiles16' ? pieceCells({ kind: 'contour', mask: 5 }) : pieceCells({ kind: 'blob', cls: 23 })} />
+            <small>{typeDescriptions[layout]}</small>
+          </button>)}
+        </div>
+        <div className="modal-actions"><button onClick={() => setAutotileDialog(false)}>Cancelar</button></div>
+      </div></div>
+    })() : (() => {
+      const slotCaption = (target: AutotileTarget, tileId: number | undefined): string => {
+        if (target.kind === 'contour') return `${target.mask.toString(2).padStart(4, '0')} ${maskArrows(target.mask)} · ${tileId === undefined ? `centro (${autotileDraft.centerTileId})` : `#${tileId}`}`
+        return tileId === undefined ? `centro (${autotileDraft.centerTileId})` : `#${tileId}`
+      }
+      const slotTitle = (target: AutotileTarget): string => target.kind === 'center' ? terrainRoleLabels.center
+        : target.kind === 'terrain' ? terrainRoleLabels[target.role]
+        : target.kind === 'contour' ? `Máscara ${target.mask}`
+        : target.kind === 'blob' ? `Clase blob ${target.cls} (${target.cls.toString(2).padStart(8, '0')})`
+        : 'Pieza aislada (48.ª)'
+      const slotTileId = (target: AutotileTarget): number | undefined => target.kind === 'center' ? autotileDraft.centerTileId : target.kind === 'terrain' ? autotileDraft.terrain[target.role] : target.kind === 'contour' ? autotileDraft.contour[String(target.mask)] : target.kind === 'extra' ? autotileDraft.blob?.extra : autotileDraft.blob?.[String(target.cls)]
+      const renderSlot = (target: AutotileTarget) => {
+        const key = autotileTargetKey(target); const tileId = slotTileId(target); const pending = autotileTarget && autotileTargetKey(autotileTarget) === key
+        const source = autotileSlotSourceRect(tileId ?? autotileDraft.centerTileId)
+        return <button type="button" key={key} className={'autotile-slot' + (pending ? ' pending' : '') + (tileId === undefined ? ' empty' : '')}
+          title={pending ? `${slotTitle(target)}: haz clic en un tile →` : `${slotTitle(target)}: clic para asignar`}
+          onClick={() => setAutotileTarget(pending ? undefined : target)}>
+          <PieceDiagram cells={pieceCells(target)} />
+          <span className="autotile-slot-thumb" style={{ backgroundImage: autotileDraftAssetUrl ? `url(${autotileDraftAssetUrl})` : undefined, backgroundSize: autotileDraftTileset ? `${autotileDraftTileset.imageWidth * autotilePickerZoom}px ${autotileDraftTileset.imageHeight * autotilePickerZoom}px` : undefined, backgroundPosition: `${source.x}px ${source.y}px` }}>{!autotileDraftAssetUrl ? '?' : ''}</span>
+          <small>{slotCaption(target, tileId)}</small>
+        </button>
+      }
+      const layout = autotileDraft.layout
+      const targets = autotileTargetsForLayout(layout)
+      const terrainTargets = targets.filter((target): target is Extract<AutotileTarget, { kind: 'terrain' }> => target.kind === 'terrain')
+      const contourTargets = targets.filter((target): target is Extract<AutotileTarget, { kind: 'contour' }> => target.kind === 'contour')
+      const blobTargets = targets.filter((target) => target.kind === 'blob' || target.kind === 'extra')
+      const activeLabel = autotileTarget ? slotTitle(autotileTarget) : undefined
+      return <div className="pixel-modal autotile-modal"><div><header><h2>Autotile · {autotileDraft.name || 'nuevo set'}{layout ? ` · ${autotileLayoutLabels[layout]}` : ''}</h2><button onClick={() => setAutotileDialog(false)} aria-label="Cerrar"><X /></button></header>
+        <div className="map-form">
+          <label>Nombre<input value={autotileDraft.name} onChange={(e) => setAutotileDraft({ ...autotileDraft, name: e.target.value })} /></label>
+          <label>Tileset<select value={autotileDraft.tilesetId} onChange={(e) => { setAutotileDraft({ ...autotileDraft, tilesetId: e.target.value }); setAutotileTarget(undefined); setAutotilePickerScroll(0) }}>{document.tilesets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}</select></label>
+          <label>{layout ? 'Tipo' : 'Centro'}{layout
+            ? <input readOnly value={`${autotileLayoutLabels[layout]} · perfil ${profileForLayout(layout)}`} />
+            : <input type="number" min="0" value={autotileDraft.centerTileId} onChange={(e) => setAutotileDraft({ ...autotileDraft, centerTileId: Math.max(0, Number(e.target.value) || 0) })} />}</label>
+        </div>
+        <p className="document-meta">{activeLabel ? `Parte activa: ${activeLabel} — haz clic en un tile del panel derecho.` : 'Haz clic en una parte y luego en un tile para asignarla. Se avanza sola al siguiente hueco libre.'}</p>
+        <div className="autotile-layout">
+          <div className="autotile-slots-column">
+            {!layout && <>
+              <h3>Partes del terreno</h3>
+              <div className="autotile-slots">{terrainTargets.map((target) => renderSlot(target))}</div>
+              <h3>Contorno · máscaras cardinales</h3>
+              <div className="autotile-slots">{contourTargets.map((target) => renderSlot(target))}</div>
+            </>}
+            {layout === 'tiles5' && <>
+              <h3>Piezas · bordes (el centro se define arriba)</h3>
+              <div className="autotile-slots">{targets.map((target) => renderSlot(target))}</div>
+            </>}
+            {layout === 'tiles16' && <>
+              <h3>Máscaras cardinales · 4 bits</h3>
+              <div className="autotile-slots">{targets.map((target) => renderSlot(target))}</div>
+            </>}
+            {(layout === 'tiles47' || layout === 'tiles48') && <>
+              <h3>Clases blob{layout === 'tiles48' ? ' · + pieza aislada' : ''}</h3>
+              <div className="autotile-slots">{blobTargets.map((target) => renderSlot(target))}</div>
+            </>}
+          </div>
+          <div className="autotile-picker-column">
+            <h3>Tiles de {autotileDraftTileset?.name ?? '—'}</h3>
+            <div className="autotile-picker" onScroll={(event) => setAutotilePickerScroll(event.currentTarget.scrollTop)}>
+              {autotileDraftAssetUrl && autotileDraftTileset && <div style={{ position: 'relative', width: autotilePickerColumns * autotilePickerCellW, height: autotilePickerRows * autotilePickerCellH }}>
+                {autotilePickerTileIds.map((id) => {
+                  const x = (autotileDraftTileset.offsetX ?? 0) + autotileDraftTileset.marginX + (id % autotilePickerColumnsInSheet) * (autotileDraftTileset.tileWidth + autotileDraftTileset.spacingX)
+                  const y = (autotileDraftTileset.offsetY ?? 0) + autotileDraftTileset.marginY + Math.floor(id / autotilePickerColumnsInSheet) * (autotileDraftTileset.tileHeight + autotileDraftTileset.spacingY)
+                  return <button type="button" key={id} title={`Asignar tile ${id}`} style={{ left: (id % autotilePickerColumns) * autotilePickerCellW, top: Math.floor(id / autotilePickerColumns) * autotilePickerCellH, width: autotileDraftTileset.tileWidth * autotilePickerZoom, height: autotileDraftTileset.tileHeight * autotilePickerZoom, backgroundImage: `url(${autotileDraftAssetUrl})`, backgroundSize: `${autotileDraftTileset.imageWidth * autotilePickerZoom}px ${autotileDraftTileset.imageHeight * autotilePickerZoom}px`, backgroundPosition: `${-x * autotilePickerZoom}px ${-y * autotilePickerZoom}px` }} onClick={() => assignAutotileTile(id)} />
+                })}
+              </div>}
+            </div>
+            <div className="autotile-toolbar">
+              <button type="button" onClick={useSelectedTileForAutotile}>Usar tile seleccionado</button>
+              <button type="button" disabled={!autotileTarget || autotileTarget.kind === 'center'} onClick={clearAutotileTarget}>Quitar asignación</button>
+              <button type="button" onClick={() => setAutotileTarget(undefined)}>Cancelar selección</button>
+            </div>
+          </div>
+        </div>
+        <div className="modal-actions"><button onClick={() => setAutotileDialog(false)}>Cancelar</button><button className="primary" onClick={saveAutotile}>Guardar set</button></div>
+      </div></div>
+    })())}
+    {autotileManagerOpen && <div className="pixel-modal autotile-modal"><div>
+      {autotileDeleteTarget ? (() => {
+        const target = autotileDeleteTarget
+        const tileset = document.tilesets.find((item) => item.id === target.tilesetId)
+        const url = tileset ? assets.get(tileset.assetId)?.url : undefined
+        const paintedCells = autotilePaintedCellCount(target.id)
+        const pieces = Object.keys(target.terrain).length + Object.keys(target.contour).length + Object.keys(target.blob ?? {}).length
+        const cols = tileset ? Math.max(1, Math.floor((tileset.imageWidth - (tileset.offsetX ?? 0) - tileset.marginX * 2 + tileset.spacingX) / (tileset.tileWidth + tileset.spacingX))) : 1
+        const x = (tileset?.offsetX ?? 0) + (tileset?.marginX ?? 0) + (target.centerTileId % cols) * ((tileset?.tileWidth ?? 16) + (tileset?.spacingX ?? 0))
+        const y = (tileset?.offsetY ?? 0) + (tileset?.marginY ?? 0) + Math.floor(target.centerTileId / cols) * ((tileset?.tileHeight ?? 16) + (tileset?.spacingY ?? 0))
+        return <>
+          <header><h2>¿Eliminar «{target.name}»?</h2><button onClick={() => setAutotileDeleteTarget(undefined)} aria-label="Volver"><X /></button></header>
+          <div className="autotile-delete-preview">
+            <span className="autotile-delete-thumb" style={{ backgroundImage: url ? `url(${url})` : undefined, backgroundSize: tileset ? `${tileset.imageWidth * 4}px ${tileset.imageHeight * 4}px` : undefined, backgroundPosition: `${-x * 4}px ${-y * 4}px` }} />
+            <div>
+              <p><strong>{target.name}</strong> · {target.layout ? autotileLayoutLabels[target.layout] : 'Libre (legado)'}</p>
+              <p>Tileset: {tileset?.name ?? '—'} · centro #{target.centerTileId}</p>
+              <p>{pieces} parte(s) configurada(s) · <strong>{paintedCells}</strong> celda(s) pintadas con este set</p>
+              <p className="document-meta">{paintedCells ? 'Las celdas pintadas conservarán sus tiles pero perderán la etiqueta del set.' : 'Este set no tiene celdas pintadas.'}</p>
+            </div>
+          </div>
+          <div className="modal-actions"><button onClick={() => setAutotileDeleteTarget(undefined)}>No, cancelar</button><button className="primary danger" onClick={confirmDeleteAutotile}>Sí, eliminar</button></div>
+        </>
+      })() : <>
+        <header><h2>Autotiles · {document.autotileSets.length}</h2><button onClick={() => setAutotileManagerOpen(false)} aria-label="Cerrar"><X /></button></header>
+        <p className="document-meta">Edita, elimina o crea sistemas de autotile. Cada capa de autotile se vincula a uno de estos sets.</p>
+        <table className="autotile-manager-table">
+          <thead><tr><th>Preview</th><th>Nombre</th><th>Tipo</th><th>Tileset</th><th>Piezas</th><th>Celdas</th><th>Acciones</th></tr></thead>
+          <tbody>
+            {document.autotileSets.map((set) => {
+              const tileset = document.tilesets.find((item) => item.id === set.tilesetId)
+              const url = tileset ? assets.get(tileset.assetId)?.url : undefined
+              const cols = tileset ? Math.max(1, Math.floor((tileset.imageWidth - (tileset.offsetX ?? 0) - tileset.marginX * 2 + tileset.spacingX) / (tileset.tileWidth + tileset.spacingX))) : 1
+              const x = (tileset?.offsetX ?? 0) + (tileset?.marginX ?? 0) + (set.centerTileId % cols) * ((tileset?.tileWidth ?? 16) + (tileset?.spacingX ?? 0))
+              const y = (tileset?.offsetY ?? 0) + (tileset?.marginY ?? 0) + Math.floor(set.centerTileId / cols) * ((tileset?.tileHeight ?? 16) + (tileset?.spacingY ?? 0))
+              const pieces = Object.keys(set.terrain).length + Object.keys(set.contour).length + Object.keys(set.blob ?? {}).length
+              const boundLayers = document.layers.filter((layer) => layer.autotileSetId === set.id).length
+              return <tr key={set.id} className={autotileSetId === set.id ? 'active' : ''}>
+                <td><span className="autotile-delete-thumb small" style={{ backgroundImage: url ? `url(${url})` : undefined, backgroundSize: tileset ? `${tileset.imageWidth * 3}px ${tileset.imageHeight * 3}px` : undefined, backgroundPosition: `${-x * 3}px ${-y * 3}px` }} /></td>
+                <td>{set.name}{boundLayers > 0 && <small> · {boundLayers} capa(s)</small>}</td>
+                <td>{set.layout ? autotileLayoutLabels[set.layout] : 'Libre'}</td>
+                <td>{tileset?.name ?? '—'}</td>
+                <td>{pieces}</td>
+                <td>{autotilePaintedCellCount(set.id)}</td>
+                <td className="autotile-manager-actions">
+                  <button onClick={() => beginEditAutotile(set)}><Pencil size={11} /> Editar</button>
+                  <button className="danger" onClick={() => requestDeleteAutotile(set)}><Trash2 size={11} /> Eliminar</button>
+                </td>
+              </tr>
+            })}
+            {!document.autotileSets.length && <tr><td colSpan={7} className="document-meta">Todavía no hay autotiles. Crea el primero.</td></tr>}
+          </tbody>
+        </table>
+        <div className="modal-actions"><button onClick={() => setAutotileManagerOpen(false)}>Cerrar</button><button className="primary" disabled={!document.tilesets.length} onClick={beginNewAutotile}><Plus size={12} /> Nuevo autotile…</button></div>
+      </>}
+    </div></div>}
+    {rulesDialogOpen && (() => {
+      const orderedRules = sortedPatternRules(rulesState.rules)
+      const groupById = new Map(rulesState.groups.map((group) => [group.id, group] as const))
+      const predicateCycle = (): RuleCellPredicate[] => ['same', 'different', ...rulesState.groups.flatMap((group) => [{ kind: 'group' as const, groupId: group.id }, { kind: 'group' as const, groupId: group.id, negated: true }])]
+      const canonicalPredicate = (predicate: RuleCellPredicate | undefined): string => {
+        if (predicate === undefined) return 'undefined'
+        if (typeof predicate === 'string') return predicate
+        return JSON.stringify({ kind: predicate.kind, groupId: predicate.groupId, negated: !!predicate.negated })
+      }
+      const cycle: readonly (RuleCellPredicate | undefined)[] = [undefined, ...predicateCycle()]
+      const cycleNeighbor = (key: RuleNeighborKey) => {
+        if (!selectedRule) return
+        const neighbors = { ...(selectedRule.condition.neighbors ?? {}) }
+        const current = neighbors[key]
+        // Comparación canónica; un valor no reconocido (forma legada) avanza a 'mismo' en vez de borrarse.
+        const index = cycle.findIndex((candidate) => canonicalPredicate(candidate) === canonicalPredicate(current))
+        const next = index <= 0 ? cycle[1] : cycle[(index + 1) % cycle.length]
+        if (!next) delete neighbors[key]
+        else neighbors[key] = next
+        updateSelectedRule({ condition: { ...selectedRule.condition, neighbors } })
+      }
+      const predicateClass = (predicate: RuleCellPredicate | undefined): string => {
+        if (!predicate) return 'ignore'
+        if (typeof predicate === 'string') return predicate
+        return predicate.negated ? 'group-negated' : 'group'
+      }
+      const predicateStyle = (predicate: RuleCellPredicate | undefined): CSSProperties | undefined => {
+        if (!predicate || typeof predicate === 'string') return undefined
+        const color = groupById.get(predicate.groupId)?.color ?? '#888'
+        return { background: color, opacity: predicate.negated ? 0.45 : 1 }
+      }
+      const predicateTitle = (key: RuleNeighborKey, predicate: RuleCellPredicate | undefined): string => {
+        const dx = Number(key.slice(0, key.indexOf(','))); const dy = Number(key.slice(key.indexOf(',') + 1))
+        const where = `${dx > 0 ? `${dx}→` : dx < 0 ? `${-dx}←` : ''}${dy > 0 ? `${dy}↓` : dy < 0 ? `${-dy}↑` : '·'}`
+        if (!predicate) return `${where}: ignorar`
+        if (predicate === 'same') return `${where}: mismo tile`
+        if (predicate === 'different') return `${where}: distinto/vacío`
+        const name = groupById.get(predicate.groupId)?.name ?? '?'
+        return `${where}: ${predicate.negated ? 'NO ' : ''}∈ ${name}`
+      }
+      const tileThumbStyle = (tileRef: { tilesetId: string; tileId: number }, zoom: number): CSSProperties => {
+        const ts = document.tilesets.find((item) => item.id === tileRef.tilesetId)
+        const url = ts ? assets.get(ts.assetId)?.url : undefined
+        const cols = ts ? Math.max(1, Math.floor((ts.imageWidth - (ts.offsetX ?? 0) - ts.marginX * 2 + ts.spacingX) / (ts.tileWidth + ts.spacingX))) : 1
+        const x = (ts?.offsetX ?? 0) + (ts?.marginX ?? 0) + (tileRef.tileId % cols) * ((ts?.tileWidth ?? 16) + (ts?.spacingX ?? 0))
+        const y = (ts?.offsetY ?? 0) + (ts?.marginY ?? 0) + Math.floor(tileRef.tileId / cols) * ((ts?.tileHeight ?? 16) + (ts?.spacingY ?? 0))
+        return { backgroundImage: url ? `url(${url})` : undefined, backgroundSize: ts ? `${ts.imageWidth * zoom}px ${ts.imageHeight * zoom}px` : undefined, backgroundPosition: `${-x * zoom}px ${-y * zoom}px`, width: (ts?.tileWidth ?? 16) * zoom, height: (ts?.tileHeight ?? 16) * zoom }
+      }
+      const diagnosticCount = ruleDiagnosticsById.get(selectedRule?.id ?? '') ?? 0
+      return <div className="pixel-modal rules-modal"><div>
+        <header><h2>Reglas de patrón</h2><button onClick={() => setRulesDialogOpen(false)} aria-label="Cerrar"><X /></button></header>
+        <p className="document-meta">Flujo TileKit: pinta bocetos con tiles básicos en la capa origen y las reglas generan el detalle en la capa destino. Se guardan junto a este mapa.</p>
+        <div className="rules-layout">
+          <div className="rules-list-column">
+            <div className="rules-list">
+              {orderedRules.map((rule, index) => <button type="button" key={rule.id} draggable
+                className={'rules-row' + (rule.id === selectedRuleId ? ' selected' : '') + (dragRuleId && dragRuleId !== rule.id ? (ruleInsertBelow === `b:${rule.id}` ? ' insert-bottom' : ruleInsertBelow === `t:${rule.id}` ? ' insert-top' : '') : '')}
+                onClick={() => setSelectedRuleId(rule.id)}
+                onDragStart={(event) => { event.dataTransfer.setData('text/mosaico-rule', rule.id); event.dataTransfer.effectAllowed = 'move'; setDragRuleId(rule.id) }}
+                onDragEnd={() => { setDragRuleId(undefined); setRuleInsertBelow(undefined) }}
+                onDragOver={(event) => {
+                  if (!event.dataTransfer.types.includes('text/mosaico-rule')) return
+                  event.preventDefault(); event.dataTransfer.dropEffect = 'move'
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  setRuleInsertBelow(event.clientY > rect.top + rect.height / 2 ? `b:${rule.id}` : `t:${rule.id}`)
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  const id = event.dataTransfer.getData('text/mosaico-rule') || dragRuleId
+                  if (!id) return
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  const below = event.clientY > rect.top + rect.height / 2
+                  moveRuleTo(id, rule.id, below); setDragRuleId(undefined); setRuleInsertBelow(undefined)
+                }}>
+                <span className="rules-order">{index + 1}</span>
+                <span className="rules-name">{rule.name}</span>
+                <small>F{rule.phase}</small>
+                {(ruleDiagnosticsById.get(rule.id) ?? 0) > 0 && <em title="Regla inválida">⚠</em>}
+              </button>)}
+              {!orderedRules.length && <p className="document-meta">Sin reglas.</p>}
+            </div>
+            <div className="rules-toolbar">
+              <button type="button" onClick={addPatternRule}><Plus size={11} /> Nueva</button>
+              <button type="button" disabled={!selectedRule} onClick={() => selectedRule && duplicatePatternRule(selectedRule.id)}><Copy size={11} /> Duplicar</button>
+              <button type="button" disabled={!selectedRule} title="Subir prioridad" onClick={() => selectedRule && movePatternRule(selectedRule.id, -1)}><ArrowUp size={11} /></button>
+              <button type="button" disabled={!selectedRule} title="Bajar prioridad" onClick={() => selectedRule && movePatternRule(selectedRule.id, 1)}><ArrowDown size={11} /></button>
+              <button type="button" disabled={!selectedRule} onClick={() => selectedRule && deletePatternRule(selectedRule.id)}><Trash2 size={11} /> Eliminar</button>
+            </div>
+            <h3>Grupos de similitud</h3>
+            <div className="rule-groups"
+              onDragOver={(e) => { if (e.dataTransfer.types.includes(TILE_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' } }}
+              onDrop={(e) => { e.preventDefault(); const tile = getTileDrag(e); if (!tile) return; const groupId = (e.target as Element).closest('[data-drop-group]')?.getAttribute('data-drop-group'); if (groupId) appendTileToGroup(groupId, tile) }}>
+              {rulesState.groups.map((group) => <div className={'rule-group-row' + (dropHot === `group:${group.id}` ? ' drop-hot' : '')}
+                key={group.id}
+                data-drop-group={group.id}
+                onDragOver={(e) => { if (e.dataTransfer.types.includes(TILE_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropHot(`group:${group.id}`) } }}
+                onDragLeave={() => setDropHot((current) => current === `group:${group.id}` ? undefined : current)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const tile = getTileDrag(e); const groupId = (e.target as Element).closest('[data-drop-group]')?.getAttribute('data-drop-group')
+                  if (!tile || !groupId) return
+                  appendTileToGroup(groupId, tile); setDropHot(undefined)
+                }}>
+                <span className="group-dot" style={{ background: group.color }} />
+                <strong title={`${group.members.length} tile(s)`}>{group.name}</strong>
+                <small>{group.members.length}</small>
+                <button type="button" title="Pintar con este grupo (tile representante)" onClick={() => paintWithGroup(group)}><PaintBucket size={11} /></button>
+                <button type="button" title="Añadir selección actual al grupo" onClick={() => appendSelectionToGroup(group.id)}><SquarePlus size={11} /></button>
+                <button type="button" aria-label={`Eliminar ${group.name}`} onClick={() => deleteGroup(group.id)}><Trash2 size={11} /></button>
+              </div>)}
+              {!rulesState.groups.length && <p className="document-meta">Sin grupos: arrastra tiles aquí o crea uno desde la selección.</p>}
+            </div>
+            <button type="button" onClick={addGroupFromSelection}><Shapes size={11} /> Grupo desde selección</button>
+            <div className="rule-anchor-row">
+              <select aria-label="Grupo a anclar" value={anchorGroupId ?? ''} onChange={(e) => setAnchorGroupId(e.target.value || undefined)}><option value="">Anclar…</option>{rulesState.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
+              <select aria-label="Grupo de suelo" value={floorGroupId ?? ''} onChange={(e) => setFloorGroupId(e.target.value || undefined)}><option value="">sobre…</option>{rulesState.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
+              <button type="button" title="Crea una regla: si el tile del grupo ancla no tiene suelo debajo, se reemplaza por suelo" disabled={!anchorGroupId || !floorGroupId} onClick={createAnchorRule}><ArrowDown size={11} /> Anclar</button>
+            </div>
+            <label className="field">Semilla<input type="number" value={rulesState.seed} onChange={(e) => persistRules({ ...rulesState, seed: Number(e.target.value) || 0 })} /></label>
+            <label className="field">Capa origen<select value={rulesSourceLayerId ?? document.activeLayerId} onChange={(e) => setRulesSourceLayerId(e.target.value)}>{document.layers.filter((layer) => !layer.isFolder).map((layer) => <option key={layer.id} value={layer.id}>{layer.name}{layer.kind === 'autotile' ? ' (AT)' : ''}</option>)}</select></label>
+            <label className="field">Capa destino<select value={rulesTargetLayerId ?? document.activeLayerId} onChange={(e) => setRulesTargetLayerId(e.target.value)}>{document.layers.filter((layer) => !layer.isFolder).map((layer) => <option key={layer.id} value={layer.id}>{layer.name}{layer.kind === 'autotile' ? ' (AT)' : ''}</option>)}</select></label>
+            <button type="button" className="primary" disabled={!rulesState.rules.length || ruleDiagnosticsById.size > 0} title={ruleDiagnosticsById.size ? 'Corrige las reglas inválidas (⚠)' : 'Evalúa la capa origen y escribe el resultado en la destino'} onClick={applyPatternRules}><Play size={11} /> Aplicar reglas</button>
+            {ruleDiagnosticsById.size > 0 && <p className="import-error">{ruleDiagnosticsById.size} regla(s) inválida(s).</p>}
+          </div>
+          <div className="rules-editor">
+            {!selectedRule ? <p className="document-meta">Selecciona o crea una regla.</p> : <>
+              <div className="map-form">
+                <label>Nombre<input value={selectedRule.name} onChange={(e) => updateSelectedRule({ name: e.target.value })} /></label>
+                <label>Fase<input type="number" min="0" value={selectedRule.phase} onChange={(e) => updateSelectedRule({ phase: Math.max(0, Number(e.target.value) || 0) })} /></label>
+                <label>Prioridad<input type="number" value={selectedRule.priority} onChange={(e) => updateSelectedRule({ priority: Number(e.target.value) || 0 })} /></label>
+                <label>Prob. %<input type="number" min="0" max="100" value={Math.round((selectedRule.chance ?? 1) * 100)} onChange={(e) => updateSelectedRule({ chance: Math.max(0, Math.min(100, Number(e.target.value))) / 100 })} /></label>
+              </div>
+              <label className="fill-control"><input type="checkbox" checked={!!selectedRule.allowRotations} onChange={(e) => updateSelectedRule({ allowRotations: e.target.checked })} /> Rotar condición (90°/180°/270°)</label>
+              <h3>Condición</h3>
+              <div className="rule-condition-row">
+                <div className="rule-condition-grid r5" role="group" aria-label="Vecindario 5×5 de la condición">
+                  {ruleGridKeys.map((key, index) => <Fragment key={key}>
+                    {index === RULE_GRID_RADIUS * (RULE_GRID_RADIUS * 2 + 1) + RULE_GRID_RADIUS && <span className="rule-cell center-spacer" title="Tile central (se define a la derecha)" />}
+                    {(() => {
+                      const predicate = selectedRule.condition.neighbors?.[key]
+                      return <button type="button" className={'rule-cell ' + predicateClass(predicate)} style={predicateStyle(predicate)} title={predicateTitle(key, predicate)} onClick={() => cycleNeighbor(key)} />
+                    })()}
+                  </Fragment>)}
+                </div>
+                <div className={'rule-condition-center' + (dropHot === 'condition' ? ' drop-hot' : '')}
+                  onDragOver={(e) => { if (e.dataTransfer.types.includes(TILE_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropHot('condition') } }}
+                  onDragLeave={() => setDropHot((current) => current === 'condition' ? undefined : current)}
+                  onDrop={(e) => { e.preventDefault(); const tile = getTileDrag(e); setDropHot(undefined); if (!tile) return; setConditionTile(tile) }}>
+                  <span className="mini-tile" style={selectedRule.condition.tileId !== undefined && document.tilesets.length ? tileThumbStyle({ tilesetId: activeTileset?.id ?? document.tilesets[0]!.id, tileId: selectedRule.condition.tileId }, 2) : undefined}>{selectedRule.condition.tileId === undefined ? '?' : ''}</span>
+                  <small>{selectedRule.condition.tileId === undefined ? 'Cualquier tile · suelta aquí' : `Tile ${selectedRule.condition.tileId}`}</small>
+                  <button type="button" onClick={useSelectionAsConditionTile}><Crosshair size={11} /> Usar selección</button>
+                  {selectedRule.condition.tileId !== undefined && <button type="button" onClick={() => updateSelectedRule({ condition: { ...selectedRule.condition, tileId: undefined } })}>Cualquiera</button>}
+                </div>
+                <div className="legend">
+                  <span><i className="rule-cell same" /> mismo</span>
+                  <span><i className="rule-cell different" /> distinto/vacío</span>
+                  {rulesState.groups.map((group) => <span key={group.id}><i className="rule-cell group" style={predicateStyle({ kind: 'group', groupId: group.id })} />∈ {group.name}</span>)}
+                  {rulesState.groups.map((group) => <span key={`neg-${group.id}`}><i className="rule-cell group-negated" style={predicateStyle({ kind: 'group', groupId: group.id, negated: true })} />∉ {group.name}</span>)}
+                  <span><i className="rule-cell ignore" /> ignorar</span>
+                </div>
+                <p className="document-meta">Clic en una celda: ignorar → mismo → distinto → ∈ grupo → ∉ grupo → ignorar.</p>
+              </div>
+              <h3>Salidas ({selectedRule.outputs.length} variantes)</h3>
+              <div className={'rule-outputs' + (dropHot === 'outputs' ? ' drop-hot' : '')}
+                onDragOver={(e) => { if (e.dataTransfer.types.includes(TILE_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropHot('outputs') } }}
+                onDragLeave={() => setDropHot((current) => current === 'outputs' ? undefined : current)}
+                onDrop={(e) => { e.preventDefault(); const tile = getTileDrag(e); setDropHot(undefined); if (!tile) return; addOutputVariant(tile) }}>
+                {selectedRule.outputs.map((output, index) => <div className="rule-output" key={index}>
+                  <span className="mini-tile" style={tileThumbStyle(output, 2)} title={`#${output.tileId}`} />
+                  <label>#{output.tileId}<input type="number" min="0" value={output.weight ?? 1} onChange={(e) => updateSelectedRule({ outputs: selectedRule.outputs.map((item, position) => position === index ? { ...item, weight: Math.max(0, Number(e.target.value) || 0) } : item) })} /></label>
+                  <button type="button" aria-label="Quitar variante" onClick={() => updateSelectedRule({ outputs: selectedRule.outputs.filter((_, position) => position !== index) })}><X /></button>
+                </div>)}
+                <button type="button" onClick={addOutputFromSelection}><SquarePlus size={11} /> Variante (selección)</button>
+              </div>
+              {diagnosticCount > 0 && <p className="import-error">Esta regla tiene {diagnosticCount} problema(s): revisa pesos, salidas y referencias.</p>}
+            </>}
+          </div>
+          <div className="rules-picker-column">
+            <h3>Tiles</h3>
+            <div className="rule-tile-palette" onScroll={(event) => setRulePickerScroll(event.currentTarget.scrollTop)}>
+              {rulePaletteUrl && rulePaletteTileset && <div style={{ position: 'relative', width: rulePaletteColumns * rulePaletteCellW, height: rulePaletteRows * rulePaletteCellH }}>
+                {rulePaletteTileIds.map((id) => {
+                  const ts = rulePaletteTileset
+                  const x = (ts.offsetX ?? 0) + ts.marginX + (id % columns) * (ts.tileWidth + ts.spacingX)
+                  const y = (ts.offsetY ?? 0) + ts.marginY + Math.floor(id / columns) * (ts.tileHeight + ts.spacingY)
+                  return <button type="button" key={id} draggable title={`Arrastrar tile ${id}`} className="tile-draggable"
+                    style={{ left: (id % rulePaletteColumns) * rulePaletteCellW, top: Math.floor(id / rulePaletteColumns) * rulePaletteCellH, width: ts.tileWidth * RULE_PALETTE_ZOOM, height: ts.tileHeight * RULE_PALETTE_ZOOM, backgroundImage: `url(${rulePaletteUrl})`, backgroundSize: `${ts.imageWidth * RULE_PALETTE_ZOOM}px ${ts.imageHeight * RULE_PALETTE_ZOOM}px`, backgroundPosition: `${-x * RULE_PALETTE_ZOOM}px ${-y * RULE_PALETTE_ZOOM}px` }}
+                    onDragStart={(event) => setTileDrag(event, { tilesetId: ts.id, tileId: id })}
+                    onDragEnd={() => setDropHot(undefined)}
+                    onClick={() => setConditionTile({ tilesetId: ts.id, tileId: id })} />
+                })}
+              </div>}
+              {!rulePaletteUrl && <p className="document-meta">Importa un tileset.</p>}
+            </div>
+            <p className="document-meta">Arrastra a la condición, a las salidas o sobre un grupo. Clic fija el tile central.</p>
+          </div>
+        </div>
+        <div className="modal-actions"><button onClick={() => setRulesDialogOpen(false)}>Cerrar</button></div>
+      </div></div>
+    })()}
+    {wfcDialogOpen && <div className="pixel-modal wfc-modal"><div>
+      <header><h2>Generar con WFC</h2><button onClick={() => setWfcDialogOpen(false)} aria-label="Cerrar"><X /></button></header>
+      <p className="document-meta">Modelo Overlapping: extrae patrones de la <strong>muestra</strong> (selección activa o capa completa) y colapsa la región destino con la semilla. Sin selección usa el mapa entero.</p>
+      <div className="map-form">
+        <label>Patrón<select value={wfcSize} onChange={(e) => setWfcSize(Number(e.target.value))}><option value={2}>2×2</option><option value={3}>3×3</option><option value={4}>4×4</option></select></label>
+        <label>Semilla<input type="number" value={wfcSeed} onChange={(e) => setWfcSeed(Number(e.target.value) || 0)} /></label>
+        <label className="fill-control"><input type="checkbox" checked={wfcKeepExisting} onChange={(e) => setWfcKeepExisting(e.target.checked)} /> Conservar tiles ya pintados en el destino</label>
+      </div>
+      <p className="document-meta">{selection ? `Selección activa: ${selection.width}×${selection.height} en (${selection.left}, ${selection.top}).` : 'Sin selección: muestra y destino = mapa completo.'}</p>
+      <div className="modal-actions"><button onClick={() => setWfcDialogOpen(false)}>Cancelar</button><button className="primary" onClick={generateWfc}><Play size={12} /> Generar</button></div>
+    </div></div>}
     {animationDialog && <div className="pixel-modal" role="dialog" aria-modal="true" aria-label="Configurar animación"><div><header><h2>Animación de tiles</h2><button onClick={() => setAnimationDialog(false)}><X /></button></header><label className="field">FPS<input type="number" min="1" max="60" value={animationFps} onChange={(event) => setAnimationFps(Number(event.target.value))} /></label><p className="document-meta">Los tiles del stamp se reproducen en loop al pintarlos.</p><div className="modal-actions"><button onClick={() => setAnimationDialog(false)}>Cancelar</button><button className="primary" onClick={applyAnimation}>Aplicar</button></div></div></div>}
   </main>
 }

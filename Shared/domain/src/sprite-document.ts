@@ -297,12 +297,18 @@ export function erasePixel(
   return setPixel(document, layerId, frameId, coordinate, transparent)
 }
 
+export interface SpriteFillOptions {
+  readonly tolerance?: number
+  readonly connectivity?: 4 | 8
+}
+
 export function fillPixels(
   document: SpriteDocument,
   layerId: string,
   frameId: string,
   origin: GridCoordinate,
   replacement: RgbaColor,
+  options: SpriteFillOptions = {},
 ): SpriteDocument {
   assertCoordinate(document, origin)
   assertColor(replacement)
@@ -310,6 +316,13 @@ export function fillPixels(
   const cel = requireCel(layer, frameId)
   const target = cel.pixels.read(pixelOffset(document, origin))
   if (colorsEqual(target, replacement)) return document
+  const rawTolerance = options.tolerance ?? 0
+  const tolerance = Number.isFinite(rawTolerance) ? Math.max(0, Math.min(255, Math.trunc(rawTolerance))) : 0
+  const diagonal = options.connectivity === 8
+  const matchesTarget = (color: RgbaColor): boolean => {
+    if (tolerance === 0) return colorsEqual(color, target)
+    return Math.abs(color.r - target.r) <= tolerance && Math.abs(color.g - target.g) <= tolerance && Math.abs(color.b - target.b) <= tolerance && Math.abs(color.a - target.a) <= tolerance
+  }
 
   const pixels = cel.pixels.mutableCopy()
   const queue: GridCoordinate[] = [origin]
@@ -321,12 +334,18 @@ export function fillPixels(
     if (visited[index]) continue
     visited[index] = 1
     const offset = index * 4
-    if (!colorsEqual(readColor(pixels, offset), target)) continue
+    if (!matchesTarget(readColor(pixels, offset))) continue
     writeColor(pixels, offset, replacement)
     if (coordinate.x > 0) queue.push({ x: coordinate.x - 1, y: coordinate.y })
     if (coordinate.x + 1 < document.width) queue.push({ x: coordinate.x + 1, y: coordinate.y })
     if (coordinate.y > 0) queue.push({ x: coordinate.x, y: coordinate.y - 1 })
     if (coordinate.y + 1 < document.height) queue.push({ x: coordinate.x, y: coordinate.y + 1 })
+    if (diagonal) {
+      if (coordinate.x > 0 && coordinate.y > 0) queue.push({ x: coordinate.x - 1, y: coordinate.y - 1 })
+      if (coordinate.x + 1 < document.width && coordinate.y > 0) queue.push({ x: coordinate.x + 1, y: coordinate.y - 1 })
+      if (coordinate.x > 0 && coordinate.y + 1 < document.height) queue.push({ x: coordinate.x - 1, y: coordinate.y + 1 })
+      if (coordinate.x + 1 < document.width && coordinate.y + 1 < document.height) queue.push({ x: coordinate.x + 1, y: coordinate.y + 1 })
+    }
   }
   return replaceCel(document, layer, frameId, new PixelBuffer(pixels))
 }

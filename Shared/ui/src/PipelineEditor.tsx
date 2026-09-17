@@ -411,6 +411,61 @@ function PipelineFlow({
   </PipelineNodeOutputsContext.Provider>
 }
 
+const NUMERIC_PARAMETER_KINDS: readonly DemoParameter['kind'][] = ['number', 'float', 'range']
+
+function normalizeColorInputValue(value: string): string {
+  const raw = value.replace('#', '')
+  const hex = raw.length === 3 ? raw.split('').map((part) => part + part).join('') : raw
+  return '#' + hex.slice(0, 6).padEnd(6, '0').toLowerCase()
+}
+
+export function ParameterValueInput({ inputId, parameter, onCommit }: {
+  inputId: string
+  parameter: DemoParameter
+  onCommit: (value: string) => void
+}) {
+  const numeric = NUMERIC_PARAMETER_KINDS.includes(parameter.kind)
+  const [draft, setDraft] = useState<string | null>(null)
+  const committed = Array.isArray(parameter.value) ? JSON.stringify(parameter.value) : String(parameter.value)
+  useEffect(() => { setDraft(null) }, [committed])
+
+  if (parameter.kind === 'select') {
+    return <select id={inputId} value={committed} onChange={(event) => onCommit(event.target.value)}>
+      {parameter.options?.map((option) => <option key={option} value={option}>{option}</option>)}
+    </select>
+  }
+  if (parameter.kind === 'boolean') {
+    return <input id={inputId} type="checkbox" checked={Boolean(parameter.value)} onChange={(event) => onCommit(String(event.target.checked))} />
+  }
+
+  const handleChange = (raw: string) => {
+    setDraft(raw)
+    if (numeric) {
+      const text = raw.trim()
+      // Mientras el usuario escribe estados intermedios ("-", "0.", "1e-") solo se guarda el borrador:
+      // el punto decimal no desaparece y el valor se confirma cuando es un número completo.
+      if (!text || !Number.isFinite(Number(text))) return
+      onCommit(raw)
+      return
+    }
+    if (parameter.kind === 'array') {
+      try { const candidate: unknown = JSON.parse(raw); if (Array.isArray(candidate)) onCommit(raw) } catch { /* espera un array JSON válido */ }
+      return
+    }
+    if (parameter.kind === 'color') {
+      const previous = String(parameter.value)
+      const alpha = /^#[0-9a-fA-F]{8}$/.test(previous) ? previous.slice(7, 9).toLowerCase() : ''
+      onCommit(raw.toLowerCase() + alpha)
+      return
+    }
+    onCommit(raw)
+  }
+
+  const type = parameter.kind === 'range' ? 'range' : parameter.kind === 'color' ? 'color' : numeric ? 'number' : 'text'
+  const shown = draft ?? (type === 'color' ? normalizeColorInputValue(committed) : committed)
+  return <input id={inputId} type={type} min={parameter.min} max={parameter.max} step={parameter.step} value={shown} onChange={(event) => handleChange(event.target.value)} onBlur={() => setDraft(null)} />
+}
+
 export function PipelineInspector({
   selectedNode,
   selectedEdge,
@@ -437,13 +492,7 @@ export function PipelineInspector({
     {selectedNode ? <div className="pipeline-parameters">
       {selectedNode.parameters.map((parameter) => <label className="pipeline-field" key={parameter.id} htmlFor={'pipeline-param-' + selectedNode.id + '-' + parameter.id}>
         <span>{parameter.label}</span>
-        {parameter.kind === 'select'
-          ? <select id={'pipeline-param-' + selectedNode.id + '-' + parameter.id} value={String(parameter.value)} onChange={(event) => onUpdateParameter(selectedNode, parameter, event.target.value)}>{parameter.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select>
-          : parameter.kind === 'boolean'
-            ? <input id={'pipeline-param-' + selectedNode.id + '-' + parameter.id} type="checkbox" checked={Boolean(parameter.value)} onChange={(event) => onUpdateParameter(selectedNode, parameter, String(event.target.checked))} />
-            : parameter.kind === 'array'
-              ? <input id={'pipeline-param-' + selectedNode.id + '-' + parameter.id} type="text" value={JSON.stringify(parameter.value)} onChange={(event) => onUpdateParameter(selectedNode, parameter, event.target.value)} />
-            : <input id={'pipeline-param-' + selectedNode.id + '-' + parameter.id} type={parameter.kind} min={parameter.min} max={parameter.max} step={parameter.step} value={String(parameter.value)} onChange={(event) => onUpdateParameter(selectedNode, parameter, event.target.value)} />}
+        <ParameterValueInput inputId={'pipeline-param-' + selectedNode.id + '-' + parameter.id} parameter={parameter} onCommit={(value) => onUpdateParameter(selectedNode, parameter, value)} />
         <button className="pipeline-parameter-visibility" type="button" aria-label={`${parameter.showInNode === false ? 'Mostrar' : 'Ocultar'} ${parameter.label} en el nodo`} title={`${parameter.showInNode === false ? 'Mostrar' : 'Ocultar'} en nodo`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggleParameterVisibility?.(selectedNode.id, parameter.id) }}>{parameter.showInNode === false ? <EyeOff size={13} /> : <Eye size={13} />}</button>
       </label>)}
       {canDropAsset && <div
@@ -918,6 +967,29 @@ export function PipelineEditor({ assets = [], onImportFiles = async () => [], ac
     return () => window.removeEventListener('mosaico:asset-open', receive)
   }, [remember, setNodes])
 
+  // Ctrl/Cmd+D: duplica los nodos seleccionados con desplazamiento y re-id.
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'd') return
+      if (event.repeat) return
+      const target = event.target as HTMLElement
+      if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) return
+      const selectedNodes = nodes.filter((node) => node.selected)
+      if (!selectedNodes.length) return
+      event.preventDefault(); remember()
+      setNodes((current) => [...current.map((node) => ({ ...node, selected: false })), ...selectedNodes.map((node) => ({
+        id: crypto.randomUUID(),
+        type: 'mosaico' as const,
+        position: { x: node.position.x + 48, y: node.position.y + 48 },
+        selected: true,
+        data: { demo: { ...node.data.demo, id: crypto.randomUUID() } },
+      }))])
+      setStatus(`${selectedNodes.length} nodo(s) duplicado(s).`)
+    }
+    document.addEventListener('keydown', key)
+    return () => document.removeEventListener('keydown', key)
+  }, [nodes, remember])
+
   const usedAssetKey = useMemo(() => [...new Set(nodes.flatMap((node) => node.data.demo.assetId ? [node.data.demo.assetId] : []))].sort().join('|'), [nodes])
   const usedAssetIds = useMemo(() => new Set(usedAssetKey ? usedAssetKey.split('|') : []), [usedAssetKey])
 
@@ -1292,7 +1364,7 @@ export function PipelineEditor({ assets = [], onImportFiles = async () => [], ac
     Archivo: [['Nuevo Pipeline', createNewPipeline], ['Abrir .mpl', () => projectFileRef.current?.click()], ['Guardar .mpl', () => void savePipeline()], ['Limpiar borrador', clearDraft]],
     Editar: [['Deshacer', () => restoreHistory('undo')], ['Rehacer', () => restoreHistory('redo')], ['Eliminar selección', () => actionsRef.current?.deleteSelection()]],
     Nodos: [['Abrir palette', () => setPaletteOpen(true)], ['Crear nodo personalizado', () => setCustomDialogOpen(true)]],
-    Timeline: [['Play/Pause', () => setPlaying((value) => !value)], ['Stop', stopTimeline], ['Loop', () => setLoop((value) => !value)], ['Añadir keyframe', () => setStatus('Selecciona una pista para añadir keyframe.')]],
+    Timeline: [['Play/Pause', () => setPlaying((value) => !value)], ['Stop', stopTimeline], ['Loop', () => setLoop((value) => !value)], ['Añadir keyframe', () => { void addKeyframe() }]],
     Assets: [['Importar Assets', () => assetFileRef.current?.click()], ['Refrescar catálogo', () => setStatus('Catálogo de Assets actualizado.')]],
     Vista: [['Acercar', () => actionsRef.current?.zoomIn()], ['Alejar', () => actionsRef.current?.zoomOut()], ['Ajustar canvas', () => actionsRef.current?.fitView()]],
     Diagnóstico: [['Mostrar estado', () => setStatus(`${evaluation.diagnostics.length} diagnóstico(s) activo(s).`)], ['Limpiar estado', () => setStatus('Estado limpiado.')]],
@@ -1374,7 +1446,7 @@ export function PipelineEditor({ assets = [], onImportFiles = async () => [], ac
             <div className="pipeline-palette-tabs" role="tablist" aria-label="Node families">{paletteFamilies.map((family) => <button type="button" role="tab" aria-selected={familyFilter === family} className={familyFilter === family ? 'active' : ''} key={family} onClick={() => setFamilyFilter(family)}>{family === 'all' ? 'All' : family}</button>)}</div>
             <div className="pipeline-palette-list">{filteredLibrary.map((item) => <button type="button" key={item.kind} onClick={() => addNode(item.kind, item.label)}><span className={'pipeline-kind-mark ' + item.kind} aria-hidden="true" /><span><strong>{item.label}</strong><small>{item.description}</small></span></button>)}{filteredCustomLibrary.map((definition) => <button type="button" key={definition.id} onClick={() => addCustomNode(definition)}><span className="pipeline-kind-mark custom" aria-hidden="true" /><span><strong data-user-content="true">{definition.name}</strong><small>{definition.family} · Custom DSL</small></span></button>)}</div>
           </div>}
-          {nodeContextMenu && <div className="pipeline-node-context-menu" role="menu" style={{ left: nodeContextMenu.x, top: nodeContextMenu.y }}><button type="button" role="menuitem" onClick={() => { const id = nodeContextMenu.nodeId; remember(); setNodes((current) => current.map((node) => node.id === id ? { ...node, data: { demo: { ...node.data.demo, previewVisible: node.data.demo.previewVisible === false } } } : node)); setNodeContextMenu(undefined) }}>{nodes.find((node) => node.id === nodeContextMenu.nodeId)?.data.demo.previewVisible === false ? 'Show Preview' : 'Collapse Preview'}</button><button type="button" role="menuitem" onClick={() => { const id = nodeContextMenu.nodeId; remember(); setNodes((current) => current.filter((node) => node.id !== id)); setEdges((current) => current.filter((edge) => edge.source !== id && edge.target !== id)); setKeyframes((current) => current.filter((frame) => frame.nodeId !== id)); setSnapshots((current) => current.filter((snapshot) => snapshot.selectedNodeId !== id)); setNodeContextMenu(undefined); setStatus('Nodo eliminado.') }}>Delete Node</button></div>}
+          {nodeContextMenu && <div className="pipeline-node-context-menu" role="menu" style={{ left: nodeContextMenu.x, top: nodeContextMenu.y }}><button type="button" role="menuitem" onClick={() => { const id = nodeContextMenu.nodeId; remember(); setNodes((current) => current.map((node) => node.id === id ? { ...node, data: { demo: { ...node.data.demo, previewVisible: node.data.demo.previewVisible === false } } } : node)); setNodeContextMenu(undefined) }}>{nodes.find((node) => node.id === nodeContextMenu.nodeId)?.data.demo.previewVisible === false ? 'Show Preview' : 'Collapse Preview'}</button><button type="button" role="menuitem" onClick={() => { const source = nodes.find((node) => node.id === nodeContextMenu.nodeId); if (!source) return; remember(); const newId = crypto.randomUUID(); setNodes((current) => [...current.map((node) => ({ ...node, selected: false })), { id: newId, type: 'mosaico', position: { x: source.position.x + 48, y: source.position.y + 48 }, selected: true, data: { demo: { ...source.data.demo, id: crypto.randomUUID() } } }]); setNodeContextMenu(undefined); setStatus('Nodo duplicado.') }}>Duplicate Node</button><button type="button" role="menuitem" onClick={() => { const id = nodeContextMenu.nodeId; remember(); setNodes((current) => current.filter((node) => node.id !== id)); setEdges((current) => current.filter((edge) => edge.source !== id && edge.target !== id)); setKeyframes((current) => current.filter((frame) => frame.nodeId !== id)); setSnapshots((current) => current.filter((snapshot) => snapshot.selectedNodeId !== id)); setNodeContextMenu(undefined); setStatus('Nodo eliminado.') }}>Delete Node</button></div>}
           {customDialogOpen && <div className="pipeline-custom-dialog" role="dialog" aria-modal="true" aria-label="Custom node builder">
             <div className="pipeline-palette-heading"><strong>Custom node</strong><button type="button" aria-label="Close custom node builder" onClick={() => setCustomDialogOpen(false)}>×</button></div>
             <div className="pipeline-custom-file-actions"><button type="button" onClick={() => customNodeFileRef.current?.click()}>Import .mnode</button><input ref={customNodeFileRef} className="visually-hidden" type="file" accept=".mnode,application/json" onChange={(event) => { void importCustomNode(event.target.files?.[0]); event.currentTarget.value = '' }} />{customDefinitions[0] && <button type="button" onClick={() => void downloadCustomNode(customDefinitions[0]!) }>Export .mnode</button>}</div>

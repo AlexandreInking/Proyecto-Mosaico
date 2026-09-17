@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BLOB_CLASSES,
+  ISOLATED_BLOB_CLASS,
   addAutotileSet,
   applyAutotileCells,
   autotileDiagnostics,
+  canonicalBlobMask,
   createMapDocument,
   eraseAutotileCells,
   getTile,
+  resolveBlobMask,
   resolveContourMask,
   resolveTerrainRole,
   updateAutotileSet,
@@ -95,5 +99,48 @@ describe('basic autotiling', () => {
     expect(autotileDiagnostics(initial)).toHaveLength(0)
     const used = applyAutotileCells(initial, initial.activeLayerId, [{ x: 1, y: 1 }], set.id, 'terrain')
     expect(autotileDiagnostics(used)[0]).toMatchObject({ code: 'MAP_AUTOTILE_ROLE_MISSING', profile: 'terrain', severity: 'warning' })
+  })
+})
+
+describe('blob autotiling (47/48 pieces)', () => {
+  it('reduces the 8-bit neighborhood to exactly 47 canonical classes', () => {
+    expect(BLOB_CLASSES).toHaveLength(47)
+    expect(new Set(BLOB_CLASSES).size).toBe(47)
+    for (let mask = 0; mask <= 255; mask += 1) expect(BLOB_CLASSES).toContain(canonicalBlobMask(mask))
+  })
+
+  it('ignores diagonals that lack both adjacent cardinals', () => {
+    expect(canonicalBlobMask(0)).toBe(0)
+    expect(ISOLATED_BLOB_CLASS).toBe(0)
+    // NE sin N+E se ignora
+    expect(canonicalBlobMask(2)).toBe(canonicalBlobMask(0))
+    // NE con N+E es la pieza de esquina interna
+    expect(canonicalBlobMask(1 | 4)).toBe(5)
+    expect(canonicalBlobMask(1 | 4 | 2)).toBe(7)
+  })
+
+  it('encodes diagonal neighbors into the blob mask', () => {
+    expect(resolveBlobMask({ north: true, northEast: true, east: false, south: false, west: false })).toBe(3)
+    expect(resolveBlobMask({ north: false, east: true, southWest: true, south: false, west: false })).toBe(36)
+  })
+
+  it('resolves blob classes when painting and supports the extra isolated slot', () => {
+    const blobSet: AutotileSet = {
+      id: 'b0000000-0000-4000-8000-000000000002',
+      name: 'Blob', tilesetId, centerTileId: 0, terrain: {}, contour: {},
+      layout: 'tiles48',
+      blob: {
+        [canonicalBlobMask(resolveBlobMask({ north: false, east: true, south: false, west: false }))]: 5,
+        [canonicalBlobMask(resolveBlobMask({ north: false, east: false, south: false, west: true }))]: 7,
+        extra: 6,
+      },
+    }
+    const withSet = addAutotileSet(document(), blobSet)
+    const painted = applyAutotileCells(withSet, withSet.activeLayerId, [{ x: 1, y: 1 }, { x: 2, y: 1 }], blobSet.id, 'blob')
+    expect(getTile(painted, painted.activeLayerId, { x: 1, y: 1 })?.tileId).toBe(5)
+    expect(getTile(painted, painted.activeLayerId, { x: 2, y: 1 })?.tileId).toBe(7)
+    const isolated = applyAutotileCells(withSet, withSet.activeLayerId, [{ x: 4, y: 4 }], blobSet.id, 'blob')
+    expect(getTile(isolated, isolated.activeLayerId, { x: 4, y: 4 })?.tileId).toBe(6)
+    expect(getTile(isolated, isolated.activeLayerId, { x: 4, y: 4 })?.autotileProfile).toBe('blob')
   })
 })

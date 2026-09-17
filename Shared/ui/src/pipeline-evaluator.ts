@@ -639,7 +639,7 @@ function nodeOutput(node: DemoNode, incoming: ReadonlyMap<string, PipelineValue>
   if (node.kind === 'number') { output.set('value-out', numberParameter(node, 'value', 0, incoming)); return output }
   if (node.kind === 'number-array') { output.set('array-out', numberArray(parameter(node, 'value', incoming)?.value)); return output }
   if (node.kind === 'evaluate') { output.set('value-out', scalarValue(incoming, 'value-in') ?? numberParameter(node, 'value', 0, incoming)); return output }
-  if (['absolute', 'ceil', 'cosine', 'floor', 'round', 'sine', 'square-root', 'tangent', 'evaluate'].includes(node.kind)) {
+  if (['absolute', 'ceil', 'cosine', 'floor', 'round', 'sine', 'square-root', 'tangent'].includes(node.kind)) {
     const value = scalarIncoming(incoming, 'value-in', numberParameter(node, 'value', 0, incoming)); const result = node.kind === 'absolute' ? Math.abs(value) : node.kind === 'ceil' ? Math.ceil(value) : node.kind === 'cosine' ? Math.cos(value) : node.kind === 'floor' ? Math.floor(value) : node.kind === 'round' ? Math.round(value) : node.kind === 'sine' ? Math.sin(value) : node.kind === 'square-root' ? Math.sqrt(Math.max(0, value)) : node.kind === 'tangent' ? Math.tan(value) : value
     output.set('value-out', Number.isFinite(result) ? result : 0); return output
   }
@@ -664,7 +664,11 @@ function nodeOutput(node: DemoNode, incoming: ReadonlyMap<string, PipelineValue>
     const source = arrayInput(incoming, 'array-in') ?? []; const index = Math.trunc(scalarIncoming(incoming, 'index', 0)); const target = arrayInput(incoming, 'b') ?? []; let result: PipelineValue
     if (node.kind === 'array-length') result = source.length
     else if (node.kind === 'array-reverse') result = [...source].reverse()
-    else if (node.kind === 'array-sort') result = [...source].sort((left, right) => String(left).localeCompare(String(right)))
+    else if (node.kind === 'array-sort') result = [...source].sort((left, right) => {
+      const isNumericValue = (item: string | number | boolean | readonly number[]): item is number | string => (typeof item === 'number' && Number.isFinite(item)) || (typeof item === 'string' && item.trim() !== '' && Number.isFinite(Number(item)))
+      if (isNumericValue(left) && isNumericValue(right)) return Number(left) - Number(right)
+      return String(left).localeCompare(String(right))
+    })
     else if (node.kind === 'array-shuffle' || node.kind === 'array-randomizer') result = [...source].map((value, position) => ({ value, key: Math.sin((position + 1) * (numberParameter(node, 'seed', 1, incoming) + 1)) })).sort((left, right) => left.key - right.key).map((item) => item.value)
     else if (node.kind === 'array-find') result = source.findIndex((value) => String(value) === String(scalarValue(incoming, 'value-in') ?? ''))
     else if (node.kind === 'array-get') result = source[index] ?? 0

@@ -2,6 +2,7 @@ import {
   MAXIMUM_AUTOTILE_SETS,
   applyMapCells,
   getTile,
+  type AutotileProfile,
   type AutotileSet,
   type GridCoordinate,
   type MapDocument,
@@ -22,6 +23,38 @@ export interface TerrainNeighbors extends CardinalNeighbors {
   readonly southWest?: boolean
 }
 
+// Regla estándar del blob: una diagonal solo distingue la pieza si sus dos cardinales adyacentes están presentes.
+export function canonicalBlobMask(mask: number): number {
+  let m = mask & 255
+  if (!((m & 1) && (m & 4))) m &= ~2
+  if (!((m & 4) && (m & 16))) m &= ~8
+  if (!((m & 16) && (m & 64))) m &= ~32
+  if (!((m & 64) && (m & 1))) m &= ~128
+  return m
+}
+
+const popcount = (value: number): number => { let count = 0; let bits = value; while (bits) { count += bits & 1; bits >>= 1 } return count }
+
+function computeBlobClasses(): readonly number[] {
+  const seen = new Set<number>()
+  for (let mask = 0; mask <= 255; mask += 1) seen.add(canonicalBlobMask(mask))
+  return [...seen].sort((left, right) => popcount(left) - popcount(right) || left - right)
+}
+
+/** Las 47 clases canónicas del autotile "blob" completo (vecindario de 8, módulo simetrías D4). */
+export const BLOB_CLASSES: readonly number[] = computeBlobClasses()
+export const ISOLATED_BLOB_CLASS = canonicalBlobMask(0)
+
+export interface BlobNeighbors extends TerrainNeighbors {
+}
+
+/** Máscara de 8 bits a partir de los vecinos cardinales y diagonales. */
+export function resolveBlobMask(neighbors: BlobNeighbors): number {
+  return (neighbors.north ? 1 : 0) | (neighbors.northEast ? 2 : 0) | (neighbors.east ? 4 : 0)
+    | (neighbors.southEast ? 8 : 0) | (neighbors.south ? 16 : 0) | (neighbors.southWest ? 32 : 0)
+    | (neighbors.west ? 64 : 0) | (neighbors.northWest ? 128 : 0)
+}
+
 export interface AutotileDiagnostic {
   readonly code: 'MAP_AUTOTILE_ROLE_MISSING'
   readonly severity: 'warning'
@@ -30,7 +63,7 @@ export interface AutotileDiagnostic {
   readonly message: string
   readonly tilesetId: string
   readonly setId: string
-  readonly profile: 'terrain' | 'contour'
+  readonly profile: AutotileProfile
   readonly missing: readonly string[]
 }
 
@@ -43,11 +76,13 @@ export function autotileDiagnostics(document: MapDocument): readonly AutotileDia
   const result: AutotileDiagnostic[] = []
   const used = new Set<string>()
   for (const layer of document.layers) for (const tile of layer.cells.values()) if (tile.autotileSetId && tile.autotileProfile) used.add(`${tile.autotileSetId}:${tile.autotileProfile}`)
-  for (const set of document.autotileSets) for (const profile of ['terrain', 'contour'] as const) {
+  for (const set of document.autotileSets) for (const profile of ['terrain', 'contour', 'blob'] as const) {
     if (!used.has(`${set.id}:${profile}`)) continue
     const missing = profile === 'terrain'
       ? terrainRoles.filter((role) => set.terrain[role] === undefined)
-      : Array.from({ length: 16 }, (_, mask) => String(mask)).filter((mask) => set.contour[mask] === undefined)
+      : profile === 'contour'
+        ? Array.from({ length: 16 }, (_, mask) => String(mask)).filter((mask) => set.contour[mask] === undefined)
+        : BLOB_CLASSES.map((cls) => String(cls)).filter((cls) => set.blob?.[cls] === undefined)
     if (!missing.length) continue
     result.push({
       code: 'MAP_AUTOTILE_ROLE_MISSING', severity: 'warning', groupKey: `autotile:${set.id}:${profile}`, count: missing.length,
@@ -94,7 +129,7 @@ function validateSet(document: MapDocument, set: AutotileSet): void {
   if (!set.id || !set.name.trim()) throw new Error('MAP_REQUIRED_FIELD')
   const tileset = document.tilesets.find((candidate) => candidate.id === set.tilesetId)
   if (!tileset) throw new Error('MAP_TILESET_NOT_FOUND')
-  const ids = [set.centerTileId, ...Object.values(set.terrain), ...Object.values(set.contour)]
+  const ids = [set.centerTileId, ...Object.values(set.terrain), ...Object.values(set.contour), ...Object.values(set.blob ?? {})]
   if (ids.some((id) => !Number.isInteger(id) || id! < 0 || id! >= tileset.tileCount)) throw new RangeError('MAP_TILE_ID_OUT_OF_BOUNDS')
 }
 
@@ -115,7 +150,7 @@ export function updateAutotileSet(document: MapDocument, set: AutotileSet): MapD
     revision: document.revision + 1,
     autotileSets: document.autotileSets.map((candidate) => candidate.id === set.id ? { ...set } : candidate),
   }
-  for (const layer of document.layers) for (const profile of ['terrain', 'contour'] as const) {
+  for (const layer of document.layers) for (const profile of ['terrain', 'contour', 'blob'] as const) {
     const coordinates = [...layer.cells.entries()]
       .filter(([, tile]) => tile.autotileSetId === set.id && tile.autotileProfile === profile)
       .map(([cell]) => { const [x, y] = cell.split(',').map(Number); return { x: x!, y: y! } })
@@ -126,7 +161,12 @@ export function updateAutotileSet(document: MapDocument, set: AutotileSet): MapD
 
 export function removeAutotileSet(document: MapDocument, setId: string): MapDocument {
   requireSet(document, setId)
-  return { ...document, revision: document.revision + 1, autotileSets: document.autotileSets.filter((set) => set.id !== setId) }
+  return {
+    ...document,
+    revision: document.revision + 1,
+    autotileSets: document.autotileSets.filter((set) => set.id !== setId),
+    layers: document.layers.map((layer) => layer.autotileSetId === setId ? { ...layer, autotileSetId: undefined } : layer),
+  }
 }
 
 const key = ({ x, y }: GridCoordinate) => `${x},${y}`
@@ -136,7 +176,7 @@ export function applyAutotileCells(
   layerId: string,
   coordinates: readonly GridCoordinate[],
   setId: string,
-  profile: 'terrain' | 'contour',
+  profile: AutotileProfile,
   options: { readonly allowLocked?: boolean } = {},
 ): MapDocument {
   if (!coordinates.length) return document
@@ -168,9 +208,12 @@ export function applyAutotileCells(
       southEast: member({ x: coordinate.x + 1, y: coordinate.y + 1 }),
       southWest: member({ x: coordinate.x - 1, y: coordinate.y + 1 }),
     }
+    const neighborsMask = profile === 'blob' ? resolveBlobMask(neighbors) : 0
     const tileId = profile === 'contour'
       ? set.contour[resolveContourMask(neighbors)] ?? set.centerTileId
-      : set.terrain[resolveTerrainRole(neighbors)] ?? set.centerTileId
+      : profile === 'blob'
+        ? (neighborsMask === 0 && set.blob?.extra !== undefined ? set.blob.extra : set.blob?.[String(canonicalBlobMask(neighborsMask))]) ?? set.centerTileId
+        : set.terrain[resolveTerrainRole(neighbors)] ?? set.centerTileId
     return [{ ...coordinate, tile: { tilesetId: set.tilesetId, tileId, autotileSetId: set.id, autotileProfile: profile } }]
   })
   return applyMapCells(document, layerId, changes, options)
@@ -179,10 +222,10 @@ export function applyAutotileCells(
 export function eraseAutotileCells(document: MapDocument, layerId: string, coordinates: readonly GridCoordinate[]): MapDocument {
   if (!coordinates.length) return document
   const removed = new Set(coordinates.map(key))
-  const identities = new Map<string, { setId: string; profile: 'terrain' | 'contour' }>()
+  const identities = new Map<string, { setId: string; profile: AutotileProfile }>()
   for (const coordinate of coordinates) {
     const tile = getTile(document, layerId, coordinate)
-    if (tile?.autotileSetId && tile.autotileProfile) identities.set(`${tile.autotileSetId}:${tile.autotileProfile}`, { setId: tile.autotileSetId, profile: tile.autotileProfile })
+    if (tile?.autotileSetId && tile.autotileProfile && document.autotileSets.some((set) => set.id === tile.autotileSetId)) identities.set(`${tile.autotileSetId}:${tile.autotileProfile}`, { setId: tile.autotileSetId, profile: tile.autotileProfile })
   }
   let next = applyMapCells(document, layerId, coordinates.map((coordinate) => ({ ...coordinate })))
   for (const identity of identities.values()) {

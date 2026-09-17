@@ -60,7 +60,7 @@ export class OrthogonalPixiViewport {
 
   get canvas(): HTMLCanvasElement { return this.#renderer.canvas }
 
-  render(document: MapDocument, viewport: ViewportState, options: { readonly showGrid?: boolean } = {}): number {
+  render(document: MapDocument, viewport: ViewportState, options: { readonly showGrid?: boolean; /** Vista intención: tinte por tile `${tilesetId}:${tileId}`. */ readonly tintByTile?: ReadonlyMap<string, number>; /** Atenuar tiles sin tinte cuando hay mapa de tinte activo. */ readonly dimUntinted?: boolean; /** Renderizar solo esta capa (para vista intención). */ readonly onlyLayerId?: string } = {}): number {
     if (viewport.width !== this.#width || viewport.height !== this.#height) {
       this.#renderer.resize(viewport.width, viewport.height)
       this.#width = viewport.width
@@ -77,6 +77,7 @@ export class OrthogonalPixiViewport {
     const retained = new Set<string>()
     const order: Sprite[] = []
     for (const cell of visible) {
+      if (options.onlyLayerId && cell.layerId !== options.onlyLayerId) continue
       const texture = this.#resolveTexture(cell)
       if (!texture) {
         this.#orphans.rect(cell.screenX, cell.screenY, cell.screenWidth, cell.screenHeight).fill({ color: 0xff00cc, alpha: cell.opacity })
@@ -100,6 +101,10 @@ export class OrthogonalPixiViewport {
       sprite.scale.y = Math.abs(sprite.scale.y) * (cell.flipY ? -1 : 1)
       sprite.rotation = (cell.rotation ?? 0) * Math.PI / 180
       sprite.alpha = cell.opacity
+      if (options.tintByTile) {
+        const tint = options.tintByTile.get(`${cell.tilesetId}:${cell.tileId}`)
+        sprite.tint = tint ?? (options.dimUntinted ? 0x2e3438 : 0xffffff)
+      } else if (sprite.tint !== 0xffffff) sprite.tint = 0xffffff
     }
     for (const [key, sprite] of this.#sprites) if (!retained.has(key)) { this.#sprites.delete(key); this.#content.removeChild(sprite); sprite.visible = false; this.#spritePool.push(sprite) }
     order.forEach((sprite, index) => {

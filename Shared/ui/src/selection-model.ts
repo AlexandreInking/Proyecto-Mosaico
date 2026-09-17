@@ -43,8 +43,9 @@ export function combineSelection(current: SelectionMask | undefined, next: Selec
 }
 
 export function invertSelection(mask: SelectionMask): SelectionMask {
-  const pixels = new Set<number>(); for (let index = 0; index < mask.width * mask.height; index += 1) if (!mask.pixels.has(index)) pixels.add(index)
-  return { ...mask, pixels }
+  const selected = materialize(mask)
+  const pixels = new Set<number>(); for (let index = 0; index < mask.width * mask.height; index += 1) if (!selected.has(index)) pixels.add(index)
+  return { width: mask.width, height: mask.height, pixels }
 }
 
 export function translateSelection(mask: SelectionMask, dx: number, dy: number): SelectionMask {

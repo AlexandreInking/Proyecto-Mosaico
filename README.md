@@ -2,17 +2,23 @@
 
 Plataforma en transformación para pipelines de assets y diseño procedural de videojuegos. Objetivo: preparar sprites, modelos y audio; optimizar, convertir, generar atlas/LOD; editar mapas; y generar contenido RPG estructurado mediante patrones, proceduralidad, WFC e IA validada.
 
-**Estado:** editor WPF F1 funcional preservado como baseline. Arquitectura WebApp + DesktopApp propuesta y pendiente de aprobación antes de migrar código. Ver [especificación](docs/transformation/SPEC.md), [plan](docs/transformation/PLAN.md) y [backlog](docs/transformation/BACKLOG.md).
+**Estado:** Mosaico es una aplicación Desktop Windows descargable, local y offline, construida con Tauri 2. El editor WPF queda preservado como baseline histórico. `WebApp` permanece en el repositorio como superficie técnica no incluida en este producto ni en el Hito 1.1. Ver [Hito 1.1](docs/alpha-0.1/HITO_1_1.md), [auditoría](docs/alpha-0.1/AUDITORIA_HITO_1_1.md) y documentación histórica de [transformación](docs/transformation/PLAN.md).
 
 ## Dirección de producto
 
-- `DesktopApp`: aplicación local, offline y comercial en el futuro.
-- `WebApp`: aplicación online, con suscripción futura.
-- Misma UI React/TypeScript compartida; Tauri 2 para escritorio, AdonisJS para API web y PixiJS para lienzos.
+- `DesktopApp`: aplicación descargable para Windows, local y offline.
+- `WebApp`: fuera del alcance del producto y del release Alpha 0.1.
+- React/TypeScript dentro de Tauri 2; PixiJS para lienzos.
 - IA genera mapas, ciudades, quests, diálogos, economía y árboles de habilidades como datos tipados. No genera imágenes.
-- Pagos, DRM y suscripciones quedan fuera hasta validar ambas aplicaciones.
+- Pagos, DRM, suscripciones y servicios web quedan fuera de este hito.
 
-## Inicio rápido del baseline WPF
+## Descarga Desktop
+
+- Instalador Windows: `DesktopApp/dist/mosaico-setup-0.2.20.exe`.
+- Para regenerarlo: `pnpm installer:build`.
+- `Mosaico.cmd` abre el binario Tauri compilado; no recompila ni inicia una webapp.
+
+## Baseline WPF histórico
 
 Requiere Windows 10/11 y .NET SDK 10.0.300.
 
@@ -60,14 +66,14 @@ powershell -ExecutionPolicy Bypass -File scripts/record-phase1-manual.ps1 `
 
 - `DesktopApp/LegacyWpf/src/Mosaico.Core/`: modelo, comandos, persistencia y exportación del baseline.
 - `DesktopApp/LegacyWpf/src/Mosaico.App/`: shell WPF conservado hasta paridad T2.
-- `Shared/`: contratos y UI React consumidos por ambas aplicaciones.
+- `Shared/`: contratos y UI React consumidos por DesktopApp.
 - `DesktopApp/app` + `DesktopApp/src-tauri`: entrada Vite y host local Tauri.
-- `WebApp/client` + `WebApp/server`: entrada web y API AdonisJS.
+- `WebApp/client` + `WebApp/server`: superficie técnica no distribuida.
 - `tests/`: pruebas Core, WPF y benchmarks.
 - `fixtures/phase1/`: mapas, bundles y atlas reproducibles.
 - `docs/adr/ADR-002-export-and-unity-importer-boundary.md`: contrato editor/importadores.
 
-Durante T0, baseline se moverá con historial a `DesktopApp/LegacyWpf`; nueva UI vivirá compartida entre `DesktopApp` y `WebApp`. Distribución final será Web por suscripción y Desktop mediante compra, pero comercialización se difiere a T9. Bundle exportado no ejecuta código, scripts ni plugins.
+El baseline WPF conserva historial y compatibilidad de referencia; el producto actual se distribuye solo como Desktop Windows. Bundle exportado no ejecuta código, scripts ni plugins.
 
 ## Documentación canónica
 

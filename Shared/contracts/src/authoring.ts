@@ -15,7 +15,7 @@ export const tileReferenceSchema = z.object({
   flipY: z.boolean().optional(),
   rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional(),
   autotileSetId: stableIdSchema.optional(),
-  autotileProfile: z.enum(['terrain', 'contour']).optional(),
+  autotileProfile: z.enum(['terrain', 'contour', 'blob']).optional(),
   animationId: stableIdSchema.optional(),
   animationFrame: z.number().int().nonnegative().optional(),
   animationDurationMs: z.number().int().min(10).max(60_000).optional(),
@@ -57,7 +57,7 @@ export const tilesetSchema = z.object({
 export const tileLayerSchema = z.object({
   id: stableIdSchema,
   name: nameSchema,
-  kind: z.literal('tile'),
+  kind: z.enum(['tile', 'autotile']),
   visible: z.boolean(),
   locked: z.boolean(),
   opacity: opacitySchema,
@@ -65,6 +65,7 @@ export const tileLayerSchema = z.object({
   isFolder: z.boolean().optional(),
   parentId: stableIdSchema.optional(),
   collapsed: z.boolean().optional(),
+  autotileSetId: stableIdSchema.optional(),
 }).strict().superRefine((layer, context) => {
   const coordinates = new Set<string>()
   for (const cell of layer.cells) {
@@ -146,6 +147,8 @@ const terrainRoleSchema = z.enum([
   'innerTopLeft', 'innerTopRight', 'innerBottomRight', 'innerBottomLeft',
 ])
 
+export const autotileLayoutSchema = z.enum(['tiles5', 'tiles16', 'tiles47', 'tiles48'])
+
 export const autotileSetSchema = z.object({
   id: stableIdSchema,
   name: nameSchema,
@@ -153,6 +156,8 @@ export const autotileSetSchema = z.object({
   centerTileId: z.number().int().nonnegative(),
   terrain: z.partialRecord(terrainRoleSchema, z.number().int().nonnegative()),
   contour: z.record(z.string().regex(/^(?:[0-9]|1[0-5])$/), z.number().int().nonnegative()),
+  blob: z.record(z.string().regex(/^(?:extra|(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]))$/), z.number().int().nonnegative()).optional(),
+  layout: autotileLayoutSchema.optional(),
 }).strict()
 
 export const mapDocumentSchema = z.object({
@@ -178,14 +183,18 @@ export const mapDocumentSchema = z.object({
   if (!document.layers.some((layer) => layer.id === document.activeLayerId)) context.addIssue({ code: 'custom', message: 'Active layer must exist.', path: ['activeLayerId'] })
   const tileCounts = new Map(document.tilesets.map((tileset) => [tileset.id, tileset.tileCount]))
   const tilesets = new Map(document.tilesets.map((tileset) => [tileset.id, tileset]))
+  const autotileSetIds = new Set(document.autotileSets.map((set) => set.id))
   let occupiedCells = 0
   for (const [setIndex, set] of document.autotileSets.entries()) {
     const count = tileCounts.get(set.tilesetId)
-    if (count === undefined || [set.centerTileId, ...Object.values(set.terrain), ...Object.values(set.contour)].some((id) => id >= count)) {
+    if (count === undefined || [set.centerTileId, ...Object.values(set.terrain), ...Object.values(set.contour), ...Object.values(set.blob ?? {})].some((id) => id >= count)) {
       context.addIssue({ code: 'custom', message: 'Autotile set references an invalid tile.', path: ['autotileSets', setIndex] })
     }
   }
   for (const [layerIndex, layer] of document.layers.entries()) {
+    if (layer.kind === 'autotile' && layer.autotileSetId && !autotileSetIds.has(layer.autotileSetId)) {
+      context.addIssue({ code: 'custom', message: 'Autotile layer references a missing autotile set.', path: ['layers', layerIndex, 'autotileSetId'] })
+    }
     occupiedCells += layer.cells.length
     for (const [cellIndex, cell] of layer.cells.entries()) {
       if (cell.x >= document.width || cell.y >= document.height) context.addIssue({ code: 'custom', message: 'Map cell is outside logical bounds.', path: ['layers', layerIndex, 'cells', cellIndex] })
@@ -345,3 +354,23 @@ export type SpriteFrameContract = z.infer<typeof spriteFrameSchema>
 export type SpriteCelContract = z.infer<typeof spriteCelSchema>
 export type SpriteLayerContract = z.infer<typeof spriteLayerSchema>
 export type SpriteDocumentContract = z.infer<typeof spriteDocumentSchema>
+
+export const brushPresetSchema = z.object({
+  id: stableIdSchema,
+  label: z.string().trim().min(1).max(64),
+  shape: z.enum(['square', 'circle', 'diamond']),
+  size: z.number().int().min(1).max(32),
+}).strict()
+
+export const brushPackSchema = z.object({
+  format: z.literal('mosaico-brush-pack'),
+  formatVersion: z.literal(1),
+  name: nameSchema,
+  brushes: z.array(brushPresetSchema).min(1).max(64),
+}).strict().superRefine((pack, context) => {
+  const identifiers = pack.brushes.map((brush) => brush.id)
+  if (new Set(identifiers).size !== identifiers.length) context.addIssue({ code: 'custom', message: 'Brush preset identifiers must be unique.' })
+})
+
+export type BrushPresetContract = z.infer<typeof brushPresetSchema>
+export type BrushPackContract = z.infer<typeof brushPackSchema>
