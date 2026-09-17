@@ -1,54 +1,87 @@
-# Proyecto Mosaico — Documentación y gobernanza
+# Proyecto Mosaico
 
-Este repositorio contiene la documentación técnica y de producto de Proyecto Mosaico. Ola 1 está cerrada y Fase 0 está autorizada de forma condicionada para spikes descartables; Fase 1 todavía no está aprobada.
+Plataforma en transformación para pipelines de assets y diseño procedural de videojuegos. Objetivo: preparar sprites, modelos y audio; optimizar, convertir, generar atlas/LOD; editar mapas; y generar contenido RPG estructurado mediante patrones, proceduralidad, WFC e IA validada.
 
-## Contenido
+**Estado:** Mosaico es una aplicación Desktop Windows descargable, local y offline, construida con Tauri 2. El editor WPF queda preservado como baseline histórico. `WebApp` permanece en el repositorio como superficie técnica no incluida en este producto ni en el Hito 1.1. Ver [Hito 1.1](docs/alpha-0.1/HITO_1_1.md), [auditoría](docs/alpha-0.1/AUDITORIA_HITO_1_1.md) y documentación histórica de [transformación](docs/transformation/PLAN.md).
 
-- `documentos/`: quince capítulos canónicos, numerados del 00 al 14. Toda edición normativa empieza aquí.
-- `Proyecto_Mosaico_Dossier_Completo.md`: artefacto generado desde los capítulos; no editar directamente.
-- `diagramas/`: diagramas en PNG y sus fuentes Graphviz `.dot`.
-- `analisis_documental/`: inventario, trazabilidad, auditorías, backlog y dictamen.
-- `tools/docs/` y `tests/docs/`: generación y verificaciones documentales reproducibles.
+## Dirección de producto
 
-## Verificación
+- `DesktopApp`: aplicación descargable para Windows, local y offline.
+- `WebApp`: fuera del alcance del producto y del release Alpha 0.1.
+- React/TypeScript dentro de Tauri 2; PixiJS para lienzos.
+- IA genera mapas, ciudades, quests, diálogos, economía y árboles de habilidades como datos tipados. No genera imágenes.
+- Pagos, DRM, suscripciones y servicios web quedan fuera de este hito.
 
-Requiere Python 3.11 o posterior. El generador y los validadores usan solo biblioteca estándar. El render PDF y su prueba requieren las dependencias de `requirements-docs.txt`.
+## Descarga Desktop
+
+- Instalador Windows: `DesktopApp/dist/mosaico-setup-0.2.20.exe`.
+- Para regenerarlo: `pnpm installer:build`.
+- `Mosaico.cmd` abre el binario Tauri compilado; no recompila ni inicia una webapp.
+
+## Baseline WPF histórico
+
+Requiere Windows 10/11 y .NET SDK 10.0.300.
+
+- Doble clic en `Mosaico.cmd` para abrir el paquete Release preparado.
+- Desde código fuente:
+
+  ```powershell
+  dotnet run --project DesktopApp/LegacyWpf/src/Mosaico.App/Mosaico.App.csproj -c Release
+  ```
+
+## Funciones F1
+
+- Importación PNG con tamaño de tile, margen, espaciado y preview 2×2.
+- Una pestaña compacta por tileset y pestaña `+` para importar otro.
+- Tiles por `tilesetId + tileId` colocados en coordenadas de mapa; no editor de píxeles.
+- Capas ordenables, visibles y bloqueables.
+- Eliminación reversible de capas y tilesets. Tiles huérfanos muestran marcador magenta en vez de desaparecer.
+- Consola inferior agrupa errores equivalentes por tileset ausente y muestra conteo total.
+- Pincel, borrador, fill, picker, selección y undo/redo.
+- Tamaño de celda configurable al crear mapa o después.
+- Guardado `.mosaico` autocontenido y exportación determinista `.mosaicpack`.
+- UI WPF oscura inspirada en editores gráficos, con menú textual e iconos Lucide.
+
+Atajos principales: `Ctrl+N`, `Ctrl+O`, `Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+Z`, `Ctrl+Y`, `M`, `B`, `E`, `G`, `I`, `H`, `Z`, `Delete`, `Escape` y `0` para encuadrar.
+
+## Verificación F1
+
+```powershell
+dotnet build DesktopApp/LegacyWpf/ProyectoMosaico.slnx -c Release
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.App.Tests/Mosaico.App.Tests.csproj -c Release
+powershell -ExecutionPolicy Bypass -File scripts/phase1-gate.ps1
+```
+
+Gate exige worktree limpio, ejecuta 36 pruebas Core, 14 pruebas WPF, smoke real en Unity 6.3 y publica paquete ligado al commit. Seguir [MG-02](docs/manual/MG-02-editor-tilemaps.md) y registrar veredicto con:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/record-phase1-manual.ps1 `
+  -Status PASS -Operator "Nombre" `
+  -Display "1920x1080 100%; 1920x1080 150%; 2560x1440 100%; ventana mínima" `
+  -Notes "Sin fallos" -Captures "output/evidence/phase1/captura.png"
+```
+
+## Arquitectura actual y migración
+
+- `DesktopApp/LegacyWpf/src/Mosaico.Core/`: modelo, comandos, persistencia y exportación del baseline.
+- `DesktopApp/LegacyWpf/src/Mosaico.App/`: shell WPF conservado hasta paridad T2.
+- `Shared/`: contratos y UI React consumidos por DesktopApp.
+- `DesktopApp/app` + `DesktopApp/src-tauri`: entrada Vite y host local Tauri.
+- `WebApp/client` + `WebApp/server`: superficie técnica no distribuida.
+- `tests/`: pruebas Core, WPF y benchmarks.
+- `fixtures/phase1/`: mapas, bundles y atlas reproducibles.
+- `docs/adr/ADR-002-export-and-unity-importer-boundary.md`: contrato editor/importadores.
+
+El baseline WPF conserva historial y compatibilidad de referencia; el producto actual se distribuye solo como Desktop Windows. Bundle exportado no ejecuta código, scripts ni plugins.
+
+## Documentación canónica
+
+`documentos/` contiene quince capítulos normativos, numerados 00–14. `Proyecto_Mosaico_Dossier_Completo.md` es artefacto generado; no editar directamente. Verificación documental:
 
 ```text
 python -m unittest discover -s tests/docs -v
-python tools/docs/build_dossier.py
 python tools/docs/build_dossier.py --check
 python tools/docs/check_docs.py
 python tools/docs/check_traceability.py
-python tools/docs/render_pdf.py
 ```
-
-El primer comando prueba la lógica. Los dos siguientes regeneran y comprueban el dossier. Los validadores rechazan rutas no portables, metadatos incoherentes y trazabilidad incompleta. El último genera `output/pdf/Proyecto_Mosaico_Dossier_Completo.pdf`.
-
-## Orden de lectura recomendado
-
-1. `00_Indice_Maestro_y_Gobernanza.md`
-2. `01_Vision_Producto_y_Alcance.md`
-3. `02_Especificacion_de_Requisitos.md`
-4. `03_Arquitectura_de_Software.md`
-5. Continúe en orden numérico hasta el documento 14.
-
-Los capítulos son la fuente de verdad. Cambios de requisitos, arquitectura, formato, seguridad o gates requieren la autoridad definida en PM-00.
-
-## Probar el ejecutable F0
-
-Requiere Windows 10/11 y .NET SDK 10.0.300. El programa es un spike técnico Windows; no representa todavía Fase 1 ni UI/formato finales.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/manual-gate.ps1
-```
-
-El gate exige un worktree Git limpio, compila Release, ejecuta pruebas, registra benchmark, publica un paquete ligado al commit y abre la aplicación. Resultado automático queda en `output/gate/gate-result.json`; paquete queda en `output/manual/Mosaico-F0-<commit>/`.
-
-Seguir [MG-01](docs/manual/MG-01-primer-mapa.md). Luego registrar veredicto:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/record-manual-result.ps1 -Status PASS -Operator "Nombre" -Display "1920x1080 100%" -Notes "Sin fallos"
-```
-
-Atajos: `Ctrl+N`, `Ctrl+O`, `Ctrl+Shift+S`, `Ctrl+Z`, `Ctrl+Y`, `P`, `E` y `0` para encuadrar. Pintura, pan y zoom espacial requieren mouse en F0; accesibilidad espacial completa permanece abierta para Fase 1.

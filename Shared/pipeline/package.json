@@ -1,0 +1,17 @@
+{
+  "name": "@mosaico/pipeline",
+  "private": true,
+  "version": "0.3.0-t1",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": { "@mosaico/contracts": "workspace:*" },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

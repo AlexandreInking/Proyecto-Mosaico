@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Mosaico",
+  "version": "0.2.20",
+  "identifier": "com.proyectomosaico.desktop",
+  "build": {
+    "beforeDevCommand": "cmd /c ..\\..\\scripts\\desktop-pnpm.cmd dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "cmd /c ..\\..\\scripts\\desktop-pnpm.cmd build",
+    "frontendDist": "../app/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Mosaico — Pixel workspace",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 760,
+        "minHeight": 520,
+        "resizable": true,
+        "backgroundColor": "#111518"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "publisher": "Proyecto Mosaico",
+    "homepage": "https://github.com/AlexandreInking/Proyecto-Mosaico",
+    "copyright": "Copyright © Proyecto Mosaico",
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "allowDowngrades": false,
+      "nsis": {
+        "installMode": "currentUser",
+        "headerImage": "icons/installer-header.bmp",
+        "sidebarImage": "icons/installer-sidebar.bmp",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "installerHooks": "nsis/installer-hooks.nsh"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCNDhDMzU2NTE0OEYxRUUKUldUdThVaFJWc05JYTZ2MFlLQUkvQ1NsMWl6QVdCZ1RFOVBDSU15VUozcXVTYTJuTGllVGJXOVYK",
+      "endpoints": [
+        "https://github.com/AlexandreInking/Proyecto-Mosaico/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

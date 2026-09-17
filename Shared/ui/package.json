@@ -1,0 +1,38 @@
+{
+  "name": "@mosaico/ui",
+  "private": true,
+  "version": "0.2.0-t0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "dependencies": {
+    "@mosaico/canvas": "workspace:*",
+    "@mosaico/contracts": "workspace:*",
+    "@mosaico/domain": "workspace:*",
+    "@mosaico/pipeline": "workspace:*",
+    "@xyflow/react": "^12.11.2",
+    "fflate": "0.8.2",
+    "gifenc": "^1.0.3",
+    "lucide-react": "^1.25.0",
+    "pixi.js": "8.19.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

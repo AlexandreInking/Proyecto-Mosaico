@@ -18,8 +18,11 @@ colorlinks: true
 ---
 
 > **Documento:** PM-08  
-> **Versión:** 0.1.1 - Auditoría incorporada
-> **Estado:** Auditado; no aprobado para implementación, con correcciones previas a Fase 0.
+> **Versión:** 0.2.0 - IA estructurada propuesta
+> **Estado:** Borrador
+> **Cambio:** motor determinista conservado; orquestación IA pendiente de aprobación.
+
+> **Extensión:** IA produce planes y grafos tipados para mapas, ciudades, quests, diálogos, economía y árboles de habilidades. Motores deterministas materializan; validadores/simuladores comprueban. WorldBible mantiene coherencia. IA nunca genera imágenes ni confirma su propia validez. Ver ADR-004.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 

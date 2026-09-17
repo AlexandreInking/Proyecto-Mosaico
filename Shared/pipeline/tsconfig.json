@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "types": ["vitest/globals"], "skipLibCheck": true },
+  "include": ["src", "tests"]
+}

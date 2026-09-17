@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!WebApp/server/.env.test
 *.pem
 *.key
 
@@ -22,10 +23,14 @@ TestResults/
 coverage/
 BenchmarkDotNet.Artifacts/
 node_modules/
+.pnpm-store/
 output/
 tmp/
 __pycache__/
 *.py[cod]
+*.tsbuildinfo
+target/
+DesktopApp/src-tauri/gen/
 
 # Local caches, autosaves and logs
 .cache/

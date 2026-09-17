@@ -1,0 +1,341 @@
+<Window x:Class="Mosaico.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Mosaico.App"
+        xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+        Title="Mosaico — Fase 1" Width="1440" Height="900" MinWidth="1024" MinHeight="680"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="27" />
+            <RowDefinition Height="36" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="25" />
+        </Grid.RowDefinitions>
+
+        <Menu Grid.Row="0" VerticalAlignment="Stretch">
+            <MenuItem Header="_Archivo">
+                <MenuItem Header="_Nuevo mapa…" InputGestureText="Ctrl+N" Click="NewMap_Click" />
+                <MenuItem Header="_Abrir…" InputGestureText="Ctrl+O" Click="OpenMap_Click" />
+                <Separator />
+                <MenuItem Header="_Guardar" InputGestureText="Ctrl+S" Click="SaveMap_Click" />
+                <MenuItem Header="Guardar _como…" InputGestureText="Ctrl+Shift+S" Click="SaveMapAs_Click" />
+                <Separator />
+                <MenuItem Header="_Salir" Click="Exit_Click" />
+            </MenuItem>
+            <MenuItem Header="_Editar">
+                <MenuItem Header="_Deshacer" InputGestureText="Ctrl+Z" Click="Undo_Click" />
+                <MenuItem Header="_Rehacer" InputGestureText="Ctrl+Y" Click="Redo_Click" />
+                <Separator />
+                <MenuItem Header="Borrar _selección" InputGestureText="Supr" Click="DeleteSelection_Click" />
+                <MenuItem Header="Deseleccionar" InputGestureText="Esc" Click="ClearSelection_Click" />
+            </MenuItem>
+            <MenuItem Header="_Mapa">
+                <MenuItem Header="_Encuadrar" InputGestureText="0" Click="FitMap_Click" />
+                <Separator />
+                <MenuItem Header="Tamaño de _celda…" Click="ChangeCellSize_Click" />
+            </MenuItem>
+            <MenuItem Header="_Capa">
+                <MenuItem Header="_Nueva capa" Click="AddLayer_Click" />
+                <MenuItem x:Name="DeleteLayerMenuItem" Header="_Eliminar capa" Click="DeleteLayer_Click" />
+                <MenuItem Header="Subir capa" Click="MoveLayerUp_Click" />
+                <MenuItem Header="Bajar capa" Click="MoveLayerDown_Click" />
+                <Separator />
+                <MenuItem Header="Alternar _visibilidad" Click="ToggleLayerVisibilityMenu_Click" />
+                <MenuItem Header="Alternar _bloqueo" Click="ToggleLayerLockMenu_Click" />
+            </MenuItem>
+            <MenuItem Header="_Tileset">
+                <MenuItem Header="_Importar sprite sheet PNG…" Click="ImportTileset_Click" />
+                <MenuItem x:Name="DeleteTilesetMenuItem" Header="_Eliminar tileset activo" Click="DeleteTileset_Click" />
+            </MenuItem>
+            <MenuItem Header="E_xportar">
+                <MenuItem Header="Bundle para importador Unity…" Click="ExportPack_Click" />
+            </MenuItem>
+            <MenuItem Header="A_yuda">
+                <MenuItem Header="Acerca de Mosaico" Click="About_Click" />
+            </MenuItem>
+        </Menu>
+
+        <Border Grid.Row="1" Background="{StaticResource RaisedBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,1">
+            <DockPanel Margin="6,2">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button x:Name="UndoButton" Style="{StaticResource IconButton}" Click="Undo_Click" ToolTip="Deshacer (Ctrl+Z)" automation:AutomationProperties.Name="Deshacer">
+                        <local:LucideIcon IconName="undo-2" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
+                    </Button>
+                    <Button x:Name="RedoButton" Style="{StaticResource IconButton}" Click="Redo_Click" ToolTip="Rehacer (Ctrl+Y)" automation:AutomationProperties.Name="Rehacer">
+                        <local:LucideIcon IconName="redo-2" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
+                    </Button>
+                    <Separator />
+                    <Button Style="{StaticResource IconButton}" Click="FitMap_Click" ToolTip="Encuadrar mapa (0)" automation:AutomationProperties.Name="Encuadrar mapa">
+                        <local:LucideIcon IconName="frame" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
+                    </Button>
+                    <Separator />
+                    <TextBlock Text="Herramienta" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="6,0" />
+                    <TextBlock x:Name="ActiveToolText" Text="Pincel" VerticalAlignment="Center" MinWidth="72" />
+                    <TextBlock Text="Tile" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <TextBlock x:Name="ActiveTileText" Text="Ninguno" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <TextBlock x:Name="MapMetricsText" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="6,0" />
+                    <TextBlock x:Name="ZoomText" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="12,0,6,0" Text="100 %" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="42" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="310" MinWidth="240" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+                <StackPanel Margin="2,5">
+                    <ToggleButton x:Name="SelectToolButton" Style="{StaticResource ToolToggleButton}" Click="SelectTool_Click" ToolTip="Selección rectangular (M)" automation:AutomationProperties.Name="Selección rectangular">
+                        <local:LucideIcon IconName="mouse-pointer-2" Width="19" Height="19" Foreground="{StaticResource TextBrush}" />
+                    </ToggleButton>
+                    <ToggleButton x:Name="PaintToolButton" Style="{StaticResource ToolToggleButton}" IsChecked="True" Click="PaintTool_Click" ToolTip="Pincel de tiles (B)" automation:AutomationProperties.Name="Pincel de tiles">
+                        <local:LucideIcon IconName="paintbrush" Width="19" Height="19" Foreground="{StaticResource TextBrush}" />
+                    </ToggleButton>
+                    <ToggleButton x:Name="EraseToolButton" Style="{StaticResource ToolToggleButton}" Click="EraseTool_Click" ToolTip="Borrador (E)" automation:AutomationProperties.Name="Borrador">
+                        <local:LucideIcon IconName="eraser" Width="19" Height="19" Foreground="{StaticResource TextBrush}" />
+                    </ToggleButton>
+                    <ToggleButton x:Name="FillToolButton" Style="{StaticResource ToolToggleButton}" Click="FillTool_Click" ToolTip="Relleno (G)" automation:AutomationProperties.Name="Relleno">
+                        <local:LucideIcon IconName="paint-bucket" Width="19" Height="19" Foreground="{StaticResource TextBrush}" />
+                    </ToggleButton>
+                    <ToggleButton x:Name="PickerToolButton" Style="{StaticResource ToolToggleButton}" Click="PickerTool_Click" ToolTip="Tomar tile (I)" automation:AutomationProperties.Name="Tomar tile">
+                        <local:LucideIcon IconName="pipette" Width="19" Height="19" Foreground="{StaticResource TextBrush}" />
+                    </ToggleButton>
+                    <Separator />
+                    <ToggleButton x:Name="PanToolButton" Style="{StaticResource ToolToggleButton}" Click="PanTool_Click" ToolTip="Mano (H)" automation:AutomationProperties.Name="Mano">
+                        <local:LucideIcon IconName="hand" Width="19" Height="19" Foreground="{StaticResource TextBrush}" />
+                    </ToggleButton>
+                    <ToggleButton x:Name="ZoomToolButton" Style="{StaticResource ToolToggleButton}" Click="ZoomTool_Click" ToolTip="Zoom (Z)" automation:AutomationProperties.Name="Zoom">
+                        <local:LucideIcon IconName="zoom-in" Width="19" Height="19" Foreground="{StaticResource TextBrush}" />
+                    </ToggleButton>
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Column="1" Background="#202020">
+                <Grid.RowDefinitions><RowDefinition Height="30"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,5">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="ProjectNameText" Text="Mapa sin título" />
+                        <TextBlock x:Name="DirtyMarkerText" Text=" •" Foreground="{StaticResource AccentBrush}" Visibility="Collapsed" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="1" Margin="8" BorderBrush="#111111" BorderThickness="1">
+                    <local:TileMapViewport x:Name="Viewport" Focusable="True"
+                                           automation:AutomationProperties.Name="Canvas del mapa por tiles"
+                                           automation:AutomationProperties.HelpText="Coloca tiles reales por celda. Rueda cambia zoom; botón central o Espacio y arrastre mueve la cámara." />
+                </Border>
+            </Grid>
+
+            <GridSplitter Grid.Column="2" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" ResizeDirection="Columns" />
+
+            <Grid Grid.Column="3" Background="{StaticResource PanelBrush}">
+                <Grid.RowDefinitions><RowDefinition Height="3*" MinHeight="220"/><RowDefinition Height="5"/><RowDefinition Height="2*" MinHeight="180"/></Grid.RowDefinitions>
+                <Grid Grid.Row="0">
+                    <Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <Border Background="{StaticResource RaisedBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,1" Padding="8,4">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button x:Name="DeleteTilesetButton" Style="{StaticResource IconButton}" Click="DeleteTileset_Click"
+                                        ToolTip="Eliminar tileset activo" automation:AutomationProperties.Name="Eliminar tileset activo">
+                                    <local:LucideIcon IconName="trash-2" Width="17" Height="17" Foreground="{StaticResource DangerBrush}" />
+                                </Button>
+                                <Button Style="{StaticResource IconButton}" Click="ImportTileset_Click"
+                                        ToolTip="Importar sprite sheet" automation:AutomationProperties.Name="Importar sprite sheet">
+                                    <local:LucideIcon IconName="images" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
+                                </Button>
+                            </StackPanel>
+                            <TextBlock x:Name="PaletteSummaryText" Text="Sin tileset" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </Border>
+                    <TabControl x:Name="TilesetTabs" Grid.Row="1" BorderThickness="1,0,0,1"
+                                SelectionChanged="TilesetTabs_SelectionChanged">
+                        <TabControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <TextBlock x:Name="TabName" Text="{Binding Name}" MaxWidth="110" TextTrimming="CharacterEllipsis" />
+                                    <local:LucideIcon x:Name="AddIcon" IconName="plus" Width="17" Height="17"
+                                                      Foreground="{StaticResource TextBrush}" Visibility="Collapsed" />
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsImport}" Value="True">
+                                        <Setter TargetName="TabName" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="AddIcon" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </TabControl.ItemTemplate>
+                        <TabControl.ContentTemplate>
+                            <DataTemplate>
+                                <Grid Background="{StaticResource PanelBrush}">
+                                    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                    <ListBox x:Name="PaletteList" ItemsSource="{Binding Tiles}" SelectedItem="{Binding SelectedTile, Mode=TwoWay}"
+                                             SelectionChanged="PaletteList_SelectionChanged" Padding="0"
+                                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                        <ListBox.ItemsPanel>
+                                            <ItemsPanelTemplate><WrapPanel IsItemsHost="True" /></ItemsPanelTemplate>
+                                        </ListBox.ItemsPanel>
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                                <Setter Property="Width" Value="48"/><Setter Property="Height" Value="48"/>
+                                                <Setter Property="Margin" Value="0"/><Setter Property="Padding" Value="2"/>
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                                                <Setter Property="ToolTip" Value="{Binding Label}"/>
+                                                <Setter Property="automation:AutomationProperties.Name" Value="{Binding Label}"/>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#151515">
+                                                    <Image Source="{Binding Image}" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <Border Grid.Row="1" Visibility="{Binding PaginationVisibility}" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="0,1,0,0" Padding="4">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Button Style="{StaticResource IconButton}" Click="PreviousTilePage_Click" ToolTip="Página anterior"
+                                                    IsEnabled="{Binding CanGoPrevious}"
+                                                    automation:AutomationProperties.Name="Página anterior de tiles">
+                                                <local:LucideIcon IconName="chevron-left" Width="16" Height="16" Foreground="{StaticResource TextBrush}" />
+                                            </Button>
+                                            <TextBlock Text="{Binding PageLabel}" MinWidth="64" TextAlignment="Center" VerticalAlignment="Center" />
+                                            <Button Style="{StaticResource IconButton}" Click="NextTilePage_Click" ToolTip="Página siguiente"
+                                                    IsEnabled="{Binding CanGoNext}"
+                                                    automation:AutomationProperties.Name="Página siguiente de tiles">
+                                                <local:LucideIcon IconName="chevron-right" Width="16" Height="16" Foreground="{StaticResource TextBrush}" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                    <StackPanel x:Name="ImportPanel" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <local:LucideIcon IconName="images" Width="32" Height="32" Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="Importar nuevo tileset" FontWeight="SemiBold" Margin="0,10,0,2" HorizontalAlignment="Center" />
+                                        <TextBlock Text="Selecciona esta pestaña o usa el botón superior." Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsImport}" Value="True">
+                                        <Setter TargetName="PaletteList" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="ImportPanel" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </TabControl.ContentTemplate>
+                    </TabControl>
+                </Grid>
+
+                <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" ResizeDirection="Rows" />
+
+                <Grid Grid.Row="2">
+                    <Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <Border Background="{StaticResource RaisedBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,1" Padding="6,3">
+                        <DockPanel>
+                            <TextBlock Text="Capas" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0" />
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                                <Button Style="{StaticResource IconButton}" Click="AddLayer_Click" ToolTip="Nueva capa" automation:AutomationProperties.Name="Nueva capa">
+                                    <local:LucideIcon IconName="plus" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
+                                </Button>
+                                <Button x:Name="DeleteLayerButton" Style="{StaticResource IconButton}" Click="DeleteLayer_Click" ToolTip="Eliminar capa" automation:AutomationProperties.Name="Eliminar capa">
+                                    <local:LucideIcon IconName="trash-2" Width="17" Height="17" Foreground="{StaticResource DangerBrush}" />
+                                </Button>
+                                <Button Style="{StaticResource IconButton}" Click="MoveLayerUp_Click" ToolTip="Subir capa" automation:AutomationProperties.Name="Subir capa">
+                                    <local:LucideIcon IconName="chevron-up" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
+                                </Button>
+                                <Button Style="{StaticResource IconButton}" Click="MoveLayerDown_Click" ToolTip="Bajar capa" automation:AutomationProperties.Name="Bajar capa">
+                                    <local:LucideIcon IconName="chevron-down" Width="17" Height="17" Foreground="{StaticResource TextBrush}" />
+                                </Button>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <ListBox x:Name="LayersList" Grid.Row="1" SelectionChanged="LayersList_SelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="1">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="32"/><ColumnDefinition Width="32"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <ToggleButton Grid.Column="0" IsChecked="{Binding IsVisible}" Click="LayerVisibility_Click" Tag="{Binding Id}" ToolTip="Mostrar u ocultar capa" automation:AutomationProperties.Name="Visibilidad de capa">
+                                        <local:LucideIcon IconName="{Binding VisibilityIcon}" Width="16" Height="16" Foreground="{StaticResource TextBrush}" />
+                                    </ToggleButton>
+                                    <ToggleButton Grid.Column="1" IsChecked="{Binding IsLocked}" Click="LayerLock_Click" Tag="{Binding Id}" ToolTip="Bloquear o desbloquear capa" automation:AutomationProperties.Name="Bloqueo de capa">
+                                        <local:LucideIcon IconName="{Binding LockIcon}" Width="16" Height="16" Foreground="{StaticResource TextBrush}" />
+                                    </ToggleButton>
+                                    <TextBlock Grid.Column="2" Text="{Binding Name}" VerticalAlignment="Center" Margin="6,0" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="3" Text="{Binding CellCount}" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" Margin="4,0" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="3" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <ToggleButton x:Name="ProblemsToggle" HorizontalContentAlignment="Stretch" Margin="0" Padding="8,5"
+                              automation:AutomationProperties.Name="Mostrar u ocultar consola de errores">
+                    <DockPanel>
+                        <TextBlock Text="Consola" FontWeight="SemiBold" />
+                        <TextBlock Text="  ×" Foreground="{StaticResource DangerBrush}" FontWeight="Bold" />
+                        <TextBlock x:Name="ProblemsCountText" DockPanel.Dock="Right" Text="0 errores" Foreground="{StaticResource MutedBrush}" />
+                    </DockPanel>
+                </ToggleButton>
+                <ListBox x:Name="ProblemsList" Grid.Row="1" MaxHeight="150"
+                         automation:AutomationProperties.Name="Errores agrupados del proyecto">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox" BasedOn="{StaticResource {x:Type ListBox}}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsChecked, ElementName=ProblemsToggle}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="×" Foreground="{StaticResource DangerBrush}" FontWeight="Bold" FontSize="15" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Code}" Foreground="{StaticResource DangerBrush}" FontFamily="Consolas" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Message}" />
+                                        <TextBlock Text="{Binding Details}" Foreground="{StaticResource MutedBrush}" FontFamily="Consolas" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="#4A2529" BorderBrush="{StaticResource DangerBrush}" BorderThickness="1" Padding="7,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding CountLabel}" Foreground="{StaticResource TextBrush}" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="4" Background="#111111" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="7,3">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <TextBlock x:Name="ActiveLayerText" Foreground="{StaticResource MutedBrush}" Margin="10,0" />
+                    <TextBlock x:Name="CellCountText" Foreground="{StaticResource MutedBrush}" Margin="10,0,2,0" />
+                </StackPanel>
+                <TextBlock x:Name="CoordinateText" Text="x 0  y 0" FontFamily="Consolas" Width="110" Foreground="{StaticResource MutedBrush}" />
+                <TextBlock x:Name="StatusText" Text="Listo" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

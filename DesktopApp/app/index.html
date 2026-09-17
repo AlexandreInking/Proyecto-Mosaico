@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111518" />
+    <title>Mosaico Desktop · Pixel workspace</title>
+    <style>
+      html, body { margin: 0; min-width: 100%; min-height: 100%; background: #111518; }
+      #boot-splash { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; overflow: hidden; background: #111518; transition: opacity .28s ease; }
+      #boot-splash::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(17,21,24,.08), rgba(17,21,24,.72)); }
+      #boot-splash.is-ready { opacity: 0; pointer-events: none; }
+      .boot-splash-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+      .boot-splash-card { position: relative; display: grid; gap: 14px; width: min(360px, 72vw); padding: 24px; border: 1px solid rgba(255,255,255,.22); border-radius: 10px; background: rgba(17,21,24,.82); box-shadow: 0 18px 60px rgba(0,0,0,.42); color: #f3f6f7; font: 600 14px/1.3 system-ui, sans-serif; }
+      .boot-splash-brand { display: flex; align-items: center; gap: 10px; font-size: 20px; }
+      .boot-splash-mark { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid #52c9c1; color: #52c9c1; font-weight: 800; }
+      .boot-splash-progress { height: 7px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.18); }
+      .boot-splash-progress::after { content: ""; display: block; width: 42%; height: 100%; border-radius: inherit; background: #52c9c1; animation: boot-progress 1.15s ease-in-out infinite; }
+      @keyframes boot-progress { 0% { transform: translateX(-110%); } 50% { transform: translateX(120%); } 100% { transform: translateX(260%); } }
+    </style>
+  </head>
+  <body>
+    <div id="boot-splash" role="status" aria-label="Cargando Mosaico">
+      <img class="boot-splash-art" src="/splash-pixel-art.png" alt="" />
+      <div class="boot-splash-card">
+        <div class="boot-splash-brand"><span class="boot-splash-mark">M</span><span>Mosaico</span></div>
+        <div>Pixel workspace</div>
+        <div class="boot-splash-progress" aria-hidden="true"></div>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -32,18 +32,18 @@ Usuario primario provisional: creador independiente o diseñador de niveles 2D c
 ## Comandos
 
 ```powershell
-dotnet build ProyectoMosaico.slnx -c Release
-dotnet run --project tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release
-dotnet run --project src/Mosaico.App/Mosaico.App.csproj -c Release
+dotnet build DesktopApp/LegacyWpf/ProyectoMosaico.slnx -c Release
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release
+dotnet run --project DesktopApp/LegacyWpf/src/Mosaico.App/Mosaico.App.csproj -c Release
 powershell -ExecutionPolicy Bypass -File scripts/manual-gate.ps1
 ```
 
 ## Estructura
 
 ```text
-src/Mosaico.Core/                 dominio, comandos y persistencia
-src/Mosaico.App/                  shell WPF descartable del spike
-tests/Mosaico.Core.Tests/         runner de pruebas sin paquetes externos
+DesktopApp/LegacyWpf/src/Mosaico.Core/  dominio, comandos y persistencia
+DesktopApp/LegacyWpf/src/Mosaico.App/   shell WPF descartable del spike
+DesktopApp/LegacyWpf/tests/Mosaico.Core.Tests/  runner de pruebas sin paquetes externos
 fixtures/phase0/                  proyectos y entradas versionadas
 docs/adr/                         decisiones y alternativas
 docs/phase0/                      spec, plan y evidencia

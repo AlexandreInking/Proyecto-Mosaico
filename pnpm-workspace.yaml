@@ -1,0 +1,14 @@
+packages:
+  - 'Shared/*'
+  - 'DesktopApp/app'
+  - 'WebApp/client'
+  - 'WebApp/server'
+
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+
+confirmModulesPurge: false
+
+overrides:
+  unicorn-magic: 0.4.0

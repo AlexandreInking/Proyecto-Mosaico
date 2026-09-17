@@ -1,0 +1,29 @@
+{
+  "format": "mosaico-sprite",
+  "formatVersion": 1,
+  "id": "00000000-0000-4000-8000-000000000010",
+  "revision": 0,
+  "name": "Sprite mínimo",
+  "width": 16,
+  "height": 16,
+  "colorMode": "rgba",
+  "activeLayerId": "00000000-0000-4000-8000-000000000011",
+  "activeFrameId": "00000000-0000-4000-8000-000000000012",
+  "frames": [
+    { "id": "00000000-0000-4000-8000-000000000012", "durationMs": 100 }
+  ],
+  "layers": [
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "name": "Capa 1",
+      "kind": "raster",
+      "visible": true,
+      "locked": false,
+      "opacity": 1,
+      "cels": [
+        { "frameId": "00000000-0000-4000-8000-000000000012", "rgbaBase64": "" }
+      ]
+    }
+  ],
+  "palette": ["#00000000", "#ffffffff"]
+}

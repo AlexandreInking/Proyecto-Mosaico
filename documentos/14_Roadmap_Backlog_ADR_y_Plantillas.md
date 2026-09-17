@@ -18,9 +18,12 @@ colorlinks: true
 ---
 
 > **Documento:** PM-14  
-> **Versión:** 0.2.0 - Ola 1 incorporada
-> **Estado:** Aprobado
-> **Alcance de aprobación:** Fase 0 condicionada; Fase 1 permanece no aprobada.
+> **Versión:** 0.3.0 - Roadmap histórico sustituido parcialmente
+> **Estado:** Borrador
+> **Cambio:** F0/F1 quedan como baseline entregado; F2-F7 se sustituyen por T0-T8 tras aprobación.
+> **Roadmap vigente propuesto:** `docs/transformation/PLAN.md`; backlog `docs/transformation/BACKLOG.md`.
+
+> **Regla de migración:** no eliminar WPF ni avanzar de fase sin programa Web/Desktop ejecutable, walkthrough manual y aprobación humana. Pagos aparecen solo en T9 y no son prioridad actual.
 > **Nombre del producto:** Proyecto Mosaico es un nombre provisional.
 
 

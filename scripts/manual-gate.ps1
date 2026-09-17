@@ -17,21 +17,21 @@ $commit = (git rev-parse HEAD).Trim()
 $shortCommit = (git rev-parse --short=12 HEAD).Trim()
 $env:MOSAICO_COMMIT = $commit
 
-dotnet build ProyectoMosaico.slnx -c Release
+dotnet build DesktopApp/LegacyWpf/ProyectoMosaico.slnx -c Release
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-dotnet run --project tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release --no-build
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.Core.Tests/Mosaico.Core.Tests.csproj -c Release --no-build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-dotnet run --project tests/Mosaico.App.Tests/Mosaico.App.Tests.csproj -c Release --no-build
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.App.Tests/Mosaico.App.Tests.csproj -c Release --no-build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $benchmarkPath = Join-Path $outputDirectory 'phase0-baseline.json'
-dotnet run --project tests/Mosaico.Benchmarks/Mosaico.Benchmarks.csproj -c Release --no-build -- --output $benchmarkPath
+dotnet run --project DesktopApp/LegacyWpf/tests/Mosaico.Benchmarks/Mosaico.Benchmarks.csproj -c Release --no-build -- --output $benchmarkPath
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $packageDirectory = Join-Path $repoRoot "output\manual\Mosaico-F0-$shortCommit"
-dotnet publish src/Mosaico.App/Mosaico.App.csproj -c Release --no-restore --no-self-contained -o $packageDirectory
+dotnet publish DesktopApp/LegacyWpf/src/Mosaico.App/Mosaico.App.csproj -c Release --no-restore --no-self-contained -o $packageDirectory
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $packageFixtureDirectory = Join-Path $packageDirectory 'fixtures\phase0'
